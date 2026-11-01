@@ -7,17 +7,11 @@
 
 namespace ovt::ui {
 
-/// The M or S on a channel strip, and on the noise channel beside it.
+/// The M or S on a channel strip and on the noise channel.
 ///
-/// A left-click is an ordinary toggle, which the parameter attachment handles.
-/// A right-click offers to clear either switch across the whole mixer, because
-/// thirty-three strips is a great many places for a solo to be left on and
-/// finding it by eye means reading thirty-three pairs of small buttons.
-///
-/// The buttons rather than the strip, since a strip already answers a
-/// right-click with the LINK menu and these swallow that click on their way
-/// past. Right-clicking a switch acts on switches, right-clicking anywhere
-/// else in the mixer still reaches LINK.
+/// A left-click toggles through the parameter attachment. A right-click offers
+/// to clear every mute or every solo across the mixer, and does not reach the
+/// strip's LINK menu.
 class MuteSoloButton : public GlowButton {
 public:
   MuteSoloButton(juce::AudioProcessorValueTreeState &state,
@@ -25,8 +19,7 @@ public:
 
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// What the right-click opens. Exposed so a test can read the entries
-  /// without a window to put them in.
+  /// What the right-click opens, as data for the tests.
   juce::PopupMenu buildMenu();
 
 private:

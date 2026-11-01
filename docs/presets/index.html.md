@@ -1,10 +1,10 @@
-Page: Overtonium presets: the thirty-eight that ship, and saving your own
+Page: Overtonium presets: the forty-one that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-24
+Last changed: 2026-10-31
 
 # Overtonium presets
 
-Thirty-eight presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-one presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -30,11 +30,11 @@ Straight to one of them:
 
 ## What ships
 
-Thirty-eight presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-one presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-three of them use one of the ten [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the ten in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-six of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -56,6 +56,10 @@ The sawtooth wave of the same chip, on the 6581 character. The character is meas
 
 The triangle wave of the same chip, also on the 6581 character. A triangle wave has odd harmonics that fall with the square of their number, and the chip's also has a few faint even ones
 
+**8-bit Choir**
+
+A breathy choir on the 6581 character, at 16 kHz and 8 bits. It swells in and out slowly, the breath is blown into [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), and each note glides into the next. It goes out through the console
+
 **Big Saw**
 
 A sawtooth with a little randomness in it, so it drifts and beats instead of staying still
@@ -63,6 +67,10 @@ A sawtooth with a little randomness in it, so it drifts and beats instead of sta
 **Cathedral**
 
 A principal chorus: octaves and fifths only, a registration an organ builder would recognise. It fades in slowly, the way pipes start to sound
+
+**Combo Organ**
+
+A transistor combo organ on the Combo character, with one vibrato for the whole keyboard, so every held key wavers together. The modulation wheel or aftertouch brings in the upper partials, and the envelopes and the noise channel give each key a click. It goes into a bucket brigade echo and a spring reverb
 
 **DigiLog**
 
@@ -82,7 +90,7 @@ A strike that turns into a pad, without using separate layers. The short partial
 
 **EP Chimes**
 
-A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the artefacts are part of the sound and not added on top
+A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the artefacts are part of the sound and not added on top. It goes out through the cassette recorder
 
 **Equal Saw**
 
@@ -114,7 +122,7 @@ The same sound as Equal Saw with every partial at its exact whole-number ratio
 
 **KarplusStrong**
 
-A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy
+A single fundamental and the noise channel's Karplus-Strong string, struck together, with the resonator's piano strings ringing in sympathy, printed to the cassette recorder through the console
 
 **Lo-fi**
 
@@ -150,7 +158,7 @@ Staggered envelope delays, so the spectrum builds up gradually instead of starti
 
 **Space Cowboy**
 
-A synthetic tremolo guitar, plucked from [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), over a pad with square-wave pitch modulation in some of its partials, and a whistle like a theremin that glides between overlapping notes. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under all of it
+A synthetic tremolo guitar, plucked from [the string in the noise channel](https://benjamindehli.github.io/overtonium/controls/#noise), over a pad with square-wave pitch modulation in some of its partials, and a whistle like a theremin that glides between overlapping notes. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under all of it, and it goes out through the console
 
 **Space Flute**
 
@@ -180,13 +188,17 @@ Strings and brass in one patch. Nothing in it starts at the same moment, and how
 
 Like a vowel: a formant peak in the low partials instead of a straight roll-off, and an old echo machine with dark, unsteady repeats
 
+**Tape Pluck**
+
+A plucked string on the VCO character, over a quiet pad that swells in behind it and steps in level. The pluck's tremolo is shared across the keyboard, so a chord pulses together. The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) rings under it, and it is printed to the cassette recorder through the console
+
 **Vibraphone**
 
 A fast strike where the fundamental rings for seconds and everything above it is gone within one second
 
 **Wurli**
 
-A Wurlitzer 200A electric piano, with one tremolo circuit for the whole keyboard instead of one per tine, so a whole chord pulses together
+A Wurlitzer 200A electric piano, with one tremolo circuit for the whole keyboard instead of one per tine, so a whole chord pulses together. It goes out through the console
 
 ## What a preset carries
 
@@ -220,6 +232,6 @@ Saving writes one small file per preset. The menu reads that folder every time i
 | Windows  | `%APPDATA%\Dehli Musikk\Overtonium\Presets`                     |
 | Linux    | `~/.config/Dehli Musikk/Overtonium/Presets`                     |
 
-They are small XML files of parameter values, so you can read them, edit them, keep them under version control and share them by copying the file. The menu sorts them by name, not in the order the filesystem returns them.
+They are small XML files of parameter values, plus the channels of any macro set to Selected, so you can read them, edit them, keep them under version control and share them by copying the file. The menu sorts them by name, not in the order the filesystem returns them.
 
 **Folders become groups.** Make a folder in the preset folder and it appears in the menu as a submenu with everything inside it, nested as deeply as you nest the folders. There is nothing to set up and nothing else to manage. The folders are the groups, so to move a preset between groups you move the file. Groups are listed before the presets that are not in a group, and the loaded preset has a tick wherever it is.

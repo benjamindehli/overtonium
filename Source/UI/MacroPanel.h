@@ -12,16 +12,8 @@
 
 namespace ovt::ui {
 
-/// Where macros are made, over the mixer rather than squeezed beside it.
-///
-/// A macro needs five things said about it and there are eight of them, which
-/// is more than any edge of this window has room for. So this covers the
-/// mixer while it is up and goes away when you click off it, which is a
-/// dialog in all but name: the one place this instrument has one, because the
-/// alternative was a band of permanent chrome over the thing being modulated.
-///
-/// The eight are a pool rather than a count. See params::kNumMacros for why a
-/// plugin cannot simply grow one when asked.
+/// Where macros are made, laid over the mixer and closed by a click outside
+/// it. The eight macros are a fixed pool. See params::kNumMacros.
 class MacroPanel final : public juce::Component {
 public:
   explicit MacroPanel(juce::AudioProcessorValueTreeState &state);
@@ -31,8 +23,7 @@ public:
   void mouseDown(const juce::MouseEvent &) override;
 
   /// Reads the parameters again and shows a strip for every macro that has
-  /// been made. Called when the panel opens and on the editor's timer, so a
-  /// host moving a macro's row is followed rather than ignored.
+  /// been made. Called when the panel opens and on the editor's timer.
   void refresh();
 
   /// Makes this macro if nobody has, pointed at the first row as Add a macro
@@ -43,18 +34,27 @@ public:
   std::function<void()> onDismiss;
 
   /// A right-click on a macro's amount, carrying that parameter's id. As
-  /// TopBar::onLearnRequested: what the menu offers is the editor's to say.
+  /// TopBar::onLearnRequested.
   std::function<void(const juce::String &)> onLearnRequested;
+
+  /// Where each macro on Selected keeps its channels, and the channels picked
+  /// for LINK right now, which choosing Selected takes. Both set by the editor.
+  params::MacroChannels *channels = nullptr;
+  std::function<std::uint32_t()> currentSelection;
+
+  /// Runs a change as one step in the undo history. Taking new channels with
+  /// the scope already on Selected moves no parameter, so nothing else would
+  /// record it.
+  std::function<void(const juce::String &, const std::function<void()> &)>
+      recordEdit;
 
   /// How many macros are made, for the button that opens this to say so.
   static int madeCount(const juce::AudioProcessorValueTreeState &);
 
 private:
-  /// A fader that hands its right-click on rather than dragging.
-  ///
-  /// The same reasoning as ui::LinkableSlider: left to itself the slider
-  /// opens a drag gesture it never closes, because the mouse-up goes to the
-  /// menu instead of back here.
+  /// A fader that hands its right-click on rather than dragging, since the
+  /// slider would open a drag gesture whose mouse-up goes to the menu. As
+  /// ui::LinkableSlider.
   class AmountSlider final : public juce::Slider {
   public:
     AmountSlider()
@@ -90,31 +90,30 @@ private:
   struct Strip {
     juce::TextButton colour, row, scope, curve, anchor, remove;
 
-    /// What the amount comes to, on the same kind of display every other
-    /// number in this window is read off. A seven-bar one has no plus to
-    /// draw, which is why a positive amount shows no sign: that is also how
-    /// the tuning readouts write a partial sharp of equal temperament.
-    ///
-    /// No unit on it. A per cent sign is not a thing seven bars can make, so
-    /// it would have been drawn in text beside the digits, which is the one
-    /// mark in the box that is not a segment. The column is headed PERCENT
-    /// instead, the way the channel readouts leave their units to the gutter
-    /// caption beside them.
+    /// The amount in per cent, under a column headed PERCENT. A positive
+    /// amount shows no sign, since seven bars cannot draw a plus.
     SegmentDisplay reading{{}};
     AmountSlider amount;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
         attachment;
   };
 
+  /// Makes one macro's controls and wires them to its parameters.
   void buildStrip(int macro);
+
+  /// The scope's menu. Choosing Selected also takes the channels picked now.
+  void chooseScope(int macro);
+
+  /// Puts up a menu of a choice parameter's values under a control and writes
+  /// what is chosen.
   void choose(int macro, const juce::String &parameterId, const char *title,
               int count, const std::function<juce::String(int)> &nameOf,
               juce::Component *under, int firstValue = 0);
 
-  /// Puts the amount into the row's own units under the fader, and borrows
-  /// the row's own feel for the fader while it is there.
+  /// Shows the amount as a percentage beside the fader.
   void showReading(int macro);
 
+  /// A choice parameter's index, and writing one.
   int chosen(const juce::String &parameterId) const;
   void write(const juce::String &parameterId, int value);
 
@@ -129,16 +128,14 @@ private:
   /// Which macros are showing, in the order they are drawn.
   std::vector<int> showing;
 
-  /// The card the strips sit on, which is what a click has to land inside to
-  /// count as a click on the panel rather than on the dim behind it.
+  /// The card the strips sit on. A click outside it dismisses the panel.
   juce::Rectangle<int> card;
 
-  /// Where the column names go, worked out with the columns themselves so
-  /// the two cannot drift apart. Row, scope, curve, amount and percent.
+  /// Where the column names go, worked out with the columns themselves. Row,
+  /// scope, curve, amount and percent.
   std::array<juce::Rectangle<int>, 5> columnLabel{};
 
-  /// The band the line about what a macro is sits in, which is the space a
-  /// first macro will take once there is one.
+  /// Where the line explaining macros goes while none is made.
   juce::Rectangle<int> emptyMessage;
 };
 

@@ -18,28 +18,16 @@ using APVTS = juce::AudioProcessorValueTreeState;
 struct Applier {
   APVTS &apvts;
 
-  /// What the patch asks for, collected rather than sent as it is decided.
-  ///
-  /// A preset is written as a neutral base and then the handful of rows that
-  /// differ, which reads well and means most parameters are decided twice.
-  /// Sending both is two parameter changes to the host for one final value,
-  /// and the host has no way to know the first was going to be replaced a
-  /// microsecond later. Collecting first means the last word wins and only
-  /// the last word is sent.
+  /// What the patch asks for, collected first so a parameter set twice (by
+  /// the neutral base and then the preset) reaches the host once.
   mutable std::map<juce::String, float> pending{};
 
   void set(const juce::String &id, float plainValue) const {
     pending[id] = plainValue;
   }
 
-  /// Sends what actually differs, once each.
-  ///
-  /// The check matters as much as the collecting. Loading the preset already
-  /// loaded used to report every parameter as having changed when none had,
-  /// and switching between two patches that share most of their rows reported
-  /// the shared ones too. A host is entitled to believe us: Logic keeps
-  /// per-parameter bookkeeping for automation and undo, and this instrument
-  /// has 781 parameters to keep it for.
+  /// Sends only the values that actually differ, once each, so a host is not
+  /// told about changes that did not happen.
   void flush() const {
     for (const auto &wanted : pending) {
       auto *p = apvts.getParameter(wanted.first);
@@ -49,8 +37,8 @@ struct Applier {
 
       const auto target = p->convertTo0to1(wanted.second);
 
-      // Normalised, so the tolerance is the same for every parameter whatever
-      // its range, and far below the smallest step a choice parameter has.
+      // Normalised, so one tolerance suits every range and is far below the
+      // smallest step of a choice parameter.
       if (std::abs(p->getValue() - target) <= 1.0e-6f)
         continue;
 
@@ -70,13 +58,8 @@ struct Applier {
       osc(suffix, i, (float)fn(i + 1));
   }
 
-  /// One value per strip, in order, for a row that was drawn rather than
-  /// derived.
-  ///
-  /// Some of these presets were dialled in by hand, often by dragging one
-  /// knob with LINK fanning it across the series, and the result is thirty-two
-  /// values with no formula behind them. Written out as a list the shape is at
-  /// least visible, where thirty-two separate lines would bury it.
+  /// One value per strip, in order, for a row that was dialled by hand rather
+  /// than derived from a formula.
   void oscTable(const char *suffix, std::initializer_list<float> values) const {
     int i = 0;
 
@@ -88,8 +71,7 @@ struct Applier {
     }
   }
 
-  /// Everything a preset does not explicitly set should start from a known
-  /// state.
+  /// The state every factory preset starts from. See presets::neutralBase.
   void neutralBase() const {
     allOsc(params::tuneSuffix, [](int) { return 1.0; });
     allOsc(params::glideSuffix, [](int) { return 0.0; });
@@ -141,28 +123,15 @@ struct Applier {
     set(params::noiseParamId(params::stringDampSuffix), 0.4f);
     set(params::noiseParamId(params::stringPointSuffix), 0.25f);
 
-    // Everything global that is part of the sound rather than part of the
-    // setup. A preset decides what the instrument is, so it has to decide
-    // these too: loading one with the series stretched into a bell, or the
-    // converter down at eight bits, has to give the patch that was designed
-    // rather than that patch through whatever was left over.
-    //
-    // What a preset must not touch is listed once, as kSessionParamIds, and
-    // nothing here writes to any of it. The temperament is the one worth
-    // spelling out, since this instrument is otherwise full of tunings and it
-    // would be easy to file with them: it belongs with the reference pitch
-    // instead. You set it once for the music you are playing, and loading a
-    // sound in the middle of that should not drag you back to equal.
+    // Everything global that is part of the sound rather than the setup.
+    // Nothing here may write a session parameter, see kSessionParamIds.
     set(params::stretchId, 0.0f);
     set(params::trackId, 0.0f);
 
-    // Which oscillator the partials are is part of the sound in the plainest
-    // sense, and a patch that says nothing gets the one that adds nothing.
+    // The oscillator character. A patch that says nothing gets the plain sine.
     set(params::characterId, (float)(int)Character::Pure);
 
-    // And whether each modulator is one circuit the whole keyboard hears.
-    // Off, so a patch that says nothing gets a modulator per note, which is
-    // what every patch written before there was a switch had.
+    // Each modulator runs per note unless a patch shares it.
     set(params::pmInPhaseId, 0.0f);
     set(params::amInPhaseId, 0.0f);
     set(params::glideTriggerId, (float)(int)GlideTrigger::Always);
@@ -172,20 +141,13 @@ struct Applier {
     set(params::lofiRateId, 0.0f);
     set(params::lofiBitsId, 0.0f);
 
-    // The output stage, which a preset decides because it is part of the sound
-    // rather than part of the desk: five machines rather than a guard with a
-    // switch, and the master in front of them setting how hard they are
-    // driven. Both were things a preset left alone until that was true.
-    //
-    // Twelve down is the panel default and what every patch was dialled at, so
-    // a preset that says nothing about its level sounds as it always did.
+    // The output stage and the master level driving it, part of the sound.
+    // -12 dB is the panel default.
     set(params::masterGainId, -12.0f);
     set(params::safetyClipId, 1.0f);
     set(params::clipTypeId, (float)(int)ClipType::Soft);
 
-    // Every macro at rest, pointing at the first row. A preset made before
-    // macros existed had no macro doing anything, and that is what loading
-    // one still has to mean.
+    // Every macro at rest, pointing at None.
     for (int m = 0; m < params::kNumMacros; ++m) {
       set(params::macroAmountId(m), 0.0f);
       set(params::macroRowId(m), 0.0f);
@@ -193,21 +155,17 @@ struct Applier {
       set(params::macroCurveId(m), 0.0f);
       set(params::macroAnchorId(m), 1.0f);
 
-      // Each one a different colour, matching the default, so a patch that
-      // makes four macros gets four colours without anybody choosing them.
+      // Each one a different colour, matching the default.
       set(params::macroColourId(m),
           (float)(1 + m % (params::kNumMacroColours - 1)));
     }
 
     // The master effects are off unless a preset switches them on, and their
-    // settings go back to the panel defaults either way, so loading a preset
-    // never leaves the last one's tail behind.
+    // settings go back to the panel defaults either way.
     set(params::echoOnId, 0.0f);
 
-    // The machine the repeats come from, which every patch decides even when
-    // the echo is off: a preset that left it open would take whatever the
-    // session happened to be on. Tape is what there was before there was a
-    // choice, so a preset written then and one written now agree.
+    // The echo machine, set even when the echo is off so nothing carries over
+    // from the session. Tape by default.
     set(params::echoTypeId, (float)(int)EchoType::Tape);
     set(params::reverbTypeId, (float)(int)ReverbType::Room);
     set(params::echoMixId, 0.25f);
@@ -221,21 +179,15 @@ struct Applier {
     set(params::reverbDampId, 0.5f);
     set(params::reverbPreDelayId, 0.0f);
 
-    // No resonator unless a preset asks for it, and its settings back to the
-    // panel defaults either way.
+    // No resonator unless a preset asks for it, settings back to defaults.
     set(params::resonatorModeId, (float)(int)ResonatorMode::Off);
     set(params::resonatorMixId, 0.5f);
     set(params::resonatorDecayId, params::kResonatorDecayDefault);
     set(params::resonatorDampId, 0.4f);
   }
 
-  /// The old stereo spread control, written out as pan positions.
-  ///
-  /// Partials go in mirrored pairs, 1 and 2 in the centre out to 31 and 32 at
-  /// the edges, with the sides alternating so the louder of each pair does not
-  /// always land on the same one. It was a good shape to start from, so the
-  /// presets that used to dial in spread now write it into the pans, where it
-  /// can be taken apart by hand.
+  /// A stereo spread written out as pan positions: mirrored pairs from the
+  /// centre (1 and 2) to the edges (31 and 32), sides alternating per pair.
   void fanOut(double width) const {
     constexpr int lastPair = kNumHarmonics / 2 - 1;
 
@@ -252,13 +204,8 @@ struct Applier {
     }
   }
 
-  /// Switches the reverb on. The room follows the decay, so there is nothing
-  /// else to say about its size.
-  ///
-  /// The machine is named rather than numbered, for the reason character() is:
-  /// a case reading `1.0f` says nothing about what it sounds like. Defaulted to
-  /// the room, which is what every patch written before there was a choice
-  /// asked for and therefore what one written now has to say to mean the same.
+  /// Switches the reverb on. The machine is named rather than numbered so the
+  /// case says what it sounds like. Room by default.
   void reverb(float mix, float decay, float damping,
               ReverbType type = ReverbType::Room) const {
     set(params::reverbOnId, 1.0f);
@@ -268,11 +215,8 @@ struct Applier {
     set(params::reverbDampId, damping);
   }
 
-  /// Which oscillator the partials are.
-  ///
-  /// By name rather than by the number the parameter holds, since a case
-  /// reading `5.0f` says nothing about what it sounds like. The generator
-  /// writes the number, which is equivalent and is checked to be.
+  /// Which oscillator the partials are, by name rather than by number. The
+  /// generator writes the number, which a test checks is equivalent.
   void character(Character c) const { set(params::characterId, (float)(int)c); }
 
   /// What the series is made of, before anything is done to it.
@@ -284,9 +228,7 @@ struct Applier {
     set(params::trackId, trackDbPerOctave);
   }
 
-  /// Switches the echo on. The machine is named for the reason the reverb's
-  /// is, and defaults to the tape for the same reason: it is what a patch
-  /// written before there was a choice asked for.
+  /// Switches the echo on. Tape by default.
   void echo(float mix, float time, float feedback, float age,
             EchoType type = EchoType::Tape) const {
     set(params::echoOnId, 1.0f);
@@ -300,20 +242,18 @@ struct Applier {
 
 // clang-format off
 //
-// One name per line, because the job that checks the docs count the
-// presets by reading this list line by line. That layout used to hold
-// itself up: with thirty-one names the formatter could not fit them into
-// a tidy grid and fell back to one each, and the thirty-second turned
-// them into four columns of eight and the count into zero. It is pinned
-// here rather than left to arithmetic nobody knew was load-bearing.
+// One name per line, since the docs check counts the presets by reading
+// this list line by line.
 const char *const kNames[] = {
     "2-bit Fuzz Organ",
     "60s Organ",
     "6581 Pulse",
     "6581 Sawtooth",
     "6581 Triangle",
+    "8-bit Choir",
     "Big Saw",
     "Cathedral",
+    "Combo Organ",
     "DigiLog",
     "Dire Dire EP",
     "Drawbar Organ",
@@ -343,6 +283,7 @@ const char *const kNames[] = {
     "StyloPoly",
     "Synth Ensemble",
     "Tape Choir",
+    "Tape Pluck",
     "Vibraphone",
     "Wurli",
 };
@@ -365,6 +306,7 @@ juce::StringArray names() {
 namespace {
 const juce::Identifier kPresetTag{"OVERTONIUM_PRESET"};
 const juce::Identifier kParamTag{"PARAM"};
+const juce::Identifier kMacroChannelsTag{"MACRO_CHANNELS"};
 constexpr const char *kExtension = ".ovtpreset";
 } // namespace
 
@@ -380,34 +322,29 @@ juce::File userDirectory() {
 }
 
 juce::Array<juce::File> userPresets() {
-  // Recursive, because a folder in the preset directory is a group in the
-  // menu. Making one is how you get a group, which means the filesystem is the
-  // interface for this and there is no second place to manage it.
-  //
-  // Symlinks are not followed. One pointing at a directory above itself would
-  // send this round until it ran out of path, and grouping presets does not
-  // need them.
+  // Recursive, since a folder in the preset directory is a group in the
+  // menu. Symlinks are not followed, so a loop cannot recurse forever.
   auto found = userDirectory().findChildFiles(juce::File::findFiles, true,
                                               juce::String("*") + kExtension,
                                               juce::File::FollowSymlinks::no);
 
-  // Sorted, so the menu does not reorder itself when the filesystem feels like
-  // handing them back in another order. On the whole path rather than the
-  // name, which keeps each folder's presets together and in order inside it.
+  // Sorted on the whole path, so the menu order is stable and each folder's
+  // presets stay together.
   found.sort();
   return found;
 }
 
 juce::String sanitiseName(const juce::String &raw) {
-  // Everything a filename cannot carry on some platform, plus the leading and
-  // trailing whitespace that makes two presets look identical in a menu.
+  // Everything a filename cannot carry on some platform, plus leading and
+  // trailing whitespace.
   auto name = raw.removeCharacters("\\/:*?\"<>|").trim();
 
   return name.substring(0, 64).trim();
 }
 
-std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
-                                          const juce::String &name) {
+std::unique_ptr<juce::XmlElement>
+capture(APVTS &apvts, const juce::String &name,
+        const params::MacroChannels *channels) {
   auto doc = std::make_unique<juce::XmlElement>(kPresetTag);
   doc->setAttribute("name", name);
   doc->setAttribute("version", 1);
@@ -417,10 +354,7 @@ std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
     if (ranged == nullptr)
       continue;
 
-    // The same rule the factory presets follow. A preset someone saves is a
-    // sound they liked, not the state of their keyboard, and writing the
-    // polyphony and the temperament into it would mean recalling that sound
-    // later reached over and changed both.
+    // Session parameters are left out, as for factory presets.
     if (params::isSessionParam(ranged->paramID))
       continue;
 
@@ -428,31 +362,66 @@ std::unique_ptr<juce::XmlElement> capture(APVTS &apvts,
     entry->setAttribute("id", ranged->paramID);
 
     // Plain rather than normalised, so widening a range later does not move
-    // every preset that was saved before it.
+    // saved presets.
     entry->setAttribute("value",
                         (double)ranged->convertFrom0to1(ranged->getValue()));
+  }
+
+  // The one thing in a preset that is not a parameter. Numbered from one, as
+  // on the panel and in the parameter ids.
+  if (channels != nullptr) {
+    for (int m = 0; m < params::kNumMacros; ++m) {
+      const auto mask = (*channels)[(size_t)m].load();
+
+      if (mask == 0)
+        continue;
+
+      auto *entry = doc->createNewChildElement(kMacroChannelsTag);
+      entry->setAttribute("macro", m + 1);
+      entry->setAttribute("channels", params::channelListText(mask));
+    }
   }
 
   return doc;
 }
 
-int restore(APVTS &apvts, const juce::XmlElement &doc) {
+int restore(APVTS &apvts, const juce::XmlElement &doc,
+            params::MacroChannels *channels) {
   if (!doc.hasTagName(kPresetTag))
     return -1;
+
+  if (channels != nullptr) {
+    std::array<std::uint32_t, params::kNumMacros> read{};
+
+    for (auto *entry : doc.getChildWithTagNameIterator(kMacroChannelsTag)) {
+      const auto m = entry->getIntAttribute("macro") - 1;
+
+      if (m >= 0 && m < params::kNumMacros)
+        read[(size_t)m] =
+            params::channelListMask(entry->getStringAttribute("channels"));
+    }
+
+    for (int m = 0; m < params::kNumMacros; ++m)
+      (*channels)[(size_t)m].store(read[(size_t)m]);
+  }
 
   int applied = 0;
 
   for (auto *entry : doc.getChildWithTagNameIterator(kParamTag)) {
     const auto id = entry->getStringAttribute("id");
 
-    // Files written before the rule existed name these. Skipped rather than
-    // honoured, so an old preset stops dragging its author's polyphony and
-    // temperament along with the sound.
+    // Session parameters are skipped even when an older file names them.
     if (params::isSessionParam(id))
       continue;
 
     if (auto *p = apvts.getParameter(id)) {
       const auto plain = (float)entry->getDoubleAttribute("value");
+
+      // A range clamps anything else, but a NaN passes through it and would
+      // make every sample NaN, so a file that holds one is skipped there.
+      if (!std::isfinite(plain))
+        continue;
+
       p->setValueNotifyingHost(p->convertTo0to1(plain));
       ++applied;
     }
@@ -461,7 +430,8 @@ int restore(APVTS &apvts, const juce::XmlElement &doc) {
   return applied;
 }
 
-bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
+bool save(APVTS &apvts, const juce::String &name, juce::String &error,
+          const params::MacroChannels *channels) {
   const auto clean = sanitiseName(name);
 
   if (clean.isEmpty()) {
@@ -470,7 +440,7 @@ bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
   }
 
   const auto file = userDirectory().getChildFile(clean + kExtension);
-  const auto doc = capture(apvts, clean);
+  const auto doc = capture(apvts, clean, channels);
 
   if (!doc->writeTo(file)) {
     error = "Could not write to " + file.getFullPathName();
@@ -480,7 +450,8 @@ bool save(APVTS &apvts, const juce::String &name, juce::String &error) {
   return true;
 }
 
-bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
+bool load(APVTS &apvts, const juce::File &file, juce::String &error,
+          params::MacroChannels *channels) {
   const auto doc = juce::XmlDocument::parse(file);
 
   if (doc == nullptr) {
@@ -488,7 +459,7 @@ bool load(APVTS &apvts, const juce::File &file, juce::String &error) {
     return false;
   }
 
-  if (restore(apvts, *doc) < 0) {
+  if (restore(apvts, *doc, channels) < 0) {
     error = file.getFileName() + " is not an Overtonium preset.";
     return false;
   }
@@ -515,9 +486,8 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   const auto number = [](float v) {
     auto text = juce::String(v, 4).trimCharactersAtEnd("0");
 
-    // A float literal needs something after the point: 5.0f compiles and 5f
-    // does not. Trimming all the way to the point and then past it is what
-    // made every whole number in the generated code a compiler error.
+    // A float literal needs a digit after the point: 5.0f compiles and 5f does
+    // not.
     if (text.endsWithChar('.'))
       text += "0";
 
@@ -528,17 +498,9 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     return r->convertFrom0to1(r->getValue());
   };
 
-  // What the generated case has to differ from is what neutralBase leaves,
-  // which is not what the parameters default to. The per-partial levels are
-  // the case that matters: they default to a 1/n spectrum and neutralBase
-  // takes them all to zero, so measuring against the defaults drops any
-  // partial the patch happens to leave at its default and the preset comes
-  // back missing it. A fundamental at full level is exactly that.
-  //
-  // So the baseline is read rather than assumed: the patch is put aside,
-  // neutralBase is run, the result is recorded, and the patch is put back.
-  // That does mean the instrument passes through a neutral state on the way,
-  // which is momentary and only happens when this is deliberately called.
+  // The baseline is what neutralBase leaves, not the parameter defaults,
+  // which differ for the per-partial levels. So the patch is put aside,
+  // neutralBase is run and read, and the patch is put back.
   const auto patch = capture(apvts, name);
 
   ap.neutralBase();
@@ -552,8 +514,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
   if (patch != nullptr)
     restore(apvts, *patch);
 
-  // Only what differs, so the generated case reads as a description of the
-  // patch rather than as a dump of all 640 values.
+  // Only what differs from the baseline.
   std::map<juce::String, float> changed;
 
   for (auto *p : apvts.processor.getParameters()) {
@@ -561,9 +522,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     if (ranged == nullptr)
       continue;
 
-    // A preset may not touch the session. Emitting these would put the
-    // temperament and the polyphony of whoever dialled the patch in into a
-    // factory preset, which the test for that rule would then fail.
+    // A preset may not touch the session parameters.
     if (params::isSessionParam(ranged->paramID))
       continue;
 
@@ -574,13 +533,8 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       changed[ranged->paramID] = plainOf(ranged);
   }
 
-  // A row the whole series shares is one line rather than thirty-two, and a
-  // row that was dragged across the mixer is a table rather than thirty-two.
-  // Both are what the presets already in this file do by hand, and a patch
-  // dialled in with LINK produces a great many of each.
-  //
-  // In panel order, which is the order neutralBase sets them in, so a
-  // generated case reads down the strip the way the strip is drawn.
+  // A row the whole series shares becomes one line and a row that varies
+  // becomes a table, in panel order as neutralBase sets them.
   struct Row {
     const char *suffix;
     const char *constant;
@@ -624,9 +578,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       values.push_back(found->second);
     }
 
-    // Only when the whole series moved. A row where some strips are at the
-    // neutral value and some are not is left as individual sets, since
-    // pretending otherwise would write the neutral value in as if it had been
+    // Only when every strip moved, so a neutral value is never written as if
     // chosen.
     if ((int)values.size() != kNumHarmonics)
       continue;
@@ -642,8 +594,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     const juce::String constant = juce::String("params::") + row.constant;
 
     if (uniform) {
-      // Without the f, because the ones already in this file return a double
-      // and allOsc narrows it once rather than at every call site.
+      // Without the f, since allOsc takes a double and narrows it once.
       lines.add("    ap.allOsc(" + constant + ", [](int) { return " +
                 number(values.front()).dropLastCharacters(1) + "; });");
       continue;
@@ -653,9 +604,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     for (auto v : values)
       written.add(number(v));
 
-    // Wrapped to the column limit the rest of the file keeps to, filling each
-    // line before starting the next, which is what clang-format would do with
-    // a braced list this long.
+    // Wrapped to the column limit, filling each line as clang-format would.
     const juce::String open = "    ap.oscTable(" + constant + ",";
     lines.add(open);
 
@@ -676,9 +625,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
     lines.add(line);
   }
 
-  // Whatever the rows above did not account for. Strips first and the rest
-  // after, so a case reads as the mixer and then the bar above it, which is
-  // the order the cases already here are written in.
+  // Whatever the rows above did not cover, strips first and globals after.
   for (bool strips : {true, false})
     for (const auto &entry : changed)
       if (entry.first.startsWithChar('h') == strips)
@@ -698,18 +645,14 @@ void apply(APVTS &apvts, int index) {
     // clang-format off
     //
     // Everything to the closing marker is written by factoryCode and pasted in
-    // whole, most of it tables of thirty-two figures. The generator does its
-    // own wrapping, and a formatter reflowing the result would mean a preset
-    // regenerated from the same patch no longer matched the file it came from,
-    // which is the check that says a preset is what its author dialled in.
+    // whole. Formatting it would stop a regenerated preset matching the file.
     // See Tools/preset_to_code.cpp.
   case 0: // 2-bit Fuzz Organ
   {
     ap.neutralBase();
 
-    // An organ at 8 kHz and 2 bits. The aliasing and the quantisation noise are
-    // the distortion, so the converter is the sound rather than an effect on
-    // it. Aftertouch blends the root note towards a fifth.
+    // An organ at 8 kHz and 2 bits, where the converter is the sound.
+    // Aftertouch blends the root note towards a fifth.
     ap.oscTable(params::attackSuffix,
                 {0.0002f, 0.0002f, 0.0002f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
                  0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
@@ -762,16 +705,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // A combo organ that has not been serviced. The partials are pulled off
-    // each other rather than tuned, so the stack beats against itself instead
-    // of fusing, and the noise channel is the key click: a few milliseconds of
-    // it on every note, which is the contact rather than the tone. Diode is
-    // the character, this being the first patch in the set to ask for it.
-    //
-    // The tail is the point. A bucket brigade at nearly eight tenths of
-    // feedback, driven far enough in that the repeats grow rather than fade,
-    // falling into a spring long enough to still be ringing when the next
-    // chord arrives.
+    // A combo organ that has not been serviced: detuned partials that beat, a
+    // noise key click, Diode, and a driven bucket brigade echo into a spring.
 
     ap.oscTable(params::releaseSuffix,
                 {0.0015f, 0.0096f, 0.0082f, 0.008f, 0.008f, 0.008f, 0.008f,
@@ -886,12 +821,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's pulse at half its width, which is a square: odd partials
-    // falling as one over their number. It is on Op-amp rather than the 6581
-    // character, chosen by ear. Op-amp leaves the partials below a kilohertz
-    // alone and turns the ones above it into triangles, which hardens the top
-    // of the series. The envelope and the clipper are the same as in 6581
-    // Triangle.
+    // The 6581's pulse at half width, a square, on Op-amp, which hardens the
+    // top of the series.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -929,9 +860,7 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's sawtooth, on the 6581 character: every partial, falling as one
-    // over its number, each carrying the chip's converter and bow. The
-    // envelope and the clipper are the same as in 6581 Triangle.
+    // The 6581's sawtooth, on the 6581 character.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -959,15 +888,8 @@ void apply(APVTS &apvts, int index) {
   {
     ap.neutralBase();
 
-    // The 6581's triangle, on the 6581 character. The partials draw the
-    // triangle the chip makes, odd ones falling as the square of their number
-    // and a few faint even ones, and the character gives each of them the
-    // chip's converter and bow, which add the second harmonic, the tail of odd
-    // harmonics and the hiss. Partial 2 is set low, since the bow already
-    // gives the note a second harmonic.
-    //
-    // The level sits low and the clipper is on Fold, as in the other two
-    // 6581 presets.
+    // The 6581's triangle, on the 6581 character, with partial 2 low since
+    // the character adds a second harmonic. Clipper on Fold.
     ap.allOsc(params::attackSuffix, [](int) { return 0.003; });
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
@@ -1008,12 +930,172 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbType", 1.0f);
     break;
   }
-  case 5: // Big Saw
+  case 5: // 8-bit Choir
   {
     ap.neutralBase();
 
-    // A sawtooth with a little randomness in it, so it drifts and beats rather
-    // than sitting still.
+    // A breathy choir on 6581 through a 16 kHz 8-bit converter, with slow
+    // swells, a blown Karplus-Strong string and glide between the notes.
+    ap.oscTable(params::glideSuffix,
+                {0.0272f, 0.1677f, 0.1932f, 0.2344f, 0.2797f, 0.3451f, 0.4457f,
+                 0.2361f, 0.3031f, 0.3974f, 0.4093f, 0.2467f, 0.5533f, 0.332f,
+                 0.2765f, 0.8203f, 0.5827f, 0.2874f, 0.2646f, 0.2889f, 0.2188f,
+                 0.2894f, 0.2241f, 0.3704f, 0.2808f, 0.3309f, 0.3234f, 0.3469f,
+                 0.2332f, 0.2505f, 0.2288f, 0.4772f});
+    ap.oscTable(params::pmRateSuffix,
+                {0.4269f, 0.5378f, 1.3475f, 2.586f, 1.2658f, 1.3237f, 1.3843f,
+                 1.4476f, 1.5138f, 1.583f, 1.6554f, 1.7311f, 1.8103f, 1.8931f,
+                 1.9796f, 2.0702f, 2.1649f, 2.2638f, 2.3674f, 2.4756f, 2.5889f,
+                 2.7073f, 2.8311f, 2.9605f, 3.0959f, 3.2375f, 3.3856f, 3.5404f,
+                 3.7023f, 3.8717f, 4.0487f, 4.2339f});
+    ap.oscTable(params::pmDepthSuffix,
+                {3.4642f, 8.0854f, 9.359f, 17.3032f, 2.877f, 3.6127f, 4.5066f,
+                 3.8195f, 6.9126f, 8.5162f, 10.4648f, 12.8325f, 15.7095f,
+                 19.2052f, 23.4528f, 10.0142f, 34.8852f, 42.5054f, 51.7645f,
+                 63.0148f, 76.6851f, 93.2955f, 113.4787f, 138.0024f, 167.8016f,
+                 204.0089f, 248.006f, 301.4647f, 366.4217f, 445.3479f,
+                 541.2526f, 657.7817f});
+    ap.oscTable(params::driftSuffix,
+                {0.4807f, 2.0945f, 0.5003f, 0.0605f, 1.3557f, 1.3557f, 1.3557f,
+                 1.3059f, 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f,
+                 1.3557f, 1.0863f, 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f,
+                 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f, 1.3557f,
+                 1.3557f, 1.3557f, 1.3557f, 1.3557f});
+    ap.allOsc(params::strikeSuffix, [](int) { return 0.5391; });
+    ap.oscTable(params::delaySuffix,
+                {0.0598f, 0.0399f, 0.1898f, 1.4104f, 0.125f, 0.0873f, 0.082f,
+                 0.0537f, 0.4311f, 0.1238f, 0.0434f, 0.1062f, 0.0399f, 0.1474f,
+                 0.0562f, 0.3733f, 0.1922f, 0.1149f, 0.3172f, 0.0455f, 0.7021f,
+                 0.2115f, 0.609f, 0.7804f, 0.2355f, 0.2086f, 0.6494f, 0.0399f,
+                 0.1832f, 0.0995f, 0.082f, 0.0455f});
+    ap.oscTable(params::attackSuffix,
+                {0.0719f, 0.0975f, 0.1186f, 0.0347f, 0.065f, 0.0469f, 0.0439f,
+                 0.0441f, 0.0445f, 0.0443f, 0.046f, 0.0428f, 0.0466f, 0.045f,
+                 0.0448f, 0.0424f, 0.0437f, 0.0492f, 0.0454f, 0.0476f, 0.046f,
+                 0.0449f, 0.0489f, 0.0431f, 0.0496f, 0.0458f, 0.0455f, 0.0402f,
+                 0.0472f, 0.0485f, 0.0475f, 0.0473f});
+    ap.oscTable(params::releaseSuffix,
+                {0.3531f, 1.1069f, 0.4051f, 0.4216f, 1.1467f, 1.1467f, 1.1467f,
+                 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f,
+                 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f,
+                 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f, 1.1467f,
+                 1.1467f, 1.1467f, 1.1467f, 1.1467f});
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
+    ap.oscTable(params::amRateSuffix,
+                {3.3103f, 2.565f, 3.4188f, 3.4757f, 3.5335f, 3.6431f, 3.7562f,
+                 3.8728f, 3.993f, 4.117f, 4.2448f, 4.3766f, 4.5124f, 4.6525f,
+                 4.7969f, 4.9458f, 5.0993f, 5.2576f, 5.4208f, 5.5891f, 5.7625f,
+                 5.9414f, 6.1258f, 6.316f, 6.512f, 6.7142f, 6.9226f, 7.1375f,
+                 7.359f, 7.5875f, 7.823f, 8.0658f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.7548f, 0.7925f, 0.896f, 0.8576f, 0.3434f, 0.3434f, 0.3434f,
+                 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f,
+                 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f,
+                 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f,
+                 0.3434f, 0.3434f, 0.3434f, 0.3434f});
+    ap.oscTable(params::velSuffix,
+                {0.0951f, 0.4111f, 0.6952f, 0.7995f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.oscTable(params::atSuffix,
+                {-1.0f, 0.3388f, 0.3418f, 0.0199f, 0.0009f, 0.0288f, 0.0009f,
+                 0.0017f, 0.0009f, 0.0009f, 0.0009f, 0.0034f, 0.0009f, 0.0009f,
+                 0.0009f, 0.001f, 0.0009f, 0.0009f, 0.0009f, 0.0009f, 0.0009f,
+                 0.0009f, 0.0009f, 0.0009f, 0.0009f, 0.0009f, 0.0009f, 0.0009f,
+                 0.0009f, 0.0009f, 0.0009f, -0.0009f});
+    ap.oscTable(params::volumeSuffix,
+                {0.8756f, 0.6173f, 0.3772f, 0.1632f, 0.0125f, 0.0658f, 0.0078f,
+                 0.0368f, 0.0048f, 0.0038f, 0.003f, 0.0054f, 0.0019f, 0.0015f,
+                 0.0012f, 0.028f, 0.0007f, 0.0006f, 0.0005f, 0.0004f, 0.0003f,
+                 0.0002f, 0.0002f, 0.0003f, 0.0001f, 0.0001f, 0.0001f, 0.0001f,
+                 0.0f, 0.0f, 0.0f, 0.0004f});
+    ap.set("h01_decay", 2.0073f);
+    ap.set("h01_sustain", 0.5025f);
+    ap.set("h01_swell", 0.0f);
+    ap.set("h02_decay", 2.6541f);
+    ap.set("h02_pan", -0.8016f);
+    ap.set("h02_sustain", 0.5399f);
+    ap.set("h02_swell", 0.0f);
+    ap.set("h03_decay", 3.1453f);
+    ap.set("h03_pan", 0.8044f);
+    ap.set("h03_sustain", 0.574f);
+    ap.set("h04_pan", 0.8041f);
+    ap.set("h04_sustain", 0.5195f);
+    ap.set("h05_pan", -1.0f);
+    ap.set("h06_pan", -1.0f);
+    ap.set("h07_pan", 1.0f);
+    ap.set("h08_pan", 1.0f);
+    ap.set("h09_pan", -1.0f);
+    ap.set("h10_pan", -1.0f);
+    ap.set("h11_pan", 1.0f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h13_pan", -1.0f);
+    ap.set("h14_pan", -1.0f);
+    ap.set("h15_pan", 1.0f);
+    ap.set("h16_pan", 1.0f);
+    ap.set("h17_pan", -1.0f);
+    ap.set("h18_pan", -1.0f);
+    ap.set("h19_pan", 1.0f);
+    ap.set("h20_pan", 1.0f);
+    ap.set("h21_pan", -1.0f);
+    ap.set("h22_pan", -1.0f);
+    ap.set("h23_pan", 1.0f);
+    ap.set("h24_pan", 1.0f);
+    ap.set("h25_pan", -1.0f);
+    ap.set("h26_pan", -1.0f);
+    ap.set("h27_pan", 1.0f);
+    ap.set("h28_pan", 1.0f);
+    ap.set("h29_pan", -1.0f);
+    ap.set("h30_pan", -1.0f);
+    ap.set("h31_pan", 1.0f);
+    ap.set("character", 9.0f);
+    ap.set("clipType", 5.0f); // Console
+    ap.set("echoAge", 0.3465f);
+    ap.set("echoFeedback", 0.8346f);
+    ap.set("echoMix", 0.4373f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0955f);
+    ap.set("echoType", 2.0f);
+    ap.set("glideMode", 1.0f);
+    ap.set("glideTrigger", 1.0f);
+    ap.set("lofiBits", 4.0f);
+    ap.set("lofiRate", 3.0f);
+    ap.set("masterGain", -12.8f);
+    ap.set("noise_amDepth", 0.3464f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.3199f);
+    ap.set("noise_colour", 0.4559f);
+    ap.set("noise_decay", 2.8207f);
+    ap.set("noise_delay", 0.0004f);
+    ap.set("noise_release", 0.8588f);
+    ap.set("noise_strike", 0.0029f);
+    ap.set("noise_string", 0.9684f);
+    ap.set("noise_stringDamp", 1.0f);
+    ap.set("noise_stringDecay", 10.0f);
+    ap.set("noise_stringPoint", 0.3944f);
+    ap.set("noise_sustain", 0.172f);
+    ap.set("noise_vel", 0.9898f);
+    ap.set("noise_volume", 0.1079f);
+    ap.set("resonatorDamp", 0.1319f);
+    ap.set("resonatorDecay", 2.714f);
+    ap.set("resonatorMix", 0.3012f);
+    ap.set("resonatorMode", 3.0f);
+    ap.set("reverbDamp", 0.0526f);
+    ap.set("reverbDecay", 3.4173f);
+    ap.set("reverbMix", 0.236f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.01f);
+    ap.set("stretch", 3.2932f);
+    ap.set("track", 2.5f);
+    ap.set("wobble", 0.1924f);
+    break;
+  }
+  case 6: // Big Saw
+  {
+    ap.neutralBase();
+
+    // A sawtooth with a little randomness, so it drifts and beats.
     ap.oscTable(params::tuneSuffix,
                 {0.9873f, 0.9868f, 0.9863f, 0.9858f, 0.9853f, 0.9848f, 0.9842f,
                  0.9837f, 0.9831f, 0.9825f, 0.9818f, 0.9812f, 0.9805f, 0.9798f,
@@ -1082,20 +1164,18 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0337f);
     break;
   }
-  case 6: // Cathedral
+  case 7: // Cathedral
   {
     ap.neutralBase();
 
-    // Principal chorus: octaves and fifths only, the registration an organ
-    // builder would recognise, arriving slowly as the pipes speak.
+    // Principal chorus: octaves and fifths only, arriving slowly.
     static const float levels[kNumHarmonics] = {
         1.00f, 0.80f, 0.55f, 0.60f, 0.00f, 0.40f, 0.00f, 0.45f,
         0.00f, 0.00f, 0.00f, 0.28f, 0.00f, 0.00f, 0.00f, 0.30f,
         0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.18f,
         0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.00f, 0.12f};
 
-    // Eight ranks in phase add up fast. Scaled so a chord has somewhere to go
-    // rather than living on the clipper.
+    // Scaled so a chord stays off the clipper.
     for (int i = 0; i < kNumHarmonics; ++i)
       ap.osc(params::volumeSuffix, i, 0.62f * levels[i]);
 
@@ -1111,25 +1191,147 @@ void apply(APVTS &apvts, int index) {
 
     ap.fanOut(0.6);
 
-    // A pipe leaning on its own limit, which is what the odd harmonics in a
-    // principal rank are.
+    // Rail, for the odd harmonics of a principal rank.
     ap.character(Character::Rail);
 
     ap.reverb(0.5f, 9.0f, 0.35f);
     ap.set("clipType", 3.0f); // Limiter
     break;
   }
-  case 7: // DigiLog
+  case 8: // Combo Organ
   {
     ap.neutralBase();
 
-    // A digital instrument through analogue gear that has seen better days,
-    // which is where the name comes from. The envelope delay climbs with the
-    // partial, from almost nothing on the fundamental to five seconds on the
-    // 32nd, so the series arrives from the bottom up and reads as a filter
-    // opening in steps rather than sweeping. The converter at 16 kHz and 8
-    // bits is what makes the steps audible as steps, and the echo, at as much
-    // feedback as it will take, carries what is left of them.
+    // A transistor combo organ on Combo, with one vibrato for the whole
+    // keyboard, the wheel or aftertouch bringing in the upper partials, and a
+    // key click from the envelopes and the noise channel.
+    ap.allOsc(params::tuneSuffix, [](int) { return 0.0; });
+    ap.allOsc(params::pmRateSuffix, [](int) { return 6.6369; });
+    ap.allOsc(params::pmDepthSuffix, [](int) { return 28.1435; });
+    ap.allOsc(params::driftSuffix, [](int) { return 0.3285; });
+    ap.oscTable(params::strikeSuffix,
+                {0.003f, 0.003f, -0.0003f, 0.003f, 0.003f, 0.003f, 0.003f,
+                 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f,
+                 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f,
+                 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f, 0.003f,
+                 0.003f});
+    ap.oscTable(params::attackSuffix,
+                {0.0005f, 0.0004f, 0.0003f, 0.0002f, 0.0002f, 0.0002f, 0.0002f,
+                 -1.0f, -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f,
+                 -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f,
+                 -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f,
+                 -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f, -0.1703f,
+                 -0.1703f});
+    ap.oscTable(params::decaySuffix,
+                {0.0091f, 0.0083f, 0.0076f, 0.0064f, 0.0056f, 0.0041f, 0.0033f,
+                 0.0024f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f,
+                 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f,
+                 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f, 0.0091f,
+                 0.0091f, 0.0091f, 0.0091f, 0.0091f});
+    ap.oscTable(params::sustainSuffix,
+                {0.8512f, 0.8435f, 0.8435f, 0.8512f, 0.8449f, 0.8521f, 0.8463f,
+                 0.8456f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f,
+                 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f,
+                 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f, 0.9962f,
+                 0.9962f, 0.9962f, 0.9962f, 0.9962f});
+    ap.oscTable(params::offLevelSuffix,
+                {1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 0.2512f,
+                 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f,
+                 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f,
+                 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f, 0.2512f,
+                 0.2512f, 0.2512f});
+    ap.oscTable(params::releaseSuffix,
+                {0.0154f, 0.0099f, 0.0085f, 0.0077f, 0.0075f, 0.0075f, 0.003f,
+                 0.0026f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f, 0.002f,
+                 0.002f, 0.002f});
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
+    ap.oscTable(params::amDepthSuffix,
+                {0.0222f, 0.0324f, 0.0354f, 0.0324f, 0.0292f, 0.0354f, 0.0354f,
+                 0.0304f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f,
+                 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f,
+                 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f,
+                 0.0354f, 0.0354f, 0.0354f, 0.0354f});
+    ap.allOsc(params::velSuffix, [](int) { return 0.0021; });
+    ap.oscTable(params::atSuffix,
+                {-0.0033f, 0.6455f, 0.5988f, 0.498f, 0.0996f, 0.3967f, 0.0979f,
+                 0.2953f, -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f,
+                 -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f,
+                 -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f,
+                 -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f,
+                 -0.0029f});
+    ap.set("h01_amRate", 3.1489f);
+    ap.set("h01_swell", 0.0041f);
+    ap.set("h01_volume", 1.0f);
+    ap.set("h02_amRate", 5.2755f);
+    ap.set("h02_delay", 0.0071f);
+    ap.set("h02_swell", 0.0062f);
+    ap.set("h02_volume", 0.126f);
+    ap.set("h03_amRate", 3.4263f);
+    ap.set("h03_delay", 0.0121f);
+    ap.set("h03_swell", 0.0047f);
+    ap.set("h03_volume", 0.0251f);
+    ap.set("h04_amRate", 4.6588f);
+    ap.set("h04_swell", 0.0053f);
+    ap.set("h04_volume", 0.0071f);
+    ap.set("h05_amRate", 2.9626f);
+    ap.set("h05_delay", 0.0018f);
+    ap.set("h05_swell", 0.0055f);
+    ap.set("h06_amRate", 4.6479f);
+    ap.set("h06_delay", 0.0107f);
+    ap.set("h06_swell", 0.0035f);
+    ap.set("h07_amRate", 3.7195f);
+    ap.set("h07_delay", 0.0142f);
+    ap.set("h07_swell", 0.0061f);
+    ap.set("h08_amRate", 4.1823f);
+    ap.set("h08_delay", 0.0122f);
+    ap.set("h08_swell", 0.0047f);
+    ap.set("h08_volume", 0.005f);
+    ap.set("character", 11.0f);
+    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("echoAge", 0.2867f);
+    ap.set("echoFeedback", 0.5046f);
+    ap.set("echoMix", 0.2133f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1117f);
+    ap.set("echoType", 1.0f);
+    ap.set("masterGain", -13.1f);
+    ap.set("noise_aftertouch", 0.2232f);
+    ap.set("noise_amDepth", 0.484f);
+    ap.set("noise_amRate", 1.0974f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0009f);
+    ap.set("noise_colour", 0.1122f);
+    ap.set("noise_decay", 0.0202f);
+    ap.set("noise_offLevel", 0.4763f);
+    ap.set("noise_release", 0.0095f);
+    ap.set("noise_strike", 0.382f);
+    ap.set("noise_string", 0.0248f);
+    ap.set("noise_stringDamp", 1.0f);
+    ap.set("noise_stringDecay", 0.05f);
+    ap.set("noise_stringPoint", 0.0f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_swell", 0.0064f);
+    ap.set("noise_vel", -0.2824f);
+    ap.set("noise_volume", 0.2221f);
+    ap.set("pmInPhase", 1.0f);
+    ap.set("reverbDamp", 0.0694f);
+    ap.set("reverbDecay", 3.0239f);
+    ap.set("reverbMix", 0.0491f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0011f);
+    ap.set("reverbType", 2.0f);
+    ap.set("wobble", 0.0507f);
+    break;
+  }
+  case 9: // DigiLog
+  {
+    ap.neutralBase();
+
+    // A digital instrument through worn analogue gear. Envelope delays climb
+    // up the series, so it opens in steps like a filter, through a 16 kHz
+    // 8-bit converter and a high-feedback echo.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.2239f, 1.3432f, 1.4753f, 1.6203f, 1.6266f, 1.6328f, 1.6391f,
@@ -1258,15 +1460,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1476f);
     break;
   }
-  case 8: // Dire Dire EP
+  case 10: // Dire Dire EP
   {
     ap.neutralBase();
 
-    // A soft, round electric piano of the kind written for underwater music.
-    // The body is the fundamental and a few low partials, with the 13th and
-    // the 15th left standing well clear of their neighbours, which is the
-    // tine ringing over the top of an otherwise dark sound. Tracking at
-    // 6 dB per octave is what keeps the right hand from turning glassy.
+    // A soft, round electric piano, with the 13th and 15th partials standing
+    // out as the tine. Tracking keeps the top from turning glassy.
 
     ap.allOsc(params::tuneSuffix, [](int) { return 0.9655; });
     ap.oscTable(params::pmRateSuffix,
@@ -1405,12 +1604,11 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Valve);
     break;
   }
-  case 9: // Drawbar Organ
+  case 11: // Drawbar Organ
   {
     ap.neutralBase();
 
-    // Nine drawbars on Wheel, with the key-off stage used as a release click:
-    // the upper drawbars jump for two milliseconds as the contacts break.
+    // Nine drawbars on Wheel, with the key-off stage as a release click.
     ap.oscTable(params::tuneSuffix,
                 {0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
                  0.051f, 0.0504f, 0.051f, 0.051f, 0.051f, 0.051f, 0.051f,
@@ -1485,18 +1683,13 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.5171f);
     break;
   }
-  case 10: // Dream Phase
+  case 12: // Dream Phase
   {
     ap.neutralBase();
 
-    // A strike that becomes a pad, without either half being a layer. The
-    // attacks run from the fastest the row goes to the slowest it does, so the
-    // short partials are the transient and the long ones arrive behind them as
-    // it opens, and the decays reach the full twenty seconds rather than
-    // anything holding on a sustain. Two partials step rather than glide, on a
-    // square each, which is the figure moving behind it. The echo is nearly all
-    // feedback at a quarter of a second, the converter is six bits at 22 kHz,
-    // and the whole series wobbles.
+    // A strike that becomes a pad: attacks from the fastest to the slowest
+    // and long decays, two stepping partials, a high-feedback echo, a 6-bit
+    // converter and wobble.
 
     ap.oscTable(params::strikeSuffix,
                 {0.1225f, 0.2148f, -0.0029f, 0.3443f, -0.0029f, 0.3443f,
@@ -1855,13 +2048,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1488f);
     break;
   }
-  case 11: // EP Chimes
+  case 13: // EP Chimes
   {
     ap.neutralBase();
 
-    // A round electric piano with bright chimes above it, and the converter
-    // at 16 kHz and 8 bits left on hard enough that the artefacts belong to
-    // the sound rather than sitting on top of it.
+    // A round electric piano with bright chimes, through a 16 kHz 8-bit
+    // converter.
 
     ap.oscTable(params::pmRateSuffix,
                 {2.0212f, 2.0445f, 2.0681f, 2.092f, 2.1162f, 2.1406f, 2.1653f,
@@ -2015,6 +2207,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_amRate", 6.504f);
     ap.set("h32_delay", 0.0333f);
     ap.set("h32_pan", 0.8254f);
+    ap.set("clipType", 6.0f); // Cassette
     ap.set("echoAge", 0.5331f);
     ap.set("echoFeedback", 0.7306f);
     ap.set("echoMix", 0.2036f);
@@ -2040,12 +2233,11 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1275f);
     break;
   }
-  case 12: // Equal Saw
+  case 14: // Equal Saw
   {
     ap.neutralBase();
 
-    // The other half of a pair to be A/B'd: the same sound as Just Saw
-    // but with every partial pulled back to equal temperament.
+    // Just Saw in equal temperament, to compare against it.
     ap.allOsc(params::tuneSuffix, [](int) { return 0.0; });
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
@@ -2057,14 +2249,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 13: // FM Piano
+  case 15: // FM Piano
   {
     ap.neutralBase();
 
-    // The electric piano an FM synthesizer makes rather than the instrument
-    // it is imitating, on FM: a hard, metallic attack over a body that is
-    // very nearly a sine, and none of the mechanical noise a real one would
-    // bring with it.
+    // An FM electric piano on FM: a hard metallic attack over a near sine
+    // body.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.2435f, 1.0877f, 1.2055f, 1.183f, 1.7273f, 1.2281f, 1.2413f,
@@ -2160,12 +2350,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0823f);
     break;
   }
-  case 14: // Glass Armonica
+  case 16: // Glass Armonica
   {
     ap.neutralBase();
 
-    // Wet fingers on glass. Each partial arrives later and vibrates faster than
-    // the one below it.
+    // Wet fingers on glass. Each partial arrives later and vibrates faster
+    // than the one below it.
     ap.oscTable(params::pmRateSuffix,
                 {4.8f, 5.1f, 5.4f, 5.7f, 6.0f, 6.3f, 6.6f, 6.9f, 7.2f, 7.5f,
                  7.8f, 8.1f, 8.4f, 8.7f, 9.0f, 9.3f, 9.6f, 9.9f, 10.2f, 10.5f,
@@ -2207,18 +2397,13 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-  case 15: // Glide
+  case 17: // Glide
   {
     ap.neutralBase();
 
-    // A pad that arrives from the bottom up. Every note glides from the last
-    // one over a fixed time, and that time grows up the series from nothing on
-    // the fundamental to two and a half seconds on the thirty-second, so the
-    // pitch lands at once and the brightness slides in after it. Velocity
-    // reaches only the upper partials and STRIKE stretches a soft note's
-    // attack, so played gently it stays round and slow, and played hard the
-    // top and a burst of noise come in at once and it turns bright and
-    // punchy. A smooth random tremolo on every partial keeps it moving.
+    // A pad that arrives from the bottom up: glide times grow up the series,
+    // and velocity brings in the top and a noise burst, so it plays round
+    // when soft and bright when hard.
 
     ap.oscTable(params::glideSuffix,
                 {0.0002f, 0.0055f, 0.0119f, 0.0191f, 0.0274f, 0.0369f, 0.0478f,
@@ -2363,17 +2548,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.104f);
     break;
   }
-  case 16: // Glockenspiel
+  case 18: // Glockenspiel
   {
     ap.neutralBase();
 
-    // A struck bar. The attack is the fastest the row goes and nothing
-    // sustains, so every partial rings down from the moment it is hit, each for
-    // its own length, from a third of a second out to three. The tone is not in
-    // the fundamental at all: the fourth and eleventh partials carry it and
-    // everything below them sits under one percent, which is what a bar does
-    // and a string does not. STRETCH pulls the series in rather than spreading
-    // it, and a slow random tremolo keeps the ring from sitting still.
+    // A struck bar. Nothing sustains, the 4th and 11th partials carry the
+    // tone, and STRETCH pulls the series in.
 
     ap.oscTable(params::driftSuffix,
                 {0.9934f, 0.9934f, 0.9934f, 0.2805f, 0.9934f, 0.9934f, 0.9934f,
@@ -2517,7 +2697,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Bulb);
     break;
   }
-  case 17: // Init
+  case 19: // Init
   {
     ap.neutralBase();
 
@@ -2531,12 +2711,12 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-  case 18: // Just Saw
+  case 20: // Just Saw
   {
     ap.neutralBase();
 
-    // The other half of a pair to be A/B'd: the same sound as Equal Saw
-    // but with every partial at its just interval.
+    // Equal Saw with every partial at its just interval, to compare against
+    // it.
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
@@ -2547,16 +2727,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 19: // KarplusStrong
+  case 21: // KarplusStrong
   {
     ap.neutralBase();
 
-    // A fundamental and a Karplus-Strong string, both struck, ringing into
-    // the resonator's piano strings. The fundamental is the only partial up,
-    // on Diode, and dies away over a few seconds. The noise channel has STRING
-    // all the way up, so it is the string alone, struck by a burst of noise
-    // a couple of tens of milliseconds long. The resonator is in Piano, so
-    // the strings of held keys answer both.
+    // A struck fundamental on Diode and a Karplus-Strong string from the
+    // noise channel, ringing into the resonator in Piano mode.
     ap.oscTable(params::attackSuffix,
                 {0.0003f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
                  0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
@@ -2577,6 +2753,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_vel", 0.509f);
     ap.set("h01_volume", 1.0f);
     ap.set("character", 3.0f);
+    ap.set("clipType", 7.0f); // Print
     ap.set("echoAge", 0.4277f);
     ap.set("echoFeedback", 0.0815f);
     ap.set("echoMix", 0.1876f);
@@ -2608,13 +2785,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0045f);
     break;
   }
-  case 20: // Lo-fi
+  case 22: // Lo-fi
   {
     ap.neutralBase();
 
     // 8 kHz and 8 bits, soft, with very short partials arriving at different
-    // times. The territory of a Roland D-50, a Korg Wavestation or a granular
-    // synthesizer.
+    // times.
     ap.oscTable(params::pmRateSuffix,
                 {3.8834f, 21.2852f, 0.0972f, 4.9283f, 17.7814f, 2.8067f,
                  0.1676f, 0.9272f, 1.6633f, 3.7316f, 0.1116f, 14.545f, 6.5233f,
@@ -2698,7 +2874,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-  case 21: // Metallic Piano
+  case 23: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -2799,8 +2975,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0115f);
     ap.set("stretch", 23.901f);
     ap.set("track", 9.0f);
-    // The resonator as a piano's own strings: the held keys ring on, and the
-    // pedal lets every string ring.
+    // The resonator as a piano's own strings.
     ap.set("masterGain", -13.0f);
     ap.set("resonatorDamp", 0.0668f);
     ap.set("resonatorDecay", 1.5984f);
@@ -2808,11 +2983,11 @@ void apply(APVTS &apvts, int index) {
     ap.set("resonatorMode", 1.0f);
     break;
   }
-  case 22: // Music Box
+  case 24: // Music Box
   {
     ap.neutralBase();
 
-    // Plucked steel teeth: irregular vibrato per partial, with one bent far
+    // Plucked steel teeth: irregular vibrato per partial, one bent far
     // further than the rest.
     ap.oscTable(params::pmRateSuffix,
                 {0.7705f, 1.3255f, 2.0219f, 4.0f, 4.0f, 4.0f, 1.6645f, 4.0f,
@@ -2922,12 +3097,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
-  case 23: // Nylon EP
+  case 25: // Nylon EP
   {
     ap.neutralBase();
 
     // A very round electric piano on PD, with almost nothing above the low
-    // partials, as though the tines were nylon rather than steel.
+    // partials.
 
     ap.oscTable(params::pmRateSuffix,
                 {0.1924f, 0.6835f, 0.1908f, 2.0106f, 1.2654f, 0.2465f, 2.4615f,
@@ -3077,7 +3252,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1946f);
     break;
   }
-  case 24: // Odd Harmonics
+  case 26: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -3096,14 +3271,12 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0526f, 0.0f, 0.0476f, 0.0f, 0.0435f, 0.0f, 0.04f,
                  0.0f, 0.037f, 0.0f, 0.0345f, 0.0f, 0.0323f, 0.0f});
 
-    // The one character that cannot make an even harmonic, since it clips both
-    // halves of the wave alike. Anything else here would fill in the gaps this
-    // patch is made of.
+    // Rail clips both halves alike, so it adds no even harmonics.
     ap.character(Character::Rail);
     ap.set("masterGain", -10.0f);
     break;
   }
-  case 25: // Omni-84
+  case 27: // Omni-84
   {
     ap.neutralBase();
 
@@ -3160,7 +3333,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-  case 26: // Shimmer
+  case 28: // Shimmer
   {
     ap.neutralBase();
 
@@ -3179,8 +3352,7 @@ void apply(APVTS &apvts, int index) {
 
     ap.fanOut(1.0);
 
-    // The level already breathes on its own rate per partial. This adds the
-    // one that breathes with the pitch instead.
+    // Bulb adds a pitch-linked breathing to the level's own.
     ap.character(Character::Bulb);
 
     ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
@@ -3188,12 +3360,11 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -9.0f);
     break;
   }
-  case 27: // Slow Pad
+  case 29: // Slow Pad
   {
     ap.neutralBase();
 
-    // Staggered envelope delays, so the spectrum unfolds rather than arriving
-    // at once, with mirrored pans across the series.
+    // Staggered envelope delays so the spectrum unfolds, with mirrored pans.
     ap.oscTable(params::pmRateSuffix,
                 {1.2542f, 1.6849f, 2.4576f, 0.153f, 0.2013f, 2.5563f, 3.209f,
                  0.5424f, 0.1855f, 3.0829f, 0.4622f, 0.1945f, 1.9676f, 2.1286f,
@@ -3254,14 +3425,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
-  case 28: // Space Cowboy
+  case 30: // Space Cowboy
   {
     ap.neutralBase();
 
-    // A synthetic tremolo guitar, plucked from the string in the noise
-    // channel, over a pad with square-wave pitch modulation stepping through
-    // some of its partials, and a whistle like a theremin that glides between
-    // overlapping notes. The resonator, open, rings under all of it.
+    // A tremolo guitar plucked from the noise string, over a stepping pad and
+    // a gliding theremin-like whistle, with the resonator open.
 
     ap.set("h01_attack", -1.0f);
     ap.set("h01_decay", 1.4003f);
@@ -3390,6 +3559,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h24_vel", 1.0f);
     ap.set("h24_volume", 0.2187f);
     ap.set("character", 5.0f);
+    ap.set("clipType", 5.0f); // Console
     ap.set("echoAge", 0.1818f);
     ap.set("echoFeedback", 0.95f);
     ap.set("echoMix", 0.1992f);
@@ -3430,13 +3600,11 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1618f);
     break;
   }
-  case 29: // Space Flute
+  case 31: // Space Flute
   {
     ap.neutralBase();
 
-    // A synthesised pan flute a long way off. The breath is the noise
-    // channel, held rather than struck so it stays under the note, and the
-    // echo and the reverb between them do the work of putting it somewhere.
+    // A synthesised pan flute far off. The breath is the held noise channel.
 
     ap.oscTable(params::pmRateSuffix,
                 {1.3544f, 2.1602f, 2.7113f, 3.7712f, 7.7323f, 0.3224f, 2.9698f,
@@ -3557,22 +3725,13 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 30: // Sparkle Pad
+  case 32: // Sparkle Pad
   {
     ap.neutralBase();
 
-    // Two instruments in one patch, split by where a partial sits in the series
-    // rather than by layering one over the other. The bottom three sustain,
-    // take between a fifth of a second and three quarters to arrive and let go
-    // over a second, which is the dark soft pad. Everything from the fourth up
-    // attacks in a few milliseconds at most, sustains at nothing and is gone
-    // inside half a second, which is the sparkle on top of it. They are the
-    // same note read at two speeds rather than two sounds crossfaded.
-    //
-    // The delay runs the other way to the attack, longest on the second and
-    // third partials and almost nothing at the top, so the bright half is
-    // already ringing by the time the pad opens underneath it. A short dark
-    // noise tick sits under the onset and comes further in under pressure.
+    // Two instruments split across the series: the bottom three partials are
+    // a slow dark pad and the rest a fast sparkle, with delays running the
+    // other way so the sparkle rings first.
 
     ap.allOsc(params::pmShapeSuffix, [](int) { return 7.0; });
     ap.oscTable(params::pmRateSuffix,
@@ -3635,10 +3794,7 @@ void apply(APVTS &apvts, int index) {
                  0.9429f, 0.9665f, 0.9777f, 0.9819f, 0.9838f, 0.9815f, 0.9857f,
                  0.9905f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
                  1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
-    // Every channel up by 6.87 dB against what this patch shipped as, which
-    // puts the fundamental at nought and leaves every interval between the
-    // partials exactly where it was. The echo stopped squashing what it is
-    // handed, so the patch can be fed at the level it was written for.
+    // Levels with the fundamental at 0 dB.
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.5189f, 0.289f, 0.7048f, 0.1465f, 0.0362f, 0.0064f,
                  0.6453f, 0.5716f, 0.5034f, 0.4414f, 0.3805f, 0.3302f, 0.2846f,
@@ -3777,18 +3933,13 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1346f);
     break;
   }
-  case 31: // Stepped
+  case 33: // Stepped
   {
     ap.neutralBase();
 
-    // A slow pad that will not hold still. Seven partials trill rather than
-    // waver, on squares set to whole intervals: two of them a fifth and five
-    // an octave, some swinging both ways and some only upward, so each one
-    // steps between two notes of the chord instead of wobbling around one.
-    // The 30th and 31st slide back down a fifth rather than jumping, on
-    // reverse sawtooths, and the top three take their level from sample and
-    // hold, so which of them is loudest changes at random. Five seconds of
-    // attack under all of it.
+    // A slow pad that will not hold still: partials trill on squares set to
+    // fifths and octaves, two slide down a fifth, the top three take their
+    // level from sample and hold.
 
     ap.oscTable(params::driftSuffix,
                 {0.1189f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f, 1.4916f,
@@ -3969,7 +4120,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1661f);
     break;
   }
-  case 32: // Struck Bell
+  case 34: // Struck Bell
   {
     ap.neutralBase();
 
@@ -3988,29 +4139,20 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::velSuffix,
               [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
 
-    // The top of a struck body hardens as it climbs, and this is the only
-    // character whose harmonics arrive with the pitch rather than sitting on
-    // every partial equally.
+    // Op-amp hardens the top of the series as the pitch climbs.
     ap.character(Character::Opamp);
 
-    // A small, quick room. Struck things are heard somewhere.
+    // A small, quick room.
     ap.reverb(0.22f, 1.8f, 0.5f);
     ap.set("clipType", 1.0f); // Hard
     break;
   }
-  case 33: // StyloPoly
+  case 35: // StyloPoly
   {
     ap.neutralBase();
 
-    // Voice 3 of a Dubreq Stylophone S-1, the last of its three positions,
-    // with the vibrato switched on: thirty cents at six hertz across the whole
-    // series, which is about what the original gives with both its controls
-    // centred. Polyphonic, which a Stylophone is not, after the plugin it is
-    // named for.
-    //
-    // Every partial's level wanders on a smooth random contour of its own, at
-    // a little over a tenth of full depth. That is what keeps thirty-two sine
-    // waves from sounding like thirty-two sine waves.
+    // Voice 3 of a Dubreq Stylophone S-1 with vibrato on, made polyphonic.
+    // Each partial's level wanders a little on its own.
 
     ap.allOsc(params::pmRateSuffix, [](int) { return 6.002; });
     ap.allOsc(params::pmDepthSuffix, [](int) { return 30.1444; });
@@ -4065,24 +4207,16 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 0.4f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.0408f);
-    // A vibrato you set once and hear on every key, which is what one
-    // oscillator with one vibrato circuit on it does. A Stylophone has no
-    // second note to be out of step with, and this one has thirty-one.
+    // One shared vibrato, as a single oscillator would have.
     ap.set("pmInPhase", 1.0f);
     break;
   }
-  case 34: // Synth Ensemble
+  case 36: // Synth Ensemble
   {
     ap.neutralBase();
 
-    // Strings and brass in one patch, synthesised rather than either of them
-    // sampled. What makes it an ensemble rather than one player is that nothing
-    // in it arrives at the same moment, and the blow is what decides by how
-    // much: the attack is twenty-odd milliseconds, and a strike amount of about
-    // 80% stretches that towards two seconds as the touch softens. A hard chord
-    // is simply there, a quiet one swells in with the series drifting apart on
-    // the way. The tremolo is random and deepens up the series, so the players
-    // never settle together.
+    // Strings and brass as an ensemble: a strike amount stretches the attack
+    // as the touch softens, and a random tremolo deepens up the series.
 
     ap.oscTable(params::pmDepthSuffix,
                 {3.0539f, 7.5661f, 10.6856f, 10.8007f, 10.9168f, 11.0337f,
@@ -4282,12 +4416,12 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 35: // Tape Choir
+  case 37: // Tape Choir
   {
     ap.neutralBase();
 
-    // Vowel-ish: a formant hump in the low partials rather than a straight
-    // roll-off, breathing at its own rate on every channel.
+    // Vowel-ish: a formant hump in the low partials, breathing on every
+    // channel.
     ap.allOsc(params::volumeSuffix, [](int n) {
       const double formant = std::exp(-0.5 * std::pow((n - 3.0) / 2.6, 2.0));
       return n <= 14 ? 0.25 + 0.75 * formant : 0.0;
@@ -4300,12 +4434,10 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::driftSuffix, [](int) { return 14.0; });
     ap.allOsc(params::velSuffix, [](int) { return 0.4; });
 
-    // Voices thin out at the top of a range rather than getting brighter, and
-    // the machine takes a little more off after them.
+    // Voices thin out at the top of their range.
     ap.series(0.0f, 3.5f);
 
-    // The machine as well as the voices: an octave on every partial is the
-    // half of tape and valve nobody minds.
+    // Valve adds an octave on every partial.
     ap.character(Character::Valve);
 
     ap.fanOut(0.85);
@@ -4316,12 +4448,191 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -13.0f);
     break;
   }
-  case 36: // Vibraphone
+  case 38: // Tape Pluck
   {
     ap.neutralBase();
 
-    // A fast strike where the fundamental rings for seconds and everything
-    // above it is gone inside one.
+    // A plucked string on VCO over a quiet pad, with one tremolo for the
+    // whole keyboard, printed to the cassette.
+    ap.set("h01_amDepth", 0.8468f);
+    ap.set("h01_attack", 0.0026f);
+    ap.set("h01_decay", 4.1222f);
+    ap.set("h01_delay", 0.0031f);
+    ap.set("h01_drift", 0.6889f);
+    ap.set("h01_pan", -0.1023f);
+    ap.set("h01_pmDepth", 0.9653f);
+    ap.set("h01_release", 0.0341f);
+    ap.set("h01_sustain", 0.0152f);
+    ap.set("h01_vel", 0.0853f);
+    ap.set("h01_volume", 1.0f);
+    ap.set("h02_amDepth", 0.9355f);
+    ap.set("h02_attack", 0.002f);
+    ap.set("h02_decay", 2.1157f);
+    ap.set("h02_delay", 0.0515f);
+    ap.set("h02_drift", 1.7875f);
+    ap.set("h02_pan", 0.226f);
+    ap.set("h02_pmDepth", 7.6426f);
+    ap.set("h02_release", 0.0526f);
+    ap.set("h02_sustain", 0.0138f);
+    ap.set("h02_vel", 0.5486f);
+    ap.set("h02_volume", 0.2479f);
+    ap.set("h03_amDepth", 0.8039f);
+    ap.set("h03_amRate", 3.1049f);
+    ap.set("h03_amShape", 6.0f);
+    ap.set("h03_attack", 0.1807f);
+    ap.set("h03_decay", 6.2016f);
+    ap.set("h03_drift", 2.0327f);
+    ap.set("h03_glide", 0.2585f);
+    ap.set("h03_pan", -1.0f);
+    ap.set("h03_pmDepth", 5.0087f);
+    ap.set("h03_pmRate", 3.2085f);
+    ap.set("h03_pmShape", 7.0f);
+    ap.set("h03_sustain", 0.0218f);
+    ap.set("h03_vel", 0.9502f);
+    ap.set("h03_volume", 0.0112f);
+    ap.set("h04_amDepth", 0.8007f);
+    ap.set("h04_amRate", 3.6247f);
+    ap.set("h04_amShape", 6.0f);
+    ap.set("h04_attack", 0.1819f);
+    ap.set("h04_decay", 6.1479f);
+    ap.set("h04_drift", 1.9898f);
+    ap.set("h04_glide", 0.2545f);
+    ap.set("h04_pan", 1.0f);
+    ap.set("h04_pmDepth", 4.9764f);
+    ap.set("h04_pmRate", 3.3156f);
+    ap.set("h04_pmShape", 7.0f);
+    ap.set("h04_sustain", 0.0206f);
+    ap.set("h04_vel", 0.9543f);
+    ap.set("h04_volume", 0.0112f);
+    ap.set("h05_pmDepth", 0.421f);
+    ap.set("h06_amDepth", 0.8521f);
+    ap.set("h06_amRate", 3.7634f);
+    ap.set("h06_amShape", 6.0f);
+    ap.set("h06_attack", 0.223f);
+    ap.set("h06_decay", 7.1283f);
+    ap.set("h06_drift", 3.6726f);
+    ap.set("h06_glide", 0.3342f);
+    ap.set("h06_pan", 1.0f);
+    ap.set("h06_pmDepth", 8.9946f);
+    ap.set("h06_pmRate", 3.9164f);
+    ap.set("h06_pmShape", 7.0f);
+    ap.set("h06_sustain", 0.0733f);
+    ap.set("h06_vel", 0.9678f);
+    ap.set("h06_volume", 0.0089f);
+    ap.set("h08_amDepth", 0.8468f);
+    ap.set("h08_amRate", 3.8708f);
+    ap.set("h08_amShape", 6.0f);
+    ap.set("h08_attack", 0.223f);
+    ap.set("h08_decay", 7.1075f);
+    ap.set("h08_drift", 3.6857f);
+    ap.set("h08_glide", 0.3458f);
+    ap.set("h08_pan", -1.0f);
+    ap.set("h08_pmDepth", 8.973f);
+    ap.set("h08_pmRate", 4.0094f);
+    ap.set("h08_pmShape", 7.0f);
+    ap.set("h08_sustain", 0.0684f);
+    ap.set("h08_vel", 0.9672f);
+    ap.set("h08_volume", 0.0089f);
+    ap.set("h12_amDepth", 0.8987f);
+    ap.set("h12_amRate", 4.8256f);
+    ap.set("h12_amShape", 6.0f);
+    ap.set("h12_attack", 0.3755f);
+    ap.set("h12_decay", 5.1208f);
+    ap.set("h12_drift", 5.6234f);
+    ap.set("h12_glide", 0.3864f);
+    ap.set("h12_pan", 1.0f);
+    ap.set("h12_pmDepth", 13.7509f);
+    ap.set("h12_pmRate", 4.5722f);
+    ap.set("h12_pmShape", 7.0f);
+    ap.set("h12_sustain", 0.0903f);
+    ap.set("h12_vel", 1.0f);
+    ap.set("h12_volume", 0.007f);
+    ap.set("h16_amDepth", 0.8992f);
+    ap.set("h16_amRate", 4.4977f);
+    ap.set("h16_amShape", 6.0f);
+    ap.set("h16_attack", 0.3744f);
+    ap.set("h16_decay", 5.0912f);
+    ap.set("h16_drift", 5.5872f);
+    ap.set("h16_glide", 0.3889f);
+    ap.set("h16_pan", -1.0f);
+    ap.set("h16_pmDepth", 13.8519f);
+    ap.set("h16_pmRate", 4.4662f);
+    ap.set("h16_pmShape", 7.0f);
+    ap.set("h16_sustain", 0.0874f);
+    ap.set("h16_vel", 1.0f);
+    ap.set("h16_volume", 0.0071f);
+    ap.set("h24_amDepth", 0.948f);
+    ap.set("h24_amRate", 6.0511f);
+    ap.set("h24_amShape", 6.0f);
+    ap.set("h24_attack", 0.6117f);
+    ap.set("h24_decay", 6.1046f);
+    ap.set("h24_drift", 6.1393f);
+    ap.set("h24_glide", 0.4112f);
+    ap.set("h24_pan", -1.0f);
+    ap.set("h24_pmDepth", 17.3143f);
+    ap.set("h24_pmRate", 5.1291f);
+    ap.set("h24_pmShape", 7.0f);
+    ap.set("h24_sustain", 0.1519f);
+    ap.set("h24_vel", 1.0f);
+    ap.set("h24_volume", 0.006f);
+    ap.set("h32_amDepth", 0.9515f);
+    ap.set("h32_amRate", 5.9638f);
+    ap.set("h32_amShape", 6.0f);
+    ap.set("h32_attack", 0.6024f);
+    ap.set("h32_decay", 6.163f);
+    ap.set("h32_drift", 6.1882f);
+    ap.set("h32_glide", 0.4099f);
+    ap.set("h32_pan", 1.0f);
+    ap.set("h32_pmDepth", 18.6527f);
+    ap.set("h32_sustain", 0.1466f);
+    ap.set("h32_vel", 1.0f);
+    ap.set("h32_volume", 0.006f);
+    ap.set("amInPhase", 1.0f);
+    ap.set("character", 10.0f);
+    ap.set("clipType", 7.0f); // Print
+    ap.set("echoAge", 0.6038f);
+    ap.set("echoFeedback", 0.8972f);
+    ap.set("echoMix", 0.1695f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1002f);
+    ap.set("glideMode", 1.0f);
+    ap.set("glideTrigger", 1.0f);
+    ap.set("masterGain", -5.1f);
+    ap.set("noise_amDepth", 0.6735f);
+    ap.set("noise_attack", 0.0004f);
+    ap.set("noise_colour", 0.3494f);
+    ap.set("noise_decay", 0.0301f);
+    ap.set("noise_offLevel", 0.189f);
+    ap.set("noise_release", 0.0201f);
+    ap.set("noise_strike", -0.514f);
+    ap.set("noise_string", 0.3395f);
+    ap.set("noise_stringDamp", 0.5726f);
+    ap.set("noise_stringDecay", 10.0f);
+    ap.set("noise_stringPoint", 0.6507f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_swell", 0.0045f);
+    ap.set("noise_vel", 1.0f);
+    ap.set("noise_volume", 1.0f);
+    ap.set("resonatorDamp", 0.2818f);
+    ap.set("resonatorDecay", 0.3407f);
+    ap.set("resonatorMix", 0.2013f);
+    ap.set("resonatorMode", 2.0f);
+    ap.set("reverbDamp", 0.2917f);
+    ap.set("reverbDecay", 2.5292f);
+    ap.set("reverbMix", 0.203f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0806f);
+    ap.set("stretch", -0.3618f);
+    ap.set("track", 8.0f);
+    ap.set("wobble", 0.2197f);
+    break;
+  }
+  case 39: // Vibraphone
+  {
+    ap.neutralBase();
+
+    // A fast strike where the fundamental rings for seconds and the rest is
+    // gone inside one.
     ap.oscTable(params::driftSuffix,
                 {0.0183f, 0.0f, 0.0f, 0.0637f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0647f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -4384,7 +4695,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 37: // Wurli
+  case 40: // Wurli
   {
     ap.neutralBase();
 
@@ -4441,7 +4752,7 @@ void apply(APVTS &apvts, int index) {
                  0.0845f, 0.0222f, 0.067f, 0.0149f, 0.0393f, 0.0231f, 0.0452f,
                  0.0231f, 0.0294f, 0.0175f, 0.0246f, 0.0085f, 0.0115f, 0.0101f,
                  0.0052f, 0.0059f, 0.0071f, 0.005f});
-    ap.set("clipType", 2.0f); // Asymmetric
+    ap.set("clipType", 5.0f); // Console
     ap.set("masterGain", -7.0f);
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);
@@ -4465,9 +4776,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_offLevel", 1.0f);
     ap.set("noise_release", 0.2451f);
     ap.set("noise_volume", 0.0234f);
-    // One tremolo circuit across the whole keyboard rather than one per tine,
-    // which is what a 200A has: the wobble is in the amplifier, after the
-    // reeds, so a chord breathes as one thing.
+    // One tremolo across the whole keyboard, in the amplifier as on a 200A.
     ap.set("amInPhase", 1.0f);
     break;
   }
@@ -4477,9 +4786,8 @@ void apply(APVTS &apvts, int index) {
     break;
   }
 
-  // Everything above decided what it wanted. This is the only place any of it
-  // reaches the host, as one write per parameter and none at all for the ones
-  // already there.
+  // The only place the preset reaches the host, one write per changed
+  // parameter.
   ap.flush();
 }
 

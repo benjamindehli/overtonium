@@ -3,35 +3,21 @@
 namespace ovt {
 
 namespace {
-/// Where the shapers stop being linear.
-///
-/// Seven tenths for Soft, which is where it has always been. Hard has no knee
-/// to place, so it has no threshold either, and Fold is told where to turn
-/// back rather than where to bend.
+/// Where Soft stops being linear.
 constexpr float kSoftKnee = 0.7f;
 
-/// Where the biased stage lets each half of the wave go before it leans.
-///
-/// A single-ended stage is not symmetric about zero: one direction runs out of
-/// supply before the other. Half against nine tenths is enough to hear as a
-/// different flavour rather than as a fault, and it is what puts a second
-/// harmonic where Soft and Hard put a third.
-///
-/// Still called bias, while the type it produces is called Asymmetric. That
-/// is deliberate: the bias is the mechanism, and BusDrive and Character use
-/// the same word for the same mechanism, while the name on the bar says what
-/// comes out of it.
+/// Where the biased stage lets each half of the wave go before it bends.
+/// The two halves give way at different levels, which gives a second
+/// harmonic where Soft and Hard give a third.
 constexpr float kBiasUp = 0.5f;
 constexpr float kBiasDown = 0.9f;
 
-/// The ceiling the limiter works to, a hair under one.
-///
-/// Under rather than at, because the gain it applies is one block behind what
-/// the signal is doing, so a transient can slip past before the gain has moved.
-/// The headroom absorbs that, and a hard clip behind it catches whatever the
-/// headroom does not: this has to be bounded like the rest of them, and a
-/// limiter without lookahead cannot promise that on its own.
+/// The ceiling the limiter works to, a little under one, so a transient that
+/// gets past the gain has headroom before the hard clip behind it.
 constexpr float kLimitCeiling = 0.98f;
+
+/// The console's limiter's ceiling, -0.1 dBFS, as the measured chain is set.
+constexpr float kConsoleCeiling = 0.98855309f;
 
 /// A tanh knee above the threshold, bounded by one.
 float softKnee(float a, float threshold) {
@@ -68,10 +54,8 @@ float shapeAsymmetric(float x) noexcept {
 }
 
 float shapeFold(float x) noexcept {
-  // Reflected about one as many times as it takes, which for a triangle fold
-  // is the same as folding the value into the window of width four that runs
-  // from minus one. Done in closed form rather than by looping, so a sample
-  // that arrives at a hundred costs what one at a half costs.
+  // A triangle fold, done in closed form rather than by looping, so a sample
+  // of a hundred costs the same as one of a half.
   const float wrapped =
       std::fmod(x + 1.0f, 4.0f) + (x + 1.0f < 0.0f ? 4.0f : 0.0f);
 
@@ -87,19 +71,17 @@ void OutputStage::prepare(double sampleRate) noexcept {
   fullBox = std::max(1, fullDelay / 2);
 
   // Sized for the window whether or not it is wanted, so that turning it on
-  // part way through a session allocates nothing on the audio thread. The
-  // active lengths follow in applyLookahead.
+  // later allocates nothing on the audio thread. The active lengths follow in
+  // applyLookahead.
   delay = fullDelay;
   window = fullWindow;
   box = fullBox;
   boxScale = 1.0 / (double)box;
   looking = true;
 
-  // A hundred milliseconds to let back up, which is slow enough not to pump
-  // on every note. There is no attack time any more: the gain is told what is
-  // coming while it is still in the delay line, so what used to be an attack
-  // is now the two box filters, and how fast it can pull down is set by how
-  // far ahead it is allowed to look rather than by a coefficient.
+  // A hundred milliseconds to let back up, slow enough not to pump on every
+  // note. There is no attack coefficient: the lookahead and the two box
+  // filters set how fast it pulls down.
   release = (float)std::exp(-1.0 / (0.100 * rate));
 
   lineLeft.assign((size_t)std::max(1, fullDelay), 0.0f);
@@ -112,6 +94,14 @@ void OutputStage::prepare(double sampleRate) noexcept {
 
   boxOne.assign((size_t)fullBox, 1.0f);
   boxTwo.assign((size_t)fullBox, 1.0f);
+
+  console.prepare(rate);
+  cassette.prepare(rate);
+  printConsole.prepare(rate);
+  printCassette.prepare(rate);
+  printCassette.setHissDb(kPrintHissDb);
+  printLimiter.release = release;
+  fadeLength = std::max(1, (int)(kFadeSeconds * rate + 0.5));
 
   reset();
 }
@@ -140,14 +130,46 @@ void OutputStage::reset() noexcept {
   wedgeHead = wedgeTail = 0;
   seen = 0;
 
-  // Primed at unity rather than at nothing, so the first sample after a reset
-  // leaves at the level it arrived at. Filled with zeros these would spend a
-  // window climbing out of silence, which is a fade-in on every transport
-  // stop and start.
+  // Primed at unity, so the first sample after a reset leaves at the level it
+  // arrived at instead of fading in from silence.
   std::fill(boxOne.begin(), boxOne.end(), 1.0f);
   std::fill(boxTwo.begin(), boxTwo.end(), 1.0f);
   boxOneAt = boxTwoAt = 0;
   boxOneSum = boxTwoSum = (double)box;
+
+  console.reset();
+  cassette.reset();
+  printConsole.reset();
+  printCassette.reset();
+  printLimiter.held = 1.0f;
+
+  // Whatever is chosen next starts from here, with nothing to fade from.
+  started = false;
+  leaving = Running::None;
+  fadeAt = fadeLength;
+}
+
+void OutputStage::InstantLimiter::process(float &left, float &right,
+                                          float ceiling) noexcept {
+  const float peak = std::max(std::abs(left), std::abs(right));
+  const float wanted = peak > ceiling ? ceiling / peak : 1.0f;
+
+  held = wanted < held ? wanted : wanted + (held - wanted) * release;
+
+  left *= held;
+  right *= held;
+}
+
+void OutputStage::run(Running which, float &left, float &right) noexcept {
+  if (which == Running::Console) {
+    console.process(left, right);
+  } else if (which == Running::Cassette) {
+    cassette.process(left, right);
+  } else if (which == Running::Print) {
+    printConsole.process(left, right);
+    printLimiter.process(left, right, kConsoleCeiling);
+    printCassette.process(left, right);
+  }
 }
 
 float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
@@ -157,7 +179,7 @@ float OutputStage::delayed(std::vector<float> &line, float in) noexcept {
   return out;
 }
 
-float OutputStage::gainFor(float peak) noexcept {
+float OutputStage::gainFor(float peak, float ceiling) noexcept {
   // Drop everything the newcomer is at least as loud as: none of it can be
   // the maximum of any window this one is in.
   const auto capacity = (int)wedgeValue.size();
@@ -179,23 +201,20 @@ float OutputStage::gainFor(float peak) noexcept {
   const float worst =
       wedgeTail > wedgeHead ? wedgeValue[(size_t)(wedgeHead % capacity)] : 0.0f;
 
-  const float wanted = worst > kLimitCeiling ? kLimitCeiling / worst : 1.0f;
+  const float wanted = worst > ceiling ? ceiling / worst : 1.0f;
 
   // Straight down to whatever is needed, and back up on the release. The
-  // boxes below are what stop that step being heard as a step.
+  // boxes below smooth the step.
   held = wanted < held ? wanted : wanted + (held - wanted) * release;
 
   // Two box filters. One alone turns the step into a straight ramp with a
-  // corner at each end, and the second rounds the corners off, which is the
-  // difference between a gain that arrives in time and one that arrives in
-  // time without being audible on its way.
+  // corner at each end, and the second rounds the corners off.
   boxOneSum += held - boxOne[(size_t)boxOneAt];
   boxOne[(size_t)boxOneAt] = held;
   boxOneAt = (boxOneAt + 1) % box;
 
-  // Scaled rather than divided. The length changes only when the lookahead is
-  // switched, so the reciprocal is worked out there instead of twice on every
-  // sample.
+  // Scaled by the reciprocal worked out in applyLookahead rather than
+  // divided on every sample.
   const float once = (float)(boxOneSum * boxScale);
 
   boxTwoSum += once - boxTwo[(size_t)boxTwoAt];
@@ -210,13 +229,11 @@ void OutputStage::process(float *left, float *right, int numSamples,
   if (left == nullptr || right == nullptr || numSamples <= 0)
     return;
 
-  // Once per block rather than per sample, and it does nothing unless the
-  // setting actually moved.
+  // Once per block. It does nothing unless the setting changed.
   applyLookahead(ahead);
 
-  // Nothing is allocated from here on, so a stage that was never prepared
-  // runs without its delay rather than reaching for one. The same path covers
-  // a rate low enough that two milliseconds is not a whole sample.
+  // Nothing is allocated from here on, so a stage that was never prepared, or
+  // a rate where two milliseconds is under a sample, runs without its delay.
   const bool delaying = delay > 0 && !lineLeft.empty();
 
   auto *shape = type == ClipType::Hard         ? shapeHard
@@ -224,15 +241,67 @@ void OutputStage::process(float *left, float *right, int numSamples,
                 : type == ClipType::Fold       ? shapeFold
                                                : shapeSoft;
 
-  for (int n = 0; n < numSamples; ++n) {
-    // Linked, from whichever channel is louder, so the image holds still.
-    // Run whatever the type is, so that choosing the limiter half way through
-    // a note finds a detector that already knows what the last window held
-    // rather than one starting from silence.
-    const float gain = gainFor(std::max(std::abs(left[n]), std::abs(right[n])));
+  const bool consoling = shaping && type == ClipType::Console;
+  const bool taping = shaping && type == ClipType::Cassette;
+  const bool printing = shaping && type == ClipType::Print;
 
-    const float outLeft = delaying ? delayed(lineLeft, left[n]) : left[n];
-    const float outRight = delaying ? delayed(lineRight, right[n]) : right[n];
+  // The recorder and the print end in the same limiter as the console.
+  const float ceiling =
+      consoling || taping || printing ? kConsoleCeiling : kLimitCeiling;
+
+  // Which machine with memory this block wants, and whether that is a change.
+  // Once per block, as a host changes the type between blocks.
+  const auto wanted = consoling  ? Running::Console
+                      : taping   ? Running::Cassette
+                      : printing ? Running::Print
+                                 : Running::None;
+
+  if (!started) {
+    running = wanted;
+    started = true;
+  } else if (wanted != running) {
+    leaving = running;
+    running = wanted;
+    fadeAt = 0;
+
+    if (running == Running::Console) {
+      console.reset();
+    } else if (running == Running::Cassette) {
+      cassette.reset();
+    } else if (running == Running::Print) {
+      printConsole.reset();
+      printCassette.reset();
+      printLimiter.held = 1.0f;
+    }
+  }
+
+  for (int n = 0; n < numSamples; ++n) {
+    // Ahead of the delay, so the limiter after it looks ahead at the
+    // machine's output.
+    const float dryLeft = left[n], dryRight = right[n];
+    float inLeft = dryLeft, inRight = dryRight;
+    run(running, inLeft, inRight);
+
+    if (fadeAt < fadeLength) {
+      float wasLeft = dryLeft, wasRight = dryRight;
+      run(leaving, wasLeft, wasRight);
+
+      const float t = (float)fadeAt / (float)fadeLength;
+      inLeft = wasLeft + (inLeft - wasLeft) * t;
+      inRight = wasRight + (inRight - wasRight) * t;
+
+      if (++fadeAt == fadeLength)
+        leaving = Running::None;
+    }
+
+    // Linked, from whichever channel is louder, so the image holds still. Run
+    // for every type, so choosing the limiter part way through finds a detector
+    // that already knows the last window.
+    const float gain =
+        gainFor(std::max(std::abs(inLeft), std::abs(inRight)), ceiling);
+
+    const float outLeft = delaying ? delayed(lineLeft, inLeft) : inLeft;
+    const float outRight = delaying ? delayed(lineRight, inRight) : inRight;
 
     if (delaying)
       writeIndex = (writeIndex + 1) % delay;
@@ -243,11 +312,10 @@ void OutputStage::process(float *left, float *right, int numSamples,
       continue;
     }
 
-    if (type == ClipType::Limiter) {
-      // The backstop. It has nothing to do now that the gain arrives with the
-      // peak rather than after it, and it stays because this stage has to be
-      // bounded whatever arrives: a rate so low that the window is a couple of
-      // samples, or a patch that moves faster than the window is long.
+    if (type == ClipType::Limiter || type == ClipType::Console ||
+        type == ClipType::Cassette || type == ClipType::Print) {
+      // The backstop that keeps the stage bounded whatever arrives, such as a
+      // rate so low that the window is a couple of samples.
       left[n] = shapeHard(outLeft * gain);
       right[n] = shapeHard(outRight * gain);
       continue;

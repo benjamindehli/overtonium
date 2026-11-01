@@ -13,11 +13,8 @@
 
 namespace ovt {
 
-/// Fades a partial out as it approaches Nyquist.
-///
-/// Without this, playing high notes folds the upper partials back down as
-/// aliasing: the 32nd harmonic of C7 lands at ~67 kHz. The fade starts well
-/// below Nyquist so the partial disappears smoothly instead of blinking out.
+/// Fades a partial out as it approaches Nyquist, so high partials of high
+/// notes fade smoothly instead of aliasing.
 inline float nyquistGain(double freq, double sampleRate) noexcept {
   const double fadeStart = sampleRate * 0.42;
   const double fadeEnd = sampleRate * 0.49;
@@ -31,31 +28,19 @@ inline float nyquistGain(double freq, double sampleRate) noexcept {
   return (float)(0.5 * (1.0 + std::cos(3.14159265358979324 * t)));
 }
 
-/// Where the keyboard tracking rolloff sits, in Hz.
-///
-/// Instruments lose their top as you play up the keyboard, and not because
-/// anything about the note changes. The body has a rolloff that stays where it
-/// is, and playing higher walks the partials up through it. A kilohertz is
-/// about C6, which puts the crossover in the middle of where anyone plays.
+/// Where the keyboard tracking rolloff sits, in Hz. A fixed corner that
+/// higher notes walk their partials up through, like an instrument's body.
 inline constexpr double kTrackingCornerHz = 1000.0;
 
-/// How much of a partial survives at the pitch it is being played at.
-///
-/// Measured against the fundamental rather than absolutely, so the keyboard
-/// stays even and only the spectrum thins. Without that it would be a shelf:
-/// high notes quieter rather than duller, which is not the thing worth having.
-///
-/// The consequence is that a bass note keeps almost all of its series, since
-/// most of it is below the corner, while a treble note whose fundamental is
-/// already above the corner loses the full slope across every partial.
-///
-/// @param dbPerOctave  0 switches it off entirely.
-/// How far MPE slide moves the keyboard tracking, in dB per octave.
-///
-/// Half the range of the control itself, so a finger has real authority
-/// without a small movement crossing the whole of it.
+/// How far MPE slide moves the keyboard tracking, in dB per octave. Half the
+/// range of the control itself.
 inline constexpr float kSlideTrackDb = 6.0f;
 
+/// How much of a partial survives at the pitch it is being played at.
+/// Measured against the fundamental, so the keyboard stays even in level and
+/// only the spectrum thins.
+///
+/// @param dbPerOctave  0 switches it off entirely.
 inline float trackingGain(double partialHz, double fundamentalHz,
                           double dbPerOctave) noexcept {
   if (dbPerOctave <= 0.0)
@@ -74,25 +59,12 @@ inline float trackingGain(double partialHz, double fundamentalHz,
   return (float)std::exp2(-dbPerOctave * octaves / 6.020599913279624);
 }
 
-/// Where a slide axis has moved to, against where this note found it.
+/// Where a slide axis has moved to, against where this note found it, in
+/// -1 to 1.
 ///
-/// Scaled so that the longer of the two directions away from the rest is the
-/// whole of the slide. A note whose rest is the bottom of the axis has the
-/// entire travel in front of it and reaches full slide at the top of it, and a
-/// note resting at the centre behaves as it always did.
-///
-/// One scale for the note rather than one per direction, which is the part that
-/// took two goes to get right. Scaling each direction to fill the slide on its
-/// own looks tidier and is unplayable: a rest near the bottom leaves a sliver
-/// of travel underneath it, and dividing by that sliver turns it into a
-/// hair-trigger. On an Osmose, whose rest lands a few codes up from the bottom,
-/// ten codes of lift swung the note from untouched to fully dark while twenty
-/// codes of press moved it a sixth of the way the other way. Pressing in was
-/// smooth and coming back out snapped.
-///
-/// So the short side keeps the sensitivity of the long one and simply reaches
-/// less, which is honest: there is less of it. The result cannot leave -1 to 1,
-/// since the scale is the larger half by construction.
+/// One scale for both directions, the larger of the two distances from the
+/// rest. Scaling each direction on its own would make the short side a
+/// hair-trigger when the rest sits near one end of the axis.
 inline float slideDisplacement(float rest, float now) noexcept {
   const auto from = std::clamp(rest, -1.0f, 1.0f);
   const auto to = std::clamp(now, -1.0f, 1.0f);
@@ -103,29 +75,21 @@ inline float slideDisplacement(float rest, float now) noexcept {
   return (to - from) / room;
 }
 
-/// How far ahead the amplitude reads its shape, in turns.
+/// How far ahead the amplitude reads its shape, in turns. A quarter turns
+/// Sine into a cosine, so a note begins at full level and dips.
 ///
-/// A quarter, which is what turns Sine into the cosine the tremolo has always
-/// used: a note begins at full level and dips, rather than starting half
-/// attenuated. Every other shape takes the same quarter turn rather than each
-/// arguing for a starting point of its own.
-///
-/// Here rather than in the voice because the engine reads the same shapes when
-/// a channel's modulator is shared, and the two have to agree about where a
-/// turn starts.
+/// Here rather than in the voice because the engine reads the same shapes
+/// when a channel's modulator is shared, and the two have to agree.
 inline constexpr double kAmpShapeOffset = 0.25;
 
 /// The modulator values every voice on a channel reads, when that channel's
-/// modulator is one circuit rather than one per note.
+/// modulator is shared rather than one per note.
 ///
-/// Worked out by the engine before any voice runs, because a voice renders a
-/// whole buffer at a time and cannot step a shared phase without the voice
-/// after it stepping the same phase again. One value per control block
-/// boundary, so a block has both the value it starts on and the one it ends on
-/// and the gain ramp works exactly as it does off a voice's own modulator.
-///
-/// A null pointer is the switch being off, which is what the voice branches on.
-/// See SynthEngine::advanceSharedModulators and GlobalParams::ampModInPhase.
+/// Worked out by the engine before any voice runs, since each voice renders
+/// a whole buffer and cannot step a shared phase itself. One value per
+/// control block boundary, so the gain ramp works as it does off a voice's
+/// own modulator. A null pointer means sharing is off. See
+/// SynthEngine::advanceSharedModulators.
 struct SharedModulation {
   const float *pitch = nullptr;
   const float *amp = nullptr;
@@ -141,9 +105,8 @@ struct SharedModulation {
   double motorStep = 0.0;
 };
 
-/// What a voice needs to know to glide, which the engine keeps a copy of so a
-/// note-off can start one too. A note-off carries no parameters, and falling
-/// back to a held key in a legato phrase is a change of pitch like any other.
+/// What a voice needs to know to glide. The engine keeps a copy so a
+/// note-off, which carries no parameters, can start one too.
 struct GlideSettings {
   std::array<float, kNumHarmonics> seconds{};
   GlideMode mode = GlideMode::Rate;
@@ -176,62 +139,47 @@ public:
   void prepare(double newSampleRate, uint32_t seed) noexcept;
   void reset() noexcept;
 
-  /// Moves the voice to a different render rate without disturbing it.
-  ///
-  /// Everything rate-dependent here is a coefficient recomputed from a stored
-  /// rate, so this can happen under a sounding note: phases, envelope levels
-  /// and stages all carry on where they were, and a one-second attack is still
-  /// a second. Used by the lo-fi setting, which renders the whole voice pool
-  /// slower rather than filtering the result.
+  /// Moves the voice to a different render rate without disturbing it. Every
+  /// rate-dependent value is a coefficient recomputed from the stored rate, so
+  /// this can happen under a sounding note. Used by the lo-fi rate setting.
   void setRenderRate(double newSampleRate) noexcept;
 
-  /// @param channel  the MIDI channel the note arrived on. Carried so the
-  ///                  engine can tell two voices apart when a controller is
-  ///                  giving every note its own channel. Ignored otherwise.
+  /// @param channel  the MIDI channel the note arrived on, so the engine can
+  ///                  tell voices apart under MPE.
   ///
   /// @param frequency  where the engine has tuned this key, or zero to tune it
-  ///                   from the temperament in the parameters, which is all a
-  ///                   fixed temperament needs. Adaptive decides from what
-  ///                   else is sounding, which only the engine can see.
+  ///                   from the temperament in the parameters. Adaptive
+  ///                   depends on what else is sounding, which only the
+  ///                   engine can see.
   void noteOn(int channel, int note, float velocity, const SynthParams &p,
               double frequency = 0.0) noexcept;
   /// @param lift  see Envelope::noteOff.
   void noteOff(float lift = 1.0f) noexcept;
 
-  /// Moves a sounding note to a different key without starting it again.
-  ///
-  /// Legato: the envelopes, the phases and the drift all carry on where they
-  /// were, and only the pitch changes. The velocity of the note that began the
-  /// phrase is kept, since the key that would set a new one was never
-  /// released, and taking a fresh one would make a legato run change timbre
-  /// under the fingers. The engine works out the frequency, since under the
-  /// adaptive temperament it depends on what else is sounding.
+  /// Moves a sounding note to a different key without starting it again, for
+  /// legato. Envelopes, phases and drift carry on. The phrase's first velocity
+  /// is kept, so a legato run does not change timbre.
   void retune(int channel, int note, double frequency) noexcept;
 
   /// Moves a sounding note to another version of the same key, sliding there
-  /// over the time given, or at once for none. For the adaptive temperament,
-  /// which retunes a held chord when the keys around it change. The pitch is
-  /// continuous: the slide starts where the note is and the frequency the
-  /// engine reads back is the one it is sliding to. See
-  /// SynthEngine::settleAdaptive.
+  /// over the time given, or at once for none. For the adaptive temperament.
+  /// The slide starts where the note is, and the frequency the engine reads
+  /// back is the target. See SynthEngine::settleAdaptive.
   void retuneTo(double frequency, double seconds) noexcept;
   void steal() noexcept; ///< fast fade-out so the voice can be reused
 
   /// The same fade over a time of the caller's choosing, for a note that has
-  /// handed its phrase on and should go quietly rather than ring out its
-  /// release under the note that took over.
+  /// handed its phrase on and should go quietly.
   void fade(float seconds) noexcept;
 
-  /// Carries on where another voice is: every envelope at the stage and level
-  /// it has reached, the modulators and the drift mid-cycle, and the velocity
-  /// the phrase began with. Called on a voice that has just been given a note,
-  /// so this note continues that one rather than starting again. The pitch is
-  /// left to startGlide, which knows where it came from.
+  /// Carries on where another voice is: every envelope at its stage and level,
+  /// the modulators and drift mid-cycle, and the phrase's velocity. Called on
+  /// a voice that has just been given a note. The pitch is left to
+  /// startGlide.
   void takeOver(const Voice &from) noexcept;
 
   /// Where every partial's note is sounding right now, glide included, so a
-  /// note taking over from this one can start from exactly here. A partial
-  /// halfway through a glide is halfway, rather than at either end of it.
+  /// note taking over from this one can start from exactly here.
   Pitches notePitches() const noexcept;
 
   /// The same pitch for all of them, for a note gliding from one that has
@@ -239,9 +187,8 @@ public:
   static Pitches uniformPitches(double frequency) noexcept;
 
   /// Sets every partial gliding from where it was to this voice's note, each
-  /// over its own channel's time. Called after the note has been set, so the
-  /// voice already knows where it is going. A channel with no glide time, or
-  /// one with nowhere to go, simply sounds at the note.
+  /// over its own channel's time. Call after the note has been set. A channel
+  /// with no glide time sounds at the note.
   void startGlide(const Pitches &from, const GlideSettings &glide) noexcept;
 
   double getFrequency() const noexcept { return baseFreq; }
@@ -254,20 +201,10 @@ public:
   /// MPE slide for this note, as a displacement from where this note's slide
   /// began rather than as a position on the controller.
   ///
-  /// Relative because the controllers disagree about what the axis is. A
-  /// Seaboard reports an absolute position on the keywave and rests at the
-  /// centre. An Osmose spends the first part of the key travel on pressure and
-  /// only then starts sending CC74, from the bottom of its range upward, so its
-  /// rest is not the centre but one end. Read absolutely, that second kind
-  /// lurches to the far end of the slide the instant the axis engages: on this
-  /// instrument a note went abruptly darker and only then began to brighten.
-  ///
-  /// So the first value a note is given becomes its nought, and what reaches
-  /// the sound is movement away from it. A controller resting at the centre
-  /// behaves exactly as it did, since its first value is the centre, and one
-  /// resting at an end now starts the note where the patch already was.
-  ///
-  /// See slideDisplacement for what the movement is measured against.
+  /// Relative because controllers disagree about the rest position. Some rest
+  /// at the centre and others at one end, and read absolutely the second kind
+  /// would jump to the far end of the slide as soon as the axis engages. The
+  /// first value a note is given becomes its zero. See slideDisplacement.
   void setSlide(float v) noexcept {
     if (!slideRested) {
       slideRest = std::clamp(v, -1.0f, 1.0f);
@@ -277,12 +214,8 @@ public:
     slide = slideDisplacement(slideRest, v);
   }
 
-  /// Pitch bend belonging to this note alone, in semitones.
-  ///
-  /// Added to whatever the wheel is doing rather than replacing it, so the two
-  /// can coexist: an ordinary keyboard leaves this at zero and bends every
-  /// voice together, and a controller that bends each finger separately leaves
-  /// the wheel at zero and moves this. Nothing has to know which is in use.
+  /// Pitch bend belonging to this note alone, in semitones. Added to the
+  /// wheel, so an ordinary keyboard and a per-note controller both work.
   void setNoteBend(float semitones) noexcept { noteBendSemitones = semitones; }
   float getNoteBend() const noexcept { return noteBendSemitones; }
 
@@ -291,11 +224,13 @@ public:
   int getNote() const noexcept { return midiNote; }
   int getChannel() const noexcept { return midiChannel; }
 
+  /// The order the note started in, which the engine counts up, for finding
+  /// the oldest and newest voices.
   uint64_t getAge() const noexcept { return startOrder; }
   void setAge(uint64_t v) noexcept { startOrder = v; }
 
   /// Peak output amplitude of each partial during the last render call, for
-  /// metering. Sampled once per control block, which is all a meter can show.
+  /// metering. Sampled once per control block.
   const std::array<float, kNumHarmonics> &getPartialPeaks() const noexcept {
     return partialPeaks;
   }
@@ -304,17 +239,11 @@ public:
 
   /// Where each partial's envelope stands, signed by which half of it is
   /// running: positive on the way in, negative once the key is up.
-  ///
-  /// The sign carries the stage because the two are only ever read together,
-  /// and a level of zero is a lamp that is off either way, so the one value
-  /// nothing can be said about is also the one nothing needs to be said about.
   const std::array<float, kNumHarmonics> &getPartialEnvelopes() const noexcept {
     return partialEnvelopes;
   }
 
-  /// How far the tremolo has pulled each partial down, 0 to 1. Zero is a
-  /// partial with no tremolo on it as well as one at the top of its cycle,
-  /// which is the same thing to look at.
+  /// How far the tremolo has pulled each partial down, 0 to 1.
   const std::array<float, kNumHarmonics> &getPartialTremolos() const noexcept {
     return partialTremolos;
   }
@@ -324,26 +253,13 @@ public:
     return partialPitches;
   }
 
-  /// What the VELOCITY row has left of each partial, 0 to 1.
-  ///
-  /// The row's own gain, which is what it does to the fader and nothing
-  /// else, so the lamp over it reads the way the knob does. The row can only
-  /// take level away, so full is a partial the blow has not touched and dark
-  /// is one it has taken entirely. A row set to the centre leaves every
-  /// partial alone at every velocity and reads full throughout.
-  ///
-  /// Latched at the note-on along with the gain itself, so this is a read
-  /// rather than any work.
+  /// What the VELOCITY row has left of each partial, 0 to 1. Full is a
+  /// partial the velocity has not reduced. Latched at note-on.
   const std::array<float, kNumHarmonics> &
   getPartialVelocities() const noexcept {
     return partialVelocities;
   }
 
-  /// What the AFTERTOUCH row is putting into each partial, 0 to 1.
-  ///
-  /// The row's amount against the pressure on the key, so it rests dark and
-  /// brightens as the player leans in. Unsigned, since a row set to push a
-  /// partial down is doing as much as one set to lift it.
   /// Room for one power per control block of the longest call the engine
   /// makes. See SynthEngine::kModChunk.
   static constexpr int kMaxPowerBlocks = 2048 / kControlBlock + 1;
@@ -356,6 +272,8 @@ public:
     return blockPowers;
   }
 
+  /// What the AFTERTOUCH row is putting into each partial, 0 to 1, from the
+  /// row's amount against the pressure. Unsigned.
   const std::array<float, kNumHarmonics> &getPartialPressures() const noexcept {
     return partialPressures;
   }
@@ -368,13 +286,8 @@ public:
   float getNoiseVelocity() const noexcept { return noiseVelocity; }
   float getNoisePressure() const noexcept { return noisePressure; }
 
-  /// Roughly how loud this voice was during the last render, for deciding
-  /// which one it costs least to take away.
-  ///
-  /// The peaks are already to hand from the metering, so this is free. It is
-  /// the loudest partial rather than the sum, which is the same choice the
-  /// channel meters make and for the same reason: what you would notice going
-  /// missing is the loudest thing in it.
+  /// Roughly how loud this voice was during the last render, for choosing
+  /// which one to steal. The loudest partial, as the channel meters use.
   float lastLevel() const noexcept {
     auto loudest = noisePeak;
 
@@ -392,13 +305,17 @@ public:
               const SharedModulation &shared = {}) noexcept;
 
 private:
+  /// Adds the noise channel and its string into the buffers.
   void renderNoise(float *left, float *right, int len, const SynthParams &,
                    float pressure, const SharedModulation &shared,
                    int block) noexcept;
 
+  /// Adds the leaking wheels on Wheel. foldAliases is true on the lo-fi rate,
+  /// where the Nyquist fade is skipped.
   void renderLeaks(float *left, float *right, int len, double keyFreq,
                    double power, bool foldAliases) noexcept;
 
+  /// Everything one partial of this note carries from block to block.
   struct Partial {
     double phase = 0.0;
     Lfo pitchLfo;
@@ -410,15 +327,12 @@ private:
     /// Latched at note-on from this strip's own velocity sensitivity.
     float velGain = 1.0f;
     /// What the strike amount made of that same velocity, as multipliers on
-    /// the delay and the attack. Latched for the same reason the gain is: the
-    /// blow has already landed, and moving the knob afterwards cannot change
-    /// how hard it was.
+    /// the delay and the attack. Latched at note-on like the gain.
     float delayScale = 1.0f;
     float attackScale = 1.0f;
 
-    /// The attack time the knob and that blow come to, and the knob value it
-    /// was worked out for. Two logarithms and a power a partial, so it is
-    /// worked out when the knob moves rather than every control block.
+    /// The attack time the knob and that velocity come to, and the knob value
+    /// it was worked out for, so it is recomputed only when the knob moves.
     float onsetFor = 0.0f;
     float onsetSeconds = 0.0f;
     bool onsetStale = true;
@@ -432,40 +346,37 @@ private:
     bool semisPrimed = false;
 
     /// The table this partial was reading last block, so a block that changes
-    /// tables can be played as a cross-fade rather than as a step. Null until
-    /// it has read one. See Voice::render.
+    /// tables can cross-fade rather than step. Null until it has read one.
     const Wave *lastWave = nullptr;
 
     /// How far this partial still is from its note, in semitones, and how much
-    /// of that it closes each control block. Straight lines in pitch, which is
-    /// what both a rate and a time describe, and stepped per block like the
-    /// modulators: a fraction of a semitone every two thirds of a millisecond
-    /// is a slide to the ear.
+    /// of that it closes each control block. Straight lines in pitch, stepped
+    /// per block like the modulators.
     double glideSemis = 0.0;
     double glideStep = 0.0;
 
     /// Where the shaft under this partial's tonewheel is in its turn. Drawn
-    /// when a note starts, since a key can go down at any point in a wheel's
-    /// turn, and only read on Wheel. See wheelShaftHz.
+    /// when a note starts, and only read on Wheel. See wheelShaftHz.
     double shaftTurns = 0.0;
+
+    /// How far this partial's oscillator has wandered from its pitch, in
+    /// cents, on VCO. Kept from note to note, since it is the oscillator that
+    /// wanders and not the note. See kVcoWanderCents.
+    double wanderCents = 0.0;
   };
 
-  /// The noise channel runs alongside the partials with its own envelope and
-  /// its own random stream, so each note gets its own noise rather than every
-  /// voice layering the identical signal.
+  /// The noise channel, with its own envelope and random stream, so each note
+  /// gets its own noise rather than every voice layering the same signal.
   struct Noise {
     Envelope env;
     KarplusString string;
 
-    /// Whether the string is still sounding. It outlives the noise that
-    /// struck it, which is the point of it: a pluck is a burst of noise a few
-    /// milliseconds long, and the string rings on after the noise's envelope
-    /// has gone idle. The voice stays alive while this is true.
+    /// Whether the string is still sounding. It rings on after the noise that
+    /// struck it has gone idle, and the voice stays alive while this is true.
     bool stringAlive = false;
 
     /// A damper brought down on the string by a steal or a fade, in seconds,
-    /// or nought for none. A voice taken for another note has to stop as
-    /// quickly as its envelopes are told to.
+    /// or zero for none.
     float damperSeconds = 0.0f;
     Xorshift rng;
     Lfo ampLfo;
@@ -480,9 +391,8 @@ private:
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
 
-  /// Read by the strip lamps rather than by anything that makes sound. Every
-  /// one is a value the render loop has already worked out for its own
-  /// purposes, so capturing them is a store and nothing else.
+  /// Read by the strip lamps, not by anything that makes sound. Each is a
+  /// value the render loop already has, so capturing it is only a store.
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
@@ -492,8 +402,8 @@ private:
   Noise noise;
 
   /// The wheels leaking into this note on Wheel, one per entry of
-  /// kWheelLeaks. Each is a wheel of its own, so each has its own phase, and
-  /// its level slides across a block like a partial's does.
+  /// kWheelLeaks. Each has its own phase, and its level slides across a block
+  /// like a partial's does.
   struct Leak {
     double phase = 0.0;
     float lastGain = 0.0f;
@@ -514,8 +424,8 @@ private:
   double baseFreq = 440.0;
 
   /// How far a retune by the adaptive temperament still has to slide, in
-  /// semitones, and how far it goes in a sample. The same for every partial,
-  /// since it moves the note rather than any one of them. See retuneTo.
+  /// semitones, and how far it goes in a sample. The same for every partial.
+  /// See retuneTo.
   double retuneSemis = 0.0;
   double retuneStep = 0.0;
   int midiNote = -1;
@@ -527,19 +437,21 @@ private:
   /// that drawing them moves nothing that rng draws for every other character.
   Xorshift wheelRng;
 
+  /// The VCO's wander, on a stream of its own for the same reason, and only
+  /// drawn on VCO.
+  Xorshift vcoRng;
+
   float noteBendSemitones = 0.0f;
   float polyPressure = 0.0f;
   float slide = 0.0f;
 
-  /// Where this note's slide axis started, and whether it has been told yet.
-  /// Latched from the first value rather than assumed, since only the
-  /// controller knows where its own rest is. See setSlide.
+  /// Where this note's slide axis started, and whether it has been set yet.
+  /// See setSlide.
   float slideRest = 0.0f;
   bool slideRested = false;
 
   /// A partial's tuning blend, with this note's slide folded in when slide is
-  /// aimed there. Clamped, since the blend has no meaning outside nought to
-  /// one: past either end the partial is no longer between the two tunings.
+  /// aimed there. Clamped to 0 to 1.
   float blendOf(const SynthParams &p, int i) const noexcept {
     const auto base = p.osc[(size_t)i].tuneBlend;
 
@@ -548,8 +460,8 @@ private:
 
     return std::clamp(base + slide, 0.0f, 1.0f);
   }
-  /// Aftertouch drives gain directly, so it needs its own smoothing. Seven bits
-  /// arriving at MIDI rate would otherwise step audibly.
+  /// Aftertouch drives gain directly, so it needs its own smoothing, or
+  /// 7-bit MIDI values would step audibly.
   float pressureSmoothed = 0.0f;
   float pressureCoef = 1.0f;
 

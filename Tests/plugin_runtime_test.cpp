@@ -2,9 +2,9 @@
 // handling, factory presets, undo, bus layouts and state round-tripping, plus
 // the parts of the editor that can be measured rather than looked at.
 //
-// It does build an editor, for the layout checks, but never gives it a window,
-// so it still runs on a CI box with no display. Nothing here may open a
-// PopupMenu, which does need one.
+// It builds an editor for the layout checks but never gives it a window, so it
+// runs on a CI box with no display. Nothing here may open a PopupMenu, which
+// needs one.
 
 #include <algorithm>
 #include <array>
@@ -82,11 +82,8 @@ Stats renderBlocks(OvertoniumProcessor &p, int blocks, int blockSize,
   return s;
 }
 
-/// A factory preset by name.
-///
-/// The menu is alphabetical and gains entries over time, so a test that wants
-/// a particular sound has to ask for it rather than for whatever is sitting at
-/// a given position today.
+/// A factory preset by name, since the menu is alphabetical and gains entries,
+/// so a position does not stay the same sound.
 int presetIndex(const juce::String &name) {
   const auto at = ovt::presets::names().indexOf(name);
   jassert(at >= 0);
@@ -101,25 +98,14 @@ juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
 
 // -----------------------------------------------------------------------------
 //
-// The tests stay inside the anonymous namespace the helpers opened. Nothing
-// here is called from another translation unit, and a file-scope function with
-// no declaration is an external symbol nobody can reach.
+// The tests stay inside the anonymous namespace the helpers opened, since
+// nothing here is called from another translation unit.
 
-/// Sizes an editor to something it can actually be.
+/// Sizes an editor to its smallest legal height plus extraHeight, read from the
+/// editor's own limits so it stays right when the mixer gains a row. A plain
+/// setSize does not consult the constrainer.
 ///
-/// Every call site used to type a pair of numbers, and they went stale the
-/// moment the mixer gained a row: 1000 px was eight short of what the strips
-/// then asked for, so the fader and its readout laid out past the bottom edge
-/// with nothing failing to say so. A plain setSize does not consult the
-/// constrainer, so nothing catches it.
-///
-/// Taken from the editor's own limits instead. The rows above the fader are
-/// fixed heights and the fader absorbs the rest, so the smallest legal window
-/// lays every row out properly and is the one size that cannot go out of date.
-///
-/// The width stays a number, since it decides how much mixer is on screen and
-/// each caller wants its own. Only the height is derived, because the height is
-/// the half that a new row moves.
+/// The width is the caller's, since it decides how much mixer is on screen.
 ///
 /// @param extraHeight  room above the minimum, for a test that wants the fader
 ///                     at a comfortable length rather than its shortest.
@@ -135,11 +121,8 @@ void sizeEditor(juce::AudioProcessorEditor &editor, int width,
   editor.setSize(width, height);
 }
 
-/// The bar out of an editor, for the tests that read what it is showing.
-///
-/// It is a child of the editor's content rather than of the editor, and the
-/// depth it sits at is a layout decision that has moved before, so it is
-/// searched for rather than reached into.
+/// The bar out of an editor. Searched for rather than reached into, since the
+/// depth it sits at is a layout decision.
 ovt::ui::TopBar *findTopBar(juce::Component &c) {
   if (auto *bar = dynamic_cast<ovt::ui::TopBar *>(&c))
     return bar;
@@ -153,21 +136,10 @@ ovt::ui::TopBar *findTopBar(juce::Component &c) {
 
 /// How many entries every automatable list has.
 ///
-/// A host stores a choice parameter as a value between zero and one, and what
-/// that value means depends on how long the list is: with three entries the
-/// top of the range is the third, with four it is the fourth. So adding an
-/// entry to a list that has already shipped silently moves every automation
-/// lane ever written against it. A lane that said "Werckmeister III" comes
-/// back saying something else, in somebody's finished piece.
-///
-/// Adding a parameter is safe and is done freely: it goes on the end, it is
-/// identified by its own id, and nothing that exists moves. Adding an entry
-/// to one of these is not the same thing, and this is here so that nobody
-/// finds that out by shipping it.
-///
-/// When a list genuinely has to grow, the way out is a new parameter beside
-/// the old one rather than a longer list, and a note in the release saying
-/// what moved.
+/// A host stores a choice parameter as a value between zero and one, so adding
+/// an entry to a list that has shipped moves every automation lane written
+/// against it. A list that has to grow needs a new parameter beside the old one
+/// instead.
 void testChoiceParameterCounts(OvertoniumProcessor &p) {
   section("Automatable lists");
 
@@ -186,13 +158,13 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // Every global one, by hand, because the number is the point. Reading it
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
-      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 10},
+      {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 12},
       {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
       {ovt::params::reverbTypeId, 3},   {ovt::params::glideTriggerId, 2},
-      {ovt::params::glideModeId, 2},
+      {ovt::params::glideModeId, 2},    {ovt::params::clipTypeId, 8},
   };
 
   for (const auto &list : globals)
@@ -201,8 +173,8 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
               std::to_string(list.entries) + " and has " +
               std::to_string(entriesOf(list.id)));
 
-  // Retune was a choice of two and is a time now, from a jump to a second,
-  // starting at the one the old Fast was.
+  // Retune is a time, from a jump to a second, with its default where the old
+  // Fast was.
   if (auto *retune = dynamic_cast<juce::RangedAudioParameter *>(
           p.apvts.getParameter(ovt::params::adaptiveRetuneId));
       retune != nullptr &&
@@ -239,23 +211,19 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 7,
         "and so does the noise channel's");
 
-  // The amplitude has one shape fewer on purpose, so a count that drifted
-  // into agreement would be a mistake rather than a tidy-up: there is no
-  // second direction for a unipolar square to go in.
+  // The amplitude has one shape fewer on purpose, since a unipolar square has
+  // no second direction to go in.
   check(entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, 0)) !=
             entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, 0)),
         "the two modulators deliberately do not offer the same list");
 }
 
 /// Every parameter the host sees, one JSON object per line, in the order the
-/// host lists them. docs/parameters.json is this, and the parameter list on
-/// the playing page is built from that file by Tools/build_site.py, so the
-/// site cannot describe a parameter that does not exist or miss one that
-/// does.
+/// host lists them. docs/parameters.json is this, and Tools/build_site.py
+/// builds the site's parameter list from that file.
 ///
 /// The range and the default are the text the plugin itself shows for them,
-/// rather than raw numbers, because that is what somebody reading the list
-/// will see on the knob or in the host.
+/// which is what a reader sees on the knob or in the host.
 juce::String parameterReference(OvertoniumProcessor &p) {
   const auto quoted = [](const juce::String &text) {
     return juce::JSON::toString(juce::var(text));
@@ -326,11 +294,8 @@ void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
         "overtonium_runtime_test --write-parameters, then run "
         "Tools/build_site.py");
 
-  // Which line, and both versions of it. A difference that shows on one
-  // platform and not another cannot be found by regenerating the file on the
-  // machine that wrote it, so the log has to carry the answer itself. It has
-  // happened once: the macOS maths library put a different seventh decimal on
-  // a value that had been through an exponential range and back.
+  // Which line, and both versions of it, since a difference that shows on one
+  // platform cannot be found by regenerating the file on another.
   if (published != live) {
     const auto was = juce::StringArray::fromLines(published);
     const auto is = juce::StringArray::fromLines(live);
@@ -347,10 +312,9 @@ void testTheParameterListIsCurrent(OvertoniumProcessor &p) {
   }
 }
 
-/// What a host's automation lane, the panel's value popup and a screen reader
-/// all show for a parameter, which is the same text in all three. A float
-/// parameter with no text of its own prints seven decimal places, 4.0000005
-/// for 4, and four of them did until they were given one.
+/// That every parameter has text of its own, which is what a host's automation
+/// lane, the panel's value popup and a screen reader all show. A float
+/// parameter with none prints seven decimal places, 4.0000005 for 4.
 void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
   section("Readouts a person would write");
 
@@ -390,8 +354,8 @@ void testReadoutsAreWrittenAsAPersonWould(OvertoniumProcessor &p) {
               c.expected + "\"");
 
   // The centre a hair low, which is where macOS puts it once the range has
-  // snapped the value to its step. It printed as -0.0000 there and 0.0000
-  // here, which is how a file written on Linux failed on a Mac.
+  // snapped the value to its step. It has to print without a minus sign on
+  // every platform.
   if (auto *amount = p.apvts.getParameter("macro1_amount"))
     check(amount->getText(0.4999999f, 100) == "0.0 %",
           "a macro amount a hair below its centre reads 0.0 %, and reads " +
@@ -612,10 +576,9 @@ void testAttackReachesIntoThePhase(OvertoniumProcessor &p) {
             readout.toStdString() + ")");
 }
 
-/// Legato as a switch beside the voice count. With one voice it is the
-/// monophonic legato the polyphony list's first entry always was, and with
-/// more the top line, measured in the DSP suite. This holds the parameter and
-/// the old entry to what the engine is told.
+/// Legato as a switch beside the voice count, and the polyphony list's old
+/// first entry, which still means monophonic legato. Checks what the engine is
+/// told. The sound is measured in the DSP suite.
 void testLegatoSwitch(OvertoniumProcessor &p) {
   section("The Legato switch");
 
@@ -775,49 +738,27 @@ void testGlideCaps() {
   gutter.setCollapsedSections(0);
 }
 
+/// The parameter layout: how many there are, that every ID the audio thread
+/// caches exists, and that the defaults and ranges read as the engine expects.
 void testParameterWiring(OvertoniumProcessor &p) {
   section("Parameter wiring");
 
-  // 23 per partial, 20 global, 18 for the noise channel, 10 for the two master
-  // effects. Glide and the whole pitch modulator are not among the noise
-  // channel's, since noise has no pitch: it takes the amp mod shape and not
-  // the pitch one, which is why the two counts differ by more than one.
+  // 23 per partial, 20 global, 18 for the noise channel, which has no pitch
+  // controls, and 10 for the two master effects.
   //
-  // Two of the globals are switches over the per-channel modulators rather
-  // than controls of their own: whether each of the two is one circuit the
-  // keyboard shares. See GlobalParams::ampModInPhase.
+  // Then four for the echo type, the reverb type, the output stage type and
+  // whether the output stage may look ahead. Two for glide, one for Legato,
+  // three for the adaptive temperament, four for the noise string and four for
+  // the resonator.
   //
-  // Three of the trailing four are the echo's type, the reverb's and the
-  // output stage's, each of which arrived beside the switch that turns its
-  // thing on rather than replacing it: a boolean every saved patch stores and
-  // every lane points at cannot become a choice without taking both with it.
-  // See params::echoTypeId and params::clipTypeId.
-  //
-  // The fourth is whether the output stage may look ahead, which is a session
-  // setting rather than part of a patch and is the only parameter here that
-  // changes what the plugin reports to the host. See params::lookaheadId.
-  //
-  // And six each for the macros, which are a pool rather than a count: an
-  // amount, which is the one a host draws, the row it reaches, the channels
-  // of it, how it is shared out, which channel a taper leans on, and the
-  // colour it wears. A macro nobody has made points its row at None. See
-  // params::kNumMacros.
-  //
-  // And two for glide on the end: when a note glides, and whether the time on
-  // each channel is per octave or per note. See params::glideTriggerId. Then
-  // Legato as a switch of its own beside the voice count. See
-  // params::legatoId. Then how fast the adaptive temperament retunes a held
-  // note, whether it uses the harmonic seventh, and whether it stays home.
-  // See params::adaptiveRetuneId, params::adaptiveSeventhId and
-  // params::adaptiveHomeId. Then four for the string the noise channel
-  // strikes, and four for the resonator. See params::stringSuffix
-  // and params::resonatorModeId.
+  // And six for each macro: the amount, the row it reaches, the channels it
+  // reaches, how it is shared out, the channel a taper leans on, and its
+  // colour.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
                        1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
 
-  // The behaviour that was there before it became a choice. Asked of the
-  // parameter rather than of the tree, so the answer does not depend on what
-  // an earlier test left behind.
+  // No stack defaults to on. Asked of the parameter rather than of the tree, so
+  // the answer does not depend on what an earlier test left behind.
   if (auto *v = p.apvts.getParameter(ovt::params::oneVoicePerKeyId))
     check(v->getDefaultValue() > 0.5f, "No stack defaults to on");
   check(p.getParameters().size() == expected,
@@ -887,9 +828,8 @@ void testParameterWiring(OvertoniumProcessor &p) {
   check(noisePresent, "the noise channel's parameters resolve");
 
   // The echo age reads across its whole travel even though it never gets below
-  // TapeEcho::kMinAge. Worth checking both directions, since a host that shows
-  // 0 % and then cannot be typed back to 0 % is worse than one that never
-  // hid the floor in the first place.
+  // TapeEcho::kMinAge. Both directions are checked, so 0 % shown can be typed
+  // back as 0 %.
   if (auto *age = dynamic_cast<juce::RangedAudioParameter *>(
           p.apvts.getParameter(ovt::params::echoAgeId))) {
     const auto textAt = [age](float normalised) {
@@ -926,13 +866,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   }
 }
 
-/// That the speed a key comes up at survives the trip from the message to the
-/// tail, and that the two ways a keyboard says "no release velocity" both
-/// leave the instrument exactly as it was.
+/// That the speed a key comes up at reaches the tail, and that both ways a
+/// keyboard says "no release velocity" leave the instrument as it was. A zero
+/// must read as no information rather than the softest lift.
 ///
-/// The shape of what it does is in the DSP suite. What is here is the wiring
-/// and the one thing that wiring can get wrong: reading a zero as the softest
-/// possible lift rather than as no information.
+/// The shape of what it does is in the DSP suite.
 void testReleaseVelocity(OvertoniumProcessor &p) {
   section("Release velocity");
 
@@ -947,11 +885,9 @@ void testReleaseVelocity(OvertoniumProcessor &p) {
     return param != nullptr;
   };
 
-  // Init is a plucky patch with an 8 ms release, so on its own terms there is
-  // no tail to measure. Half a second of one, a short decay so the note is
-  // sitting at its sustain rather than still on the way down when the key
-  // comes up, and a sustain of 0.4, which leaves a hard lift somewhere to go:
-  // the envelope stops at one, so doubling 0.6 would only reach the ceiling.
+  // Init has an 8 ms release, so this gives it half a second of tail, a short
+  // decay so the key comes up at the sustain, and a sustain of 0.4 so a hard
+  // lift has room before the envelope's ceiling at one.
   const bool ready = put(ovt::params::releaseSuffix, 0.5f) &&
                      put(ovt::params::decaySuffix, 0.05f) &&
                      put(ovt::params::sustainSuffix, 0.4f);
@@ -1023,12 +959,9 @@ void testReleaseVelocity(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
-/// That choosing a character brings its bus stage with it, and that the
-/// latency this costs is told to the host and never moves.
-///
-/// There is nothing to set: how hard each circuit is run is a property of the
-/// part, so the only way in is the character. What each one does to a signal
-/// is measured in the DSP suite, where a spectrum can be read.
+/// That choosing a character brings its bus stage with it, and that the latency
+/// this costs is told to the host and never moves. What each circuit does to a
+/// signal is measured in the DSP suite.
 void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   section("The bus stage");
 
@@ -1073,9 +1006,8 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   if (ahead == nullptr)
     return;
 
-  // The rest is about what happens with it on: the figure is fixed whatever
-  // the patch does, which is what lets a preset load without the host
-  // re-planning its graph.
+  // With it on, the figure is fixed whatever the patch does, so a preset loads
+  // without the host re-planning its graph.
   ahead->setValueNotifyingHost(1.0f);
   p.prepareToPlay(48000.0, 512);
 
@@ -1102,10 +1034,9 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
         "and they are not the same circuit (" +
             std::to_string(differs(valve, bulb)) + ")");
 
-  // Every character, including the one that has none, costs the same few
-  // samples, so a preset cannot make a host re-plan its graph. The output
-  // stage's lookahead is in the figure too and is just as fixed: it is paid
-  // on every clip type and with the clipper switched off.
+  // Every character, including None, costs the same few samples. The output
+  // stage's lookahead is in the figure too and is paid on every clip type and
+  // with the clipper off.
   const auto expected =
       ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
 
@@ -1117,9 +1048,8 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
         "and does not move when the character does (" +
             std::to_string(p.getLatencySamples()) + ")");
 
-  // The other half of the same rule. The lookahead belongs to one of the five
-  // types and is paid by all of them, so switching the stage off entirely has
-  // to leave the figure alone.
+  // The lookahead belongs to four of the eight types and is paid by all of
+  // them, so switching the stage off has to leave the figure alone.
   auto *clip = p.apvts.getParameter(ovt::params::safetyClipId);
   clip->setValueNotifyingHost(0.0f);
   p.prepareToPlay(48000.0, 512);
@@ -1131,9 +1061,9 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   clip->setValueNotifyingHost(1.0f);
   p.prepareToPlay(48000.0, 512);
 
-  // The one thing that is allowed to move it, and the reason it is allowed:
-  // it sits in Settings, so no preset and nothing on the bar can reach it.
-  // Giving the window up gives the whole of the output stage's share back.
+  // The one thing allowed to move it, since it sits in Settings where no preset
+  // and nothing on the bar can reach it. Turning it off gives the output
+  // stage's whole share back.
   check(ovt::params::isSessionParam(ovt::params::lookaheadId),
         "the lookahead is a session setting, so no preset can move the "
         "latency");
@@ -1158,6 +1088,8 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// A note renders finite, audible and within full scale, frees its voice after
+/// release, and starts at its timestamp within the block.
 void testRendering(OvertoniumProcessor &p) {
   section("Rendering and MIDI");
 
@@ -1203,12 +1135,12 @@ void testRendering(OvertoniumProcessor &p) {
   renderBlocks(p, 400, 512);
 }
 
-/// That a controller can be bound to a control, that binding one does not
-/// cost the instrument something it was already using, and that the map
-/// survives the session being saved and opened again.
+/// That a controller can be bound to a control, that binding one does not take
+/// a controller the instrument already uses, and that the map survives saving
+/// and reopening the session.
 ///
-/// The map is reached directly rather than through the menus, since what a
-/// menu does is call these. The menu itself is checked by the item it offers.
+/// The map is reached directly, since that is what the menus call. The menu is
+/// checked by the item it offers.
 void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   section("MIDI learn");
 
@@ -1233,9 +1165,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
 
   // ---- the reserved ones are refused -------------------------------------
   //
-  // Armed and then handed the slide axis, which is the one most likely to be
-  // touched by accident on an MPE controller, since it moves whenever a
-  // finger does.
+  // Armed and then handed the slide axis, which an MPE controller moves
+  // whenever a finger does.
   p.midiLearn.arm(target);
   send(74, 100);
 
@@ -1254,8 +1185,7 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
         "and is what moves that control now (" +
             std::to_string(p.midiLearn.controllerFor(target)) + ")");
 
-  // The message that bound it does not also move the control, which would be
-  // a jump at the moment somebody is looking at it.
+  // The message that binds it does not also move the control.
   const auto afterBinding = target->getValue();
 
   send(20, 127);
@@ -1286,8 +1216,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
 
   // ---- and a preset cannot touch it --------------------------------------
   //
-  // The map describes the desk rather than the sound, so loading a patch over
-  // it would be rearranging somebody's hardware.
+  // The map describes the controller rather than the sound, so a preset leaves
+  // it alone.
   p.applyFactoryPreset(presetIndex("Big Saw"));
 
   check(p.midiLearn.controllerFor(afterLoad) == 20,
@@ -1296,11 +1226,9 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   // ---- and it works where it would be easiest to break ------------------
   //
   // With MPE on, the parser is handed every message and only the mod wheel, a
-  // program change and all-sound-off fall through to the ordinary handler. A
-  // binding checked after that would be dead on exactly the controller this
-  // instrument is usually played from. Everything above this point passes
-  // whether the check runs before the parser or after it, because MPE is off
-  // by default, which is what makes this case worth its own lines.
+  // program change and all-sound-off fall through to the ordinary handler. MPE
+  // is off by default, so this is the only case that proves the binding is
+  // checked before the parser.
   if (auto *mpe = p.apvts.getParameter(ovt::params::mpeId)) {
     mpe->setValueNotifyingHost(1.0f);
     p.prepareToPlay(48000.0, 256);
@@ -1332,9 +1260,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
 
   // ---- the menu says so, and the controls answer to it -------------------
   //
-  // The map above is reached directly, which proves nothing about whether a
-  // right-click can get at it. Two things have to hold: a control has to know
-  // which parameter it moves, and the menu has to offer the item.
+  // A control has to know which parameter it moves, and the menu has to offer
+  // the item.
   {
     std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
     auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
@@ -1359,10 +1286,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
         return nullptr;
       };
 
-      // A fader on the first channel, which is tagged where its attachment is
-      // made, and the master fader on the bar, which is tagged somewhere else
-      // entirely. One of each, so a tag added in only one of the two places
-      // fails here.
+      // A fader on the first channel and the master fader on the bar, which are
+      // tagged in different places, so a tag missing from either fails here.
       const auto fader = ovt::params::oscParamId(ovt::params::volumeSuffix, 0);
 
       check(findTagged(*editor, fader) != nullptr,
@@ -1372,10 +1297,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
 
       // ---- and a waiting control says so -------------------------------
       //
-      // Arming happens through the map, the marker is hung by the window on
-      // its timer, and the look and feel is what draws it. This checks the
-      // middle of those three: that the window finds the right control and
-      // marks it, and takes the mark off again when the wait ends.
+      // The window finds the armed control on its timer and marks it, and takes
+      // the mark off when the wait ends. The look and feel draws it.
       auto *wobble = dynamic_cast<juce::RangedAudioParameter *>(
           p.apvts.getParameter(ovt::params::wobbleId));
 
@@ -1453,10 +1376,9 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
 
   // ---- including the macro amounts ---------------------------------------
   //
-  // The amount is what a host automates, so it is the one worth binding to a
-  // controller. It lives on the macro panel rather than on a strip, which
-  // means it is reachable at all only if that panel is in the window and its
-  // fader carries the same tag every other control does.
+  // The amount is what a host automates, so it is the one worth binding. It is
+  // reachable only if the macro panel is in the window and its fader carries
+  // the same tag as every other control.
   {
     std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
     auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
@@ -1500,13 +1422,11 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
-/// That one automatable parameter moves a whole row, which is what issue #24
-/// asked for: a LINK drag across TUNE moves 32 parameters and a host catches
-/// only the last touched, so a relationship you can edit cannot be automated.
+/// That one automatable parameter moves a whole row, so an edit across all 32
+/// channels can be automated on one lane.
 ///
-/// Read off the snapshot rather than off the sound, because what a macro does
-/// is offset what the patch says on the way to the engine. The sound follows
-/// from that and is a much blunter instrument for telling 32 channels apart.
+/// Read off the snapshot rather than off the sound, since a macro offsets what
+/// the patch says on the way to the engine.
 void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
   section("Macros");
 
@@ -1524,8 +1444,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
     return out;
   };
 
-  // The row the issue names, and the one a macro is most wanted on. One
-  // rather than zero: the list opens with None, which is an unmade macro.
+  // TUNE. One rather than zero, since the list opens with None, which is an
+  // unmade macro.
   const int tuneRow = 1;
 
   const auto resting = snapshot();
@@ -1544,9 +1464,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
   set(ovt::params::macroScopeId(0), 0.0f);
   set(ovt::params::macroCurveId(0), 0.0f);
 
-  // Downward, because Init leaves TUNE at the top of its range: pushing up
-  // would clamp on every channel and the test would read "nothing moved"
-  // while the macro was working perfectly.
+  // Downward, because Init leaves TUNE at the top of its range, where pushing
+  // up would clamp on every channel and read as nothing moved.
   set(ovt::params::macroAmountId(0), -0.25f);
 
   const auto moved = snapshot();
@@ -1561,9 +1480,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
                                            std::to_string(shifted) +
                                            " of 32 channels)");
 
-  // The thing that makes it a macro rather than a drag: the parameters it
-  // offsets have not moved, so the patch is exactly where it was and the host
-  // has one lane rather than thirty-two.
+  // The parameters it offsets have not moved, so the patch is where it was and
+  // the host has one lane rather than thirty-two.
   int written = 0;
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
     auto *q = p.apvts.getParameter(
@@ -1594,6 +1512,107 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
         "the scope decides which channels it reaches (" +
             std::to_string(oddMoved) + " odd, " + std::to_string(evenMoved) +
             " even)");
+
+  // ---- Selected reaches the channels it was given ------------------------
+  //
+  // Harmonics 3, 5, 9 and 12, which no other scope names together. They travel
+  // with the macro's state: into the session, into a user preset, and out again
+  // when a factory preset is chosen.
+  {
+    const auto given = ovt::params::channelListMask("3,5,9,12");
+    p.macroChannels()[0].store(given);
+    set(ovt::params::macroScopeId(0),
+        (float)(int)ovt::params::MacroScope::Selected);
+
+    const auto reaching = [&] {
+      const auto now = snapshot();
+      std::uint32_t mask = 0;
+
+      for (int i = 0; i < ovt::kNumHarmonics; ++i)
+        if (std::abs(now.osc[(size_t)i].tuneBlend -
+                     resting.osc[(size_t)i].tuneBlend) > 1.0e-5f)
+          mask |= 1u << i;
+
+      return mask;
+    };
+
+    check(reaching() == given,
+          "Selected reaches the channels it was given and no others (" +
+              ovt::params::channelListText(reaching()).toStdString() + ")");
+
+    check(ovt::params::channelListText(given) == "3,5,9,12" &&
+              ovt::params::channelListMask(" 3, 5,x,9,12,40") == given,
+          "and its channels are written as their numbers and read back");
+
+    juce::MemoryBlock session;
+    p.getStateInformation(session);
+    p.macroChannels()[0].store(0);
+    p.setStateInformation(session.getData(), (int)session.getSize());
+
+    check(p.macroChannels()[0].load() == given, "the session keeps them");
+
+    const auto doc =
+        ovt::presets::capture(p.apvts, "Selected", &p.macroChannels());
+    p.macroChannels()[0].store(0);
+    p.macroChannels()[3].store(1u);
+    ovt::presets::restore(p.apvts, *doc, &p.macroChannels());
+
+    check(p.macroChannels()[0].load() == given &&
+              p.macroChannels()[3].load() == 0,
+          "and so does a preset of your own, which also clears a macro it "
+          "names none for");
+
+    p.applyFactoryPreset(presetIndex("Init"));
+
+    check(p.macroChannels()[0].load() == 0,
+          "while a factory preset, which has none, takes them away");
+
+    // Undo puts them back with the scope that uses them: undoing a preset load
+    // leaves macro 1 on Selected reaching the same four channels.
+    set(ovt::params::macroRowId(0), (float)tuneRow);
+    set(ovt::params::macroScopeId(0),
+        (float)(int)ovt::params::MacroScope::Selected);
+    p.macroChannels()[0].store(given);
+    p.undo().clearUndoHistory();
+
+    p.recordEdit("Load preset",
+                 [&p] { p.applyFactoryPreset(presetIndex("Init")); });
+
+    check(p.macroChannels()[0].load() == 0, "a preset load clears them");
+
+    p.undo().undo();
+
+    check(p.macroChannels()[0].load() == given &&
+              juce::roundToInt(
+                  p.apvts.getParameter(ovt::params::macroScopeId(0))
+                      ->convertFrom0to1(
+                          p.apvts.getParameter(ovt::params::macroScopeId(0))
+                              ->getValue())) ==
+                  (int)ovt::params::MacroScope::Selected,
+          "undoing it puts back the scope and its channels together");
+
+    p.undo().redo();
+
+    check(p.macroChannels()[0].load() == 0, "and redoing it clears them again");
+
+    // Taking new channels with the scope already on Selected moves no
+    // parameter, and is still a step of its own.
+    p.undo().clearUndoHistory();
+    p.macroChannels()[0].store(given);
+    p.recordEdit("Choose a macro's channels",
+                 [&p] { p.macroChannels()[0].store(1u << 6); });
+    p.undo().undo();
+
+    check(p.macroChannels()[0].load() == given,
+          "a change of channels alone can be undone");
+
+    p.undo().clearUndoHistory();
+    p.applyFactoryPreset(presetIndex("Init"));
+
+    // Put back as it was before this block, for the curve below.
+    set(ovt::params::macroRowId(0), (float)tuneRow);
+    set(ovt::params::macroAmountId(0), -0.25f);
+  }
 
   // ---- and the curve decides how much each one takes ---------------------
   set(ovt::params::macroScopeId(0), 0.0f);
@@ -1640,9 +1659,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
   // ---- a macro nobody has made does nothing ------------------------------
   //
-  // Which is how one is removed: the row goes back to None and the amount is
-  // left wherever the fader was. A macro that went on working after being
-  // taken away would be the worst of both.
+  // Which is how one is removed: the row goes back to None and the amount stays
+  // wherever the fader was.
   set(ovt::params::macroAmountId(0), -0.25f);
   set(ovt::params::macroRowId(0), 0.0f);
 
@@ -1660,9 +1678,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
   // ---- and an interval scope reaches that interval -----------------------
   //
-  // The fifth, which is harmonics 3, 6, 12 and 24. Counted against the table
-  // rather than against a list written here, so this cannot drift from what
-  // the mixer calls those channels.
+  // The fifth, which is harmonics 3, 6, 12 and 24. Counted against the table,
+  // so this cannot drift from what the mixer calls those channels.
   set(ovt::params::macroRowId(0), (float)tuneRow);
   set(ovt::params::macroScopeId(0),
       (float)((int)ovt::params::MacroScope::Interval + 7));
@@ -1688,11 +1705,9 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
   // ---- and a driven control wears the macro's colour ---------------------
   //
-  // Which control belongs to which macro is a fact about all eight of them,
-  // so the window works it out and the strips are told. Read off the control
-  // itself, since what the look and feel draws is whatever colour it has been
-  // given: a macro taking a control over is the control being told it is a
-  // different colour.
+  // The window works out which control belongs to which macro and tells the
+  // strips. Read off the control itself, since the look and feel draws whatever
+  // colour it has been given.
   {
     std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
     auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
@@ -1700,8 +1715,7 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
     check(editor != nullptr, "the editor opens");
 
     if (editor != nullptr) {
-      // Read off the control, which is where the look and feel reads it: the
-      // macro's colour is carried beside the control's own rather than
+      // The macro's colour is carried beside the control's own rather than
       // replacing it, so the pointer can stay the channel's.
       const auto colourOf = [&](int channel) {
         auto *c = ovt::ui::learn::controlFor(
@@ -1740,10 +1754,9 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
       // ---- and the bar follows the macros, not the tool ------------------
       //
-      // The count sat in syncLinkUi, which runs when the tool or LINK
-      // changes, so making a macro lit the button only once you went near
-      // the tool menu. Read off the button's own name, which carries the
-      // count for a screen reader.
+      // Making a macro lights the button without the tool menu being touched.
+      // Read off the button's name, which carries the count for a screen
+      // reader.
       {
         juce::TextButton *bar = nullptr;
 
@@ -1787,16 +1800,11 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
       // ---- and the ring shows what the engine is playing ----------------
       //
       // The ring is worked out by the window and the offset by the snapshot,
-      // from the same shared arithmetic. If those two ever disagreed the
-      // knob would be showing a value nothing is playing, which is worse
-      // than showing nothing: it would be a lie told confidently.
-      // The decay row rather than tune, because decay is built by logRange
-      // and tune is linear. A macro that moved a proportion of the units
-      // instead of a proportion of the travel passes on a linear row and is
-      // wrong by orders of magnitude on this one, which is exactly the fault
-      // this guards: the cached range was being rebuilt from its two ends,
-      // which throws away the curve logRange keeps in its conversion
-      // functions and leaves a range that looks right and is linear.
+      // from the same arithmetic, and they must agree. The decay row rather
+      // than tune, because decay is built by logRange and tune is linear. A
+      // macro that moved a proportion of the units instead of the travel, or a
+      // cached range rebuilt from its two ends, passes on a linear row and is
+      // wrong by orders of magnitude here.
       const int decayRow = 9;
 
       set(ovt::params::macroRowId(0), (float)decayRow);
@@ -1841,10 +1849,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
 
       // ---- and follows the control, not only the macro ------------------
       //
-      // The result is the patch's value plus the macro's offset, so turning
-      // a knob moves it while every macro stands still. There was a
-      // signature here that skipped the pass when no macro had moved, and
-      // the ring sat where it had been left until a macro was touched.
+      // The result is the patch's value plus the macro's offset, so turning a
+      // knob moves the ring while every macro stands still.
       {
         auto *first =
             dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
@@ -1887,15 +1893,15 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
+/// Every factory preset has a case of its own, applies, and sounds.
 void testPresets(OvertoniumProcessor &p) {
   section("Factory presets");
 
   const auto names = ovt::presets::names();
 
-  // Counted rather than spelt, so adding one does not leave a number here
-  // claiming otherwise. Every name has to have a case of its own, which is
-  // what the loop below is really testing: a name with no case applies
-  // nothing and the preset comes out silent.
+  // Counted rather than spelt. Every name needs a case of its own, which is
+  // what the loop below tests: a name with no case applies nothing and the
+  // preset comes out silent.
   check(names.size() > 0,
         "there are factory presets (" + std::to_string(names.size()) + ")");
 
@@ -1928,6 +1934,8 @@ void testPresets(OvertoniumProcessor &p) {
   ovt::presets::apply(p.apvts, presetIndex("Init")); // back to Init
 }
 
+/// Pressure, polyphonic aftertouch and the mod wheel reach the voices according
+/// to Aftertouch from, without eating the pedal or the panic messages.
 void testAftertouchMidi(OvertoniumProcessor &p) {
   section("Aftertouch over MIDI");
 
@@ -2009,8 +2017,8 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   check(renderBlocks(p, 20, 512, pressOn).peak > 0.01f,
         "while channel pressure still does");
 
-  // Both back to rest before the mirror image. A wheel left up at 127 would
-  // make the next pair of checks pass for entirely the wrong reason.
+  // Both back to rest before the mirror image, since a wheel left at 127 would
+  // make the next checks pass for the wrong reason.
   sendCC(0);
   renderBlocks(p, 40, 512, pressOff);
 
@@ -2049,11 +2057,9 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
 
 /// Notes arriving on a channel each, which is what MPE is.
 ///
-/// The engine's own handling of that is covered by the DSP suite. What is
-/// checked here is the routing: whether a message on channel N reaches the
-/// voice it was meant for and no other, whether an ordinary keyboard still
-/// plays with the setting on, and whether it plays exactly as it always did
-/// with the setting off.
+/// Checks the routing: a message on channel N reaches the voice it was meant
+/// for and no other, an ordinary keyboard still plays with the setting on, and
+/// nothing changes with it off. The engine side is in the DSP suite.
 void testMpe(OvertoniumProcessor &p) {
   section("MPE");
 
@@ -2134,7 +2140,7 @@ void testMpe(OvertoniumProcessor &p) {
 
   p.prepareToPlay(48000.0, 512);
 
-  // ---- off: the channel means nothing, which is what it always meant -------
+  // ---- off: the channel means nothing -------------------------------------
   {
     setParam(ovt::params::mpeId, 0.0f);
     panic();
@@ -2184,9 +2190,8 @@ void testMpe(OvertoniumProcessor &p) {
 
   // ---- on: an ordinary keyboard still plays -------------------------------
   //
-  // Notes on the master channel are notes of the master channel rather than
-  // nothing at all, which is what stops this setting from silencing a keyboard
-  // that knows nothing about it.
+  // Notes on the master channel are notes of the master channel, so the setting
+  // does not silence a keyboard that knows nothing about it.
   {
     juce::MidiBuffer m;
     m.addEvent(juce::MidiMessage::noteOn(1, 69, 1.0f), 0);
@@ -2220,10 +2225,9 @@ void testMpe(OvertoniumProcessor &p) {
 
   // ---- on: bend belongs to the channel it arrives on -----------------------
   {
-    // The wheel is left where the player put it by a panic, deliberately, and
-    // the block above pushed it to the top. Master bend reaches every note, so
-    // without centring it here the baseline below would already be bent, which
-    // is correct behaviour and a confusing thing to measure against.
+    // A panic leaves the wheel where it was, and the block above pushed it to
+    // the top. Master bend reaches every note, so it is centred here to keep
+    // the baseline unbent.
     juce::MidiBuffer centre;
     centre.addEvent(juce::MidiMessage::pitchWheel(1, 8192), 0);
     play(4, centre);
@@ -2296,11 +2300,9 @@ void testMpe(OvertoniumProcessor &p) {
 
   // ---- on: the pedal still holds ------------------------------------------
   //
-  // The parser takes CC 64 for itself, so the pool's own pedal handling never
-  // sees it in this mode. That is deliberate, and it only works if the parser
-  // then defers the release, which is what this checks. Getting it wrong in
-  // either direction is either a pedal that does nothing or a note released
-  // twice.
+  // The parser takes CC 64 for itself, so the pool never sees it in this mode,
+  // and the parser has to defer the release. Getting it wrong is a pedal that
+  // does nothing or a note released twice.
   {
     juce::MidiBuffer m;
     m.addEvent(juce::MidiMessage::noteOn(2, 60, 1.0f), 0);
@@ -2332,9 +2334,8 @@ void testMpe(OvertoniumProcessor &p) {
 
   // ---- switching it off does not leave notes hanging ----------------------
   //
-  // The voices sounding were started through entry points the other mode
-  // cannot reach, so without a release on the way through they would hold for
-  // ever with no key left to lift.
+  // The voices sounding were started through entry points the other mode cannot
+  // reach, so without a release on the way through they would hold for ever.
   {
     juce::MidiBuffer m;
     m.addEvent(juce::MidiMessage::noteOn(2, 60, 1.0f), 0);
@@ -2370,11 +2371,9 @@ void testMpe(OvertoniumProcessor &p) {
 
 /// The lamps between the knob groups, and what a frame of them costs.
 ///
-/// The user asking for these asked for them only if they were cheap, so the
-/// cost is measured here rather than asserted anywhere. Two things make them
-/// cheap and both are checked: the lamps hold still between steps instead of
-/// following their value exactly, and their bands are merged by row rather
-/// than by neighbour.
+/// Two things keep them cheap and both are checked: the lamps hold still
+/// between steps instead of following their value exactly, and their bands are
+/// merged by row rather than by neighbour.
 void testActivityLamps(OvertoniumProcessor &p) {
   section("Strip lamps");
 
@@ -2382,9 +2381,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
 
   // ---- merging by row -----------------------------------------------------
   //
-  // The lamps all sit at the same four heights, so this is the merge that
-  // costs nothing: the union of a row of them is exactly the pixels they
-  // occupy plus the gaps between strips.
+  // The lamps all sit at the same four heights, so the union of a row of them
+  // is the pixels they occupy plus the gaps between strips.
   {
     juce::Array<juce::Rectangle<int>> bands;
     for (int i = 0; i < 32; ++i) {
@@ -2417,9 +2415,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
 
   // ---- the needle's scale -------------------------------------------------
   //
-  // Fixed, and fixed to what the knobs can actually reach. A scale that
-  // disagreed with the controls feeding it would be worse than no scale, so
-  // the constants the needle reads are held against the ranges themselves.
+  // Fixed to what the knobs can reach, so the constants the needle reads are
+  // held against the ranges themselves.
   {
     const auto rangeEnd = [&p](const char *suffix) {
       auto *param = p.apvts.getParameter(ovt::params::oscParamId(suffix, 0));
@@ -2432,9 +2429,7 @@ void testActivityLamps(OvertoniumProcessor &p) {
               std::to_string(rangeEnd(ovt::params::pmDepthSuffix)) + ")");
 
     // The needle is scaled for vibrato rather than for the octave a square can
-    // jump, which is the one deliberate disagreement between a readout and the
-    // control feeding it. What still has to hold is that the other wanderer
-    // cannot peg it on its own, or the lamp would be at the end all the time.
+    // jump. The other wanderer still must not peg it on its own.
     check(ovt::params::kPitchNeedleFullScaleCents > ovt::params::kMaxDriftCents,
           "drift alone cannot peg the needle");
     check(ovt::params::kPitchNeedleFullScaleCents <
@@ -2565,10 +2560,9 @@ void testActivityLamps(OvertoniumProcessor &p) {
 
     // ---- the two output lamps are gated on the note like the rest --------
     //
-    // The velocity half is the one that has to be gated, and it is the one a
-    // reader would expect not to need it: it reads full when the row is
-    // taking nothing, so fed straight through it would sit lit on every
-    // channel of a silent mixer.
+    // The velocity half needs the gate most: it reads full when the row is
+    // taking nothing, so ungated it would sit lit on every channel of a silent
+    // mixer.
     bands.clearQuick();
     strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
@@ -2591,10 +2585,9 @@ void testActivityLamps(OvertoniumProcessor &p) {
           "with a note under it the velocity row moves exactly one lamp (" +
               std::to_string(bands.size()) + ")");
 
-    // Which one, not just how many. The velocity lamp is the left half of
-    // the rule and the pressure lamp the right, and nothing else here can
-    // tell the two apart: swapping what they are fed moves one lamp either
-    // way and every count still comes out right.
+    // Which one, not just how many. The velocity lamp is the left half of the
+    // rule and the pressure lamp the right, and swapping what they are fed
+    // would leave every count above right.
     const auto velocityBand = bands.getFirst();
 
     bands.clearQuick();
@@ -2617,12 +2610,6 @@ void testActivityLamps(OvertoniumProcessor &p) {
   }
 }
 
-/// The seven-segment readouts under each channel.
-///
-/// They replaced two plain labels, and the risk in that is a reading the
-/// display has no way to draw: a label will render anything, a segment display
-/// will silently show an unlit digit. So every reading the two can produce is
-/// held against what the display can draw.
 /// The STRIKE popup, which is the only reading on the panel worked out from
 /// more than one control.
 void testStrikeReadout() {
@@ -2630,14 +2617,12 @@ void testStrikeReadout() {
 
   using namespace ovt;
 
-  // Off: nothing is being done to the onset, so the reading is the value and
-  // nothing else. Anything further would be two figures that never move.
+  // Off: nothing is done to the onset, so the reading is the value alone.
   check(params::strikeRangeText(0.0f, 0.0f, 0.005f) == "0 %",
         "at nought the reading is the percentage alone (" +
             params::strikeRangeText(0.0f, 0.0f, 0.005f).toStdString() + ")");
 
-  // The case the control exists for, and the one that was impossible to find
-  // out without playing a note: a short attack at a full amount.
+  // The case the control exists for: a short attack at a full amount.
   const auto full = params::strikeRangeText(1.0f, 0.0f, 0.002f);
   std::printf("  2 ms attack at +100%%: %s\n", full.toRawUTF8());
 
@@ -2657,8 +2642,8 @@ void testStrikeReadout() {
         "a delay lands on both ends of the onset (" + delayed.toStdString() +
             ")");
 
-  // The panel and the engine have to agree, or the reading is a second opinion
-  // rather than a readout. Held against the arithmetic the voice itself runs.
+  // The panel and the engine have to agree, so this is held against the
+  // arithmetic the voice itself runs.
   const auto range = strikeRange(1.0f, 0.4f, 0.002f);
   const auto quick = 0.4f * strikeDelayScale(1.0f, 1.0f) +
                      struckAttack(0.002f, strikeAttackScale(1.0f, 1.0f));
@@ -2676,6 +2661,11 @@ void testStrikeReadout() {
   check(ordered, "and it comes back smallest first at every amount");
 }
 
+/// The seven-segment readouts under each channel and elsewhere on the panel.
+///
+/// A segment display shows an unlit digit for a character it cannot draw, so
+/// every reading the panel can produce is held against what the display can
+/// draw.
 void testSegmentReadouts(OvertoniumProcessor &p) {
   section("Segment readouts");
 
@@ -2736,14 +2726,12 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
   collect(*editor);
 
-  // Three on the bar, the two converter readouts and the preset name, two on
-  // each of the thirty-two channels, the level on the noise strip, and one
-  // per macro in the panel. The panel's eight are built whether or not the
-  // macro has been made, so they are all here whatever the patch says. Then
-  // five in the Playing bar, the voices, the voices in use, bend range,
-  // aftertouch and slide, and sixteen in the Tuning bar, the temperament, root
-  // and reference, one for each of the twelve pitch classes and the drift, all
-  // built whether or not the bars are open.
+  // Three on the bar (the two converter readouts and the preset name), two on
+  // each of the thirty-two channels, the level on the noise strip, and one per
+  // macro in the panel. Then five in the Playing bar (the voices, the voices in
+  // use, bend range, aftertouch and slide) and sixteen in the Tuning bar (the
+  // temperament, root, reference, the twelve pitch classes and the drift). The
+  // macro and bar displays are built whether or not they are in use.
   check(displays.size() ==
             3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
@@ -2752,9 +2740,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   bool allDrawable = true;
   std::string firstBad;
 
-  // Against its own cells. The preset name is on a fourteen-bar display and
-  // spells words a seven-bar one has no forms for, which is the whole reason
-  // it is a different display.
+  // Against its own cells. The preset name is on a fourteen-bar display, which
+  // spells words a seven-bar one has no forms for.
   for (auto *d : displays)
     for (int i = 0; i < d->getReading().length(); ++i)
       if (!SegmentDisplay::canDraw((char)d->getReading()[i],
@@ -2826,7 +2813,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
         "half way is -6.0 dB (" + level.getReading().toStdString() + ")");
 
   // The readout counts down to the quietest figure the cells can hold rather
-  // than giving up partway, which it used to do at -66 dB.
+  // than giving up partway.
   const auto atDb = [&](float db) {
     setVolume(0, juce::Decibels::decibelsToGain(db));
     return level.getReading();
@@ -2863,9 +2850,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
   // ---- where those levels sit on the fader --------------------------------
   //
-  // Reading a level is no use if it cannot be set. The travel is spaced by
-  // decibels, so the quiet end has room rather than being crushed into the
-  // last few pixels.
+  // The travel is spaced by decibels, so the quiet end has room rather than
+  // being crushed into the last few pixels.
   auto *fader = p.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
 
@@ -2885,8 +2871,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   check(travelAt(0.0f) > 0.999f, "unity sits at the top of the travel");
   check(fader->convertTo0to1(0.0f) < 0.001f, "and silence at the bottom");
 
-  // A gain law left everything below -66 dB inside the bottom 2% of a 223
-  // pixel fader, which is five pixels for thirty-four decibels.
+  // -66 dB sits well up the travel rather than in the bottom few pixels.
   check(travelAt(-66.0f) > 0.15f,
         "-66 dB is well clear of the bottom of the fader");
   check(travelAt(-99.9f) < 0.03f && travelAt(-99.9f) > 0.0f,
@@ -2962,15 +2947,14 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   // ---- a sign sharing the leading digit's cell -----------------------------
   //
   // A reading that runs to three digits and can be negative has a hundreds
-  // place that is only ever a one or nothing, so the sign lives in that cell
-  // beside it rather than taking a cell of its own. The macro panel's amount
-  // is the only reading that does this.
+  // place that is only ever a one or nothing, so the sign shares that cell
+  // rather than taking one of its own. The macro panel's amount is the only
+  // reading that does this.
   //
-  // Held by rendering the same number signed and unsigned and comparing the
-  // pictures: everything but that first cell has to be identical, or the
-  // digits are shifting along to make room for the sign, which is the thing
-  // this exists to stop. Counting lit pixels will not do it, since the ground
-  // these are drawn on is lit too.
+  // Checked by rendering the same number signed and unsigned: everything but
+  // the first cell has to be identical, or the digits have shifted to make room
+  // for the sign. Counting lit pixels would not do, since the ground is lit
+  // too.
   const auto renderOf = [](const juce::String &reading) {
     ovt::ui::SegmentDisplay d({});
     d.setBounds(0, 0, 92, 30);
@@ -2995,17 +2979,16 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   check(differing > 0, "a sign is drawn in the leading cell (" +
                            std::to_string(differing) + " pixels differ)");
 
-  // And it sits in the middle of that cell when nothing shares it, which is
-  // how the reading spends nearly all of its life. Measured against a lit
-  // eight standing in the same cell, which marks the cell's own extent.
+  // And the sign sits in the middle of that cell when nothing shares it,
+  // measured against a lit eight in the same cell, which marks the cell's
+  // extent.
   const auto centreOf = [](const juce::Image &im) {
     int first = -1, last = -1;
 
     // The leading cell only, and inside the recess, whose own lit edge runs
-    // round the perimeter and would otherwise be the extent of everything.
-    // A cell is a quarter of the run and the run does not fill the box, so the
-    // first cell reaches a little past a quarter of it and stops short of
-    // three tenths, where the second begins.
+    // round the perimeter. A cell is a quarter of the run and the run does not
+    // fill the box, so the first cell ends a little past a quarter and short of
+    // three tenths.
     for (int x = 0; x < im.getWidth() * 3 / 10; ++x) {
       bool any = false;
 
@@ -3037,10 +3020,9 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             std::to_string(to) + " of " + std::to_string(signed_.getWidth()) +
             ")");
 
-  // And the cell still shows the hundreds digit when there is one, which is
-  // the other half of what it is for. Nothing is drawn specially for either:
-  // the sign is the middle bar and the one is the pair of uprights, both lit
-  // the way any segment is.
+  // And the cell still shows the hundreds digit when there is one. The sign is
+  // the middle bar and the one is the pair of uprights, both drawn like any
+  // segment.
   const auto hundred = renderOf("!00.0");
   const auto none = renderOf("~00.0");
 
@@ -3058,23 +3040,11 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
             readingFor(6, 1.0f).toStdString() + ")");
 }
 
-/// The channel highlight, which marks the column the pointer is on.
-///
-/// The row band answers which of the twenty-one controls you are on. This
-/// answers which of the thirty-three channels, and the two crossing is what
-/// tells you at a glance which knob a drag would actually move.
-///
-/// Each strip works it out from where the pointer is rather than being told by
-/// the editor, so what is checked here is that the answer follows the pointer
 /// That the preset display can spell.
 ///
-/// Seven bars manage five letters, which is all a readout on a channel has to
-/// say, and a preset is called Glockenspiel. The display that carries the
-/// name has fourteen, and three faults in it came out of looking at a render
-/// rather than out of reasoning: a hyphen counted as a sign rather than as a
-/// letter, so Lo-fi lost its last character. The five had two bars wrong, and
-/// the diagonals were trimmed along the wrong axis, so X was four marks
-/// around a hole. The first and the third are what this holds.
+/// The name is on a fourteen-bar display, since seven bars cannot spell a name
+/// like Glockenspiel. This holds that a hyphen is drawn as a letter rather than
+/// taken as a sign, and that every character has a shape of its own.
 void testThePresetDisplaySpells(OvertoniumProcessor &) {
   section("The preset display spells");
 
@@ -3104,8 +3074,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
   // ---- and fits every one of them to its nine cells ------------------------
   //
   // Spaces from the right, then vowels, then a cut, and never the first
-  // character. Held against the names the instrument ships rather than
-  // against invented ones, because those are what anyone will see.
+  // character. Held against the names the instrument ships, since those are
+  // what anyone will see.
   struct Fitted {
     const char *name;
     const char *shown;
@@ -3124,6 +3094,7 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
 
       // The space goes and nothing else has to.
       {"Tape Choir", "TAPECHOIR"},
+      {"Tape Pluck", "TAPEPLUCK"},
       {"Vibraphone", "VIBRAPHON"},
 
       // The space, then vowels from the right.
@@ -3132,6 +3103,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Metallic Piano", "METALLCPN"},
       {"Odd Harmonics", "ODDHRMNCS"},
       {"Struck Bell", "STRUCKBLL"},
+      {"8-bit Choir", "8-BITCHOR"},
+      {"Combo Organ", "COMBOORGN"},
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
@@ -3166,9 +3139,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
   check(misfits == 0, "and every factory name comes out at nine cells (" +
                           std::to_string(misfits) + " did not)");
 
-  // What the squeeze leaves has to be spellable too. Dropping a vowel cannot
-  // introduce a character, but a cut landing mid-name could expose one that
-  // the whole name test above happened not to reach.
+  // What the squeeze leaves has to be spellable too, since a cut landing
+  // mid-name could expose a character the whole-name check above did not reach.
   int unshowable = 0;
 
   for (const auto &name : names) {
@@ -3184,9 +3156,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
   check(unshowable == 0, "and what is left of it is still spellable (" +
                              std::to_string(unshowable) + ")");
 
-  // The display draws all of its cells, the unlit ones included: a nine-cell
-  // display showing INIT is four letters and five cells standing dark, not a
-  // four-cell display.
+  // The display draws all of its cells, the unlit ones included, so INIT on
+  // nine cells is four letters and five dark cells.
   const auto cellsShown = [](const juce::String &reading) {
     SegmentDisplay d({}, SegmentDisplay::Bars::Fourteen, 9);
 
@@ -3204,14 +3175,11 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
 
   // ---- every character is its own shape ------------------------------------
   //
-  // A table of fourteen flags per character is a page of copy and paste, and
-  // the way it goes wrong is two characters ending up with the same bars. A
-  // render tells them apart whatever the table says.
-  // A bar that is on, as against the ground or one that is off. The cells are
-  // drawn whether they are lit or not, which is what makes them read as a
-  // display, so anything that merely differs from the ground is no use: the
-  // accent comes through at around 206 against the 25 of the ground and the
-  // 35 to 59 of an unlit bar.
+  // A table of fourteen flags per character can give two characters the same
+  // bars, and a render tells them apart whatever the table says. A bar that is
+  // on, as against the ground or an unlit bar, which are both drawn: the accent
+  // is around 206 against the 25 of the ground and the 35 to 59 of an unlit
+  // bar.
   const auto isLit = [](juce::Colour px) { return px.getBlue() > 120; };
 
   const auto fingerprint = [&isLit](char c) {
@@ -3241,10 +3209,8 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
     const auto print = fingerprint(c);
 
     if (const auto found = seen.find(print); found != seen.end()) {
-      // S and 5 are the same shape, on this display and on every seven-bar
-      // one ever built. Writing them apart would mean inventing a five that
-      // no hardware has, so the pair is allowed by name rather than the rule
-      // being loosened for everything.
+      // S and 5 are the same shape on every seven-bar display, so the pair is
+      // allowed by name rather than loosening the rule for everything.
       const auto both =
           juce::String::charToString((juce::juce_wchar)found->second) +
           juce::String::charToString((juce::juce_wchar)c);
@@ -3266,14 +3232,9 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
                              pair.toStdString() + ")");
 }
 
-/// That a silenced channel loses the light out of its controls and not the
-/// light out of its mute.
-///
-/// The strip used to go to four tenths alpha as a whole, which took the pair
-/// down with it, and the mute is the one thing on a silenced channel that has
-/// to stay readable because it is usually what silenced it. Nothing else
-/// checks this: a wash and a drain both look dim from a distance and neither
-/// changes a parameter.
+/// That a silenced channel loses the light out of its controls and not out of
+/// its mute, which has to stay readable since it is usually what silenced the
+/// channel.
 void testSilencedChannel(OvertoniumProcessor &p) {
   section("A silenced channel");
 
@@ -3306,8 +3267,7 @@ void testSilencedChannel(OvertoniumProcessor &p) {
   if (strip == nullptr)
     return;
 
-  // Counts the two kinds apart, because the whole point is that they answer
-  // differently.
+  // Counts the two kinds apart, since they have to answer differently.
   const auto survey = [](juce::Component &c) {
     struct Count {
       int controlsUnlit = 0, controlsLit = 0, pairUnlit = 0;
@@ -3351,8 +3311,7 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   check(cut.pairUnlit == 0, "and its mute and solo keep theirs");
 
-  // The wash this replaced. A strip that dims itself dims the pair with it
-  // however carefully the controls are handled.
+  // The strip itself is not dimmed, since that would dim the pair with it.
   check(std::abs(strip->getAlpha() - 1.0f) < 0.001f,
         "with nothing washed over the strip as a whole (" +
             std::to_string(strip->getAlpha()) + ")");
@@ -3366,10 +3325,8 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   // ---- and a macro does not relight it --------------------------------------
   //
-  // Read off a render rather than off a property, because this one lives in
-  // the drawing: a macro's colour is carried beside the control's own and the
-  // ring is painted in whichever of the two applies, so the control is told
-  // the channel is silenced and still came out lit.
+  // Read off a render, since the ring is painted in either the macro's colour
+  // or the control's own, and the silenced state has to win over both.
   const auto set = [&p](const juce::String &id, float v) {
     if (auto *q = dynamic_cast<juce::RangedAudioParameter *>(
             p.apvts.getParameter(id)))
@@ -3422,13 +3379,9 @@ void testSilencedChannel(OvertoniumProcessor &p) {
   editor->followMacroTints();
 }
 
-/// That the mute and the solo share one moulding.
-///
-/// Two things have to hold together or the pair draws as a block with a seam
-/// down it or as two blocks pretending to be one: the components have to
-/// touch, and each has to know which half of the gang it is. Neither shows up
-/// in any other test, because a wrong answer still lays out, still clicks and
-/// still lights.
+/// That the mute and the solo share one moulding: the two buttons touch, and
+/// each knows which half of the pair it is. A wrong answer still lays out,
+/// clicks and lights, so nothing else would catch it.
 void testMuteSoloGang(OvertoniumProcessor &p) {
   section("The mute and solo gang");
 
@@ -3444,8 +3397,8 @@ void testMuteSoloGang(OvertoniumProcessor &p) {
 
   sizeEditor(*editor, 1348, 160);
 
-  // Every pair in the window, the noise channel's included: it lays its own
-  // out and has been missed by a change to the channel strip before.
+  // Every pair in the window, including the noise channel's, which lays its own
+  // out.
   std::vector<std::pair<MuteSoloButton *, MuteSoloButton *>> pairs;
 
   std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
@@ -3480,8 +3433,8 @@ void testMuteSoloGang(OvertoniumProcessor &p) {
         LAF::lampGangOf(*solo) != LAF::LampGang::Right)
       ++unganged;
 
-    // The caps themselves, which is where the half wall each gives up has to
-    // come out as one divider rather than as an overlap or a gap of nothing.
+    // The caps themselves, where the half wall each gives up has to come out as
+    // one divider rather than an overlap or a gap.
     const auto left =
         LAF::lampCapBounds(mute->getBounds().toFloat(), LAF::LampGang::Left);
     const auto right =
@@ -3503,7 +3456,11 @@ void testMuteSoloGang(OvertoniumProcessor &p) {
             std::to_string(overlapping) + " wrong)");
 }
 
-/// and that exactly one channel ever claims it.
+/// The channel highlight, which marks the column the pointer is on.
+///
+/// Crossed with the row band, it shows which knob a drag would move. Each strip
+/// works it out from where the pointer is, so this checks that the answer
+/// follows the pointer and that exactly one channel ever claims it.
 void testChannelHover(OvertoniumProcessor &p) {
   section("Channel hover");
 
@@ -3572,8 +3529,8 @@ void testChannelHover(OvertoniumProcessor &p) {
   // ---- crossing to the next one -------------------------------------------
   //
   // Leaving one strip for the next fires the exit before the enter, and the
-  // answer has to come out the same either way round, which is why each strip
-  // reads the pointer rather than trusting the order it is told things in.
+  // answer has to come out the same in either order, which is why each strip
+  // reads the pointer rather than the order of events.
   auto &second = *strips[4];
 
   first.mouseExit(pointAt(first, {first.getWidth() + 4, inside.y}));
@@ -3613,14 +3570,11 @@ void testChannelHover(OvertoniumProcessor &p) {
 
   // ---- a right-click lets the hover go ------------------------------------
   //
-  // Whatever menu that opens is modal, so the strip is never told the pointer
-  // has left it. The highlight used to be left lit on the channel the menu was
-  // opened from, and hovering that channel again was the only way to clear it.
+  // The menu it opens is modal, so the strip is never told the pointer has
+  // left. The highlight has to go out anyway.
   //
-  // Driven through a mute button, which is the case that returns before any
-  // menu is shown. A plain right-click on the strip takes the same path and
-  // then opens the LINK menu, and a modal menu is not something this suite can
-  // put on a screen it does not have.
+  // Driven through a mute button, which returns before any menu is shown. A
+  // plain right-click on the strip opens the LINK menu, which needs a screen.
   {
     const auto rightClickOn = [&pointAt](juce::Component &c,
                                          juce::Point<int> local,
@@ -3666,15 +3620,13 @@ void testChannelHover(OvertoniumProcessor &p) {
                 ")");
 
       // The button carries its own menu, so the strip must not also open the
-      // LINK menu on top of it. Both used to appear, one after the other.
-      // Losing this fix crashes the suite rather than failing it, since a
-      // modal menu needs a screen, but stating it says what the code is for.
+      // LINK menu. Without this the suite would crash rather than fail, since a
+      // modal menu needs a screen.
       check(juce::Component::getCurrentlyModalComponent() == nullptr,
             "and the strip opens no menu of its own over the button's");
 
-      // And it has to stay let go. Opening a menu takes the mouse away, and
-      // the exit JUCE sends on the way arrives while the pointer is still
-      // geometrically inside the strip, which reads as "still hovering".
+      // And it has to stay let go: the exit JUCE sends when a menu takes the
+      // mouse arrives while the pointer is still inside the strip.
       lit.mouseExit(pointAt(lit, inside));
 
       check(!lit.isHovered() && litCount() == 0,
@@ -3682,8 +3634,8 @@ void testChannelHover(OvertoniumProcessor &p) {
             "light it again (" +
                 std::to_string(litCount()) + ")");
 
-      // The pointer coming back is what ends it, so the channel is not left
-      // dead to the mouse once a menu has been opened over it.
+      // The pointer coming back ends it, so the channel answers the mouse again
+      // after a menu.
       lit.mouseEnter(pointAt(lit, inside));
 
       check(lit.isHovered() && litCount() == 1,
@@ -3727,11 +3679,9 @@ void testChannelHover(OvertoniumProcessor &p) {
 
 /// The generator that turns a patch into a factory preset.
 ///
-/// This is the step between dialling a sound in and it shipping, and the way
-/// it goes wrong is silent: a parameter the generated code fails to mention is
-/// not left as it was, it is left wherever neutralBase put it. So the test
-/// runs the generated code the way the compiler would and checks the patch
-/// comes back.
+/// A parameter the generated code fails to mention is left wherever neutralBase
+/// put it, so the test runs the generated code the way the compiler would and
+/// checks the patch comes back.
 void testFactoryCodeGenerator(OvertoniumProcessor &p) {
   section("Factory code generator");
 
@@ -3749,13 +3699,11 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
     return out;
   };
 
-  // Everything the generated case would do, read back out of the text it
-  // wrote. Anything it did not say is a parameter left at neutralBase.
+  // Everything the generated case would do, read back out of the text it wrote.
+  // Anything it did not say is a parameter left at neutralBase.
   //
-  // Three forms, because the generator collapses a row the whole series shares
-  // into one allOsc and a row that was dragged across it into one oscTable.
-  // Reading only ap.set would see those rows as absent and call every value in
-  // them a parameter that went missing.
+  // Three forms, since the generator writes a row the whole series shares as
+  // one allOsc and a dragged row as one oscTable.
   const auto parse = [](const juce::String &code) {
     std::map<std::string, float> sets;
 
@@ -3887,8 +3835,8 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
   check(worstError < 1.0e-3f,
         "a generated factory preset reproduces the patch it came from");
 
-  // ...and it must not carry the session across. Dialling a patch in on a
-  // Werckmeister session should not ship Werckmeister with it.
+  // ...and it must not carry the session across, such as a temperament set in
+  // Settings.
   {
     const auto setSession = [&p](const char *id, float plain) {
       if (auto *param = p.apvts.getParameter(id))
@@ -3910,17 +3858,12 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
   }
 }
 
-/// A preset someone saves carries exactly what a factory preset carries.
+/// A user preset carries exactly what a factory preset carries.
 ///
-/// Two paths write a preset and they have to agree. A factory preset is
-/// neutralBase() followed by the lines of its case, so what it decides is what
-/// neutralBase() touches. A user preset is every parameter capture() walks. If
-/// those sets drift apart, saving a sound and recalling it stops being the
-/// same operation as picking one from the menu, and the difference shows up as
-/// a control that moves when the other kind of preset loads.
-///
-/// The session is the other half of the same rule. Nothing in the settings
-/// menu belongs to either kind, so it must be in neither set.
+/// A factory preset decides what neutralBase() touches, and a user preset
+/// stores every parameter capture() walks. The two sets have to match, or a
+/// control moves when the other kind of preset loads. The session settings
+/// belong to neither set.
 void testBothPresetKindsCarryTheSame() {
   section("Both kinds of preset carry the same set");
 
@@ -3937,8 +3880,8 @@ void testBothPresetKindsCarryTheSame() {
   }();
 
   // What neutralBase() decides, found by running it from both extremes.
-  // Anything it writes lands on the same value twice. Anything it leaves alone
-  // keeps whichever end it started from.
+  // Anything it writes lands on the same value twice, and anything it leaves
+  // alone keeps its starting end.
   const auto runFrom = [&](float normalised) {
     for (auto *r : everyParam)
       r->setValueNotifyingHost(normalised);
@@ -4016,20 +3959,15 @@ void testBothPresetKindsCarryTheSame() {
 
 /// Blocks bigger than the host promised.
 ///
-/// A host is allowed to do that, and growing the scratch to fit would be an
-/// allocation on the audio thread. The block is cut into pieces the scratch
-/// already holds instead, which is only worth doing if the seam is invisible:
-/// the same notes at the same sample positions have to come out the same
-/// whether they arrived in one block or several.
+/// The block is cut into pieces the scratch already holds rather than growing
+/// it on the audio thread. The same notes at the same sample positions have to
+/// come out the same whether they arrived in one block or several.
 void testOversizedBlocks(OvertoniumProcessor &p) {
   section("Oversized blocks");
 
-  // A sustained patch with nothing random in it. Drift is a random walk
-  // redrawn once per control block, and the control blocks fall at different
-  // places when a block is cut up, so a patch carrying drift cannot be
-  // compared sample for sample across the two paths. That is a property of a
-  // random modulator rather than of the cutting, and comparing a patch that
-  // has one would be measuring the wrong thing.
+  // A sustained patch with nothing random in it. Drift is redrawn once per
+  // control block, and cutting a block moves where control blocks fall, so a
+  // patch with drift cannot be compared sample for sample.
   ovt::presets::apply(p.apvts, presetIndex("Equal Saw"));
 
   // Renders the same musical passage, telling the plugin one block size and
@@ -4065,8 +4003,7 @@ void testOversizedBlocks(OvertoniumProcessor &p) {
   // The reference: the host keeps its word, so nothing is cut up.
   const auto honest = render(4096, 4096);
 
-  // The same block, from a host that promised far less. This is the case that
-  // used to allocate.
+  // The same block, from a host that promised far less.
   const auto cutUp = render(256, 4096);
 
   check(honest.size() == cutUp.size(), "both runs produced a full block");
@@ -4100,6 +4037,9 @@ void testOversizedBlocks(OvertoniumProcessor &p) {
   p.prepareToPlay(48000.0, 512);
 }
 
+/// The LINK curves and scopes: every curve leaves things alone at zero, keeps
+/// the dragged strip at its full share, stays in range, and moves the faders in
+/// decibels.
 void testLinkCurves() {
   section("Link scopes and curves");
 
@@ -4165,14 +4105,14 @@ void testLinkCurves() {
   std::printf("  taper grabbing h10: h1 %.2f h10 %.2f h32 %.2f\n", taper(0, 9),
               taper(9, 9), taper(31, 9));
 
-  // Grabbing either end is the old pair of tilts: a straight ramp across the
-  // whole mixer, one way or the other.
+  // Grabbing either end gives a straight ramp across the whole mixer, one way
+  // or the other.
   check(taper(0, 0) > 0.99f && taper(31, 0) < 0.01f,
         "grabbing the first channel tilts the mixer down across its width");
   check(taper(31, 31) > 0.99f && taper(0, 31) < 0.01f,
         "grabbing the last channel tilts it up instead");
 
-  // Grabbing anywhere between is what the tilts could not do.
+  // Grabbing anywhere between peaks at the grab.
   check(taper(9, 9) > taper(0, 9) && taper(9, 9) > taper(31, 9),
         "grabbing the middle peaks under the hand and falls away both ways");
   check(taper(0, 9) > taper(31, 9),
@@ -4214,13 +4154,9 @@ void testLinkCurves() {
 
   // ---- the faders, which are shared out in decibels ------------------------
   //
-  // Every other row is moved across its travel, which is even in whatever it
-  // measures. A level fader's travel is shaped to feel right under a finger
-  // instead, so an even move across it is a wildly uneven move in level: a
-  // drag that lifted the loudest channel by seven decibels lifted the quietest
-  // by thirty. What a uniform drag has to mean here is the same number of
-  // decibels on every channel, which is the same gain on every channel, which
-  // is the only move that leaves the balance of a patch alone.
+  // A level fader's travel is shaped for the hand, so an even move across it is
+  // an uneven move in level. A uniform drag on the faders means the same number
+  // of decibels on every channel, which leaves the balance of a patch alone.
   check(linkIsDecibels(Role::Volume, LinkCurve::Uniform) &&
             linkIsDecibels(Role::Volume, LinkCurve::Taper),
         "the faders share out an amount in decibels");
@@ -4281,15 +4217,16 @@ void testLinkCurves() {
             std::to_string(fifths) + ")");
 }
 
+/// Which row the pointer is on, which caption names it, and which LINK role
+/// each row carries.
 void testRowHover() {
   section("Row hover");
 
   using namespace ovt::ui;
 
-  // The same rectangle a strip lays its rows out in, at the height a strip
-  // actually asks for. Taking that from preferredStripHeight rather than
-  // writing a number here means adding a row cannot quietly push the last one
-  // off the bottom of the test without the test noticing.
+  // The rectangle a strip lays its rows out in, at the height
+  // preferredStripHeight asks for, so a new row cannot push the last one off
+  // the bottom unnoticed.
   const auto rows =
       layoutRows(juce::Rectangle<int>(0, 0, kStripWidth, preferredStripHeight())
                      .reduced(kStripPadX, kStripPadY));
@@ -4367,6 +4304,8 @@ void testRowHover() {
         "the fader row still reports the role LINK would gang");
 }
 
+/// Presets of your own: file names, capture and restore, files from another
+/// build, and the factory code generator.
 void testUserPresets(OvertoniumProcessor &p) {
   section("User presets");
 
@@ -4446,6 +4385,34 @@ void testUserPresets(OvertoniumProcessor &p) {
           "a document that is not ours is refused");
   }
 
+  // ---- a value that is not a number -----------------------------------------
+  {
+    // A range clamps an infinity, but a NaN passes through it to the audio.
+    for (const char *text : {"nan", "inf", "-inf"}) {
+      juce::XmlElement odd("OVERTONIUM_PRESET");
+      auto *entry = odd.createNewChildElement("PARAM");
+      entry->setAttribute("id", level->paramID);
+      entry->setAttribute("value", text);
+
+      presets::restore(p.apvts, odd);
+
+      check(std::isfinite(level->getValue()),
+            std::string("a file holding ") + text +
+                " leaves the parameter a number");
+    }
+
+    juce::XmlElement nan("OVERTONIUM_PRESET");
+    auto *entry = nan.createNewChildElement("PARAM");
+    entry->setAttribute("id", level->paramID);
+    entry->setAttribute("value", "nan");
+
+    const auto before = level->getValue();
+    presets::restore(p.apvts, nan);
+
+    check(std::abs(level->getValue() - before) < 1.0e-9f,
+          "and a NaN is skipped, not applied");
+  }
+
   // ---- through a real file --------------------------------------------------
   {
     const auto file = juce::File::createTempFile(".ovtpreset");
@@ -4493,6 +4460,8 @@ void testUserPresets(OvertoniumProcessor &p) {
   presets::apply(p.apvts, presetIndex("Init"));
 }
 
+/// The echo, the reverb and the resonator ring on after a note, the tail the
+/// host is told covers them, and Init puts them away again.
 void testMasterEffects(OvertoniumProcessor &p) {
   section("Master effects");
 
@@ -4586,6 +4555,8 @@ void testMasterEffects(OvertoniumProcessor &p) {
   p.reset();
 }
 
+/// The level meter repaints only the band that changed, and a frame that
+/// reports nothing to repaint really did not change.
 void testMeterRepaint() {
   section("Meter repaints");
 
@@ -4714,6 +4685,8 @@ void testMeterRepaint() {
   }
 }
 
+/// The LINK menu as data: its sections and items, the ticks, what choosing an
+/// item does, and how the curve is saved.
 void testLinkMenu() {
   section("Link menu");
 
@@ -4752,8 +4725,10 @@ void testLinkMenu() {
   }
 
   check(headers == 2, "the menu is in two named sections");
-  check(items == 1 + (int)LinkScope::NumScopes + (int)LinkCurve::NumCurves,
-        "the switch, every scope and every curve are all there (" +
+  // The switch, the scopes, clearing the selection and the curves.
+  check(items == 1 + (int)LinkScope::NumScopes + 1 + (int)LinkCurve::NumCurves,
+        "the switch, every scope, clearing the selection and every curve are "
+        "all there (" +
             std::to_string(items) + ")");
 
   // Exactly the two current settings are ticked, and nothing else.
@@ -4766,6 +4741,7 @@ void testLinkMenu() {
   check(enabled == 1, "with LINK off only the switch itself can be picked");
 
   settings.enabled = true;
+  settings.hasSelection = true;
   int enabledOn = 0;
   auto onMenu = buildLinkMenu(settings);
 
@@ -4774,7 +4750,13 @@ void testLinkMenu() {
         !it.getItem().isSectionHeader)
       ++enabledOn;
 
-  check(enabledOn == items, "with LINK on every item can be picked");
+  check(enabledOn == items,
+        "with LINK on and a selection made, every item can be picked");
+
+  check(isClearSelectionChoice(2) && !isClearSelectionChoice(1) &&
+            !applyLinkMenuChoice(2, settings),
+        "clearing the selection is its own choice, not one of LINK's "
+        "settings");
 
   // ---- what the menu does when something is chosen --------------------------
   LinkSettings state;
@@ -4812,8 +4794,8 @@ void testLinkMenu() {
 
   // ---- what a saved state carries -------------------------------------------
   //
-  // The curve is written by name, because the list has changed once already and
-  // an index written by an older version no longer means the same curve.
+  // The curve is written by name, since an index written by an older version
+  // may mean a different curve.
   bool names = true;
   for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
     names &= linkCurveFromState(linkCurveId((LinkCurve)i), -1) == (LinkCurve)i;
@@ -4825,9 +4807,8 @@ void testLinkMenu() {
   check(linkCurveFromState("not a curve", -1) == LinkCurve::Uniform,
         "and so does a name this version does not know");
 
-  // The old list ran Uniform, Tilt up, Tilt down, Spread. Both tilts are what
-  // Taper replaced, and Spread has to move down a place rather than stay at an
-  // index that now means something else.
+  // The old list ran Uniform, Tilt up, Tilt down, Spread. Both tilts map to
+  // Taper, and Spread moves down a place.
   check(linkCurveFromState("", 0) == LinkCurve::Uniform,
         "an old state's Uniform still opens on Uniform");
   check(linkCurveFromState("", 1) == LinkCurve::Taper,
@@ -4843,6 +4824,8 @@ void testLinkMenu() {
         "the name wins over a leftover index");
 }
 
+/// The top bar's height against the window's width: a sensible minimum, at most
+/// three rows, and never taller as the window grows.
 void testTopBarLayout() {
   section("Top bar layout");
 
@@ -4878,31 +4861,19 @@ void testTopBarLayout() {
         "and it is shorter on a wide window than on a narrow one");
 }
 
-/// A knob carries its caption underneath, so its dial does not sit in the
-/// middle of the row. Anything laid out down the middle instead reads as
-/// sagging next to the knobs, which is easy to reintroduce by adding a control
-/// and centring it, and hard to notice in a screenshot.
-/// What the SETTINGS menu is, and the order it says it in.
-///
-/// The order is the whole point of the grouping, and nothing else would notice
-/// if it drifted: the menu is only reachable by clicking, and a click needs a
-/// window the tests do not have.
 /// The preset menu is two submenus and the actions, not one long list.
 ///
-/// Thirty factory presets and however many of your own will not fit on a
-/// short screen, and a menu that scrolls hides its own shape. What is checked
-/// here is the shape: that the top level stays short whatever is saved, that
-/// every factory preset is reachable one level down, and that a folder in the
-/// preset directory becomes a group rather than being flattened away or, worse,
-/// its presets going missing.
+/// Checks that the top level stays short whatever is saved, that every factory
+/// preset is one level down, and that a folder in the preset directory becomes
+/// a group.
 void testPresetMenuGroups(OvertoniumProcessor &p) {
   section("Preset menu");
 
   using namespace ovt::ui;
 
   // Real files in the real preset folder, since that is what the menu reads.
-  // Named so that nothing anyone has actually saved could collide with them,
-  // and removed at the end whatever happens.
+  // Named so nothing anyone has saved could collide with them, and removed at
+  // the end.
   const auto root = ovt::presets::userDirectory();
   const auto group = root.getChildFile("ZZ Test Group");
   const auto nested = group.getChildFile("Deeper");
@@ -5001,11 +4972,9 @@ void testPresetMenuGroups(OvertoniumProcessor &p) {
 
 /// A new instance is on no preset, whatever number it has to report.
 ///
-/// getCurrentProgram has to answer from the moment the plugin exists and zero
-/// is the only honest number, but the sound is the parameter defaults rather
-/// than the first preset. A host draws its menu from that number, so the first
-/// entry looks selected on an instance that has never loaded it, and picking it
-/// used to be swallowed by the guard that protects a restored session.
+/// getCurrentProgram answers zero from the start, so a host shows the first
+/// entry as selected on an instance that has never loaded it. Picking that
+/// entry has to load it.
 void testFirstProgramIsReachable() {
   section("The first preset on a new instance");
 
@@ -5043,13 +5012,8 @@ void testFirstProgramIsReachable() {
 
 /// That the tool a window was left on is the one the next window opens with.
 ///
-/// The tool is derived from two flags rather than stored: LINK's own switch
-/// and whether drawing is latched. That is the right model, since the
-/// modifier can arm drawing without choosing it, but it means remembering
-/// the tool is remembering both of them, and only one of them was being
-/// written. Picking LINK once wrote its flag through the settings callback
-/// and picking anything afterwards wrote nothing, so every window after that
-/// opened on LINK whatever it had been left on.
+/// The tool is derived from two flags rather than stored, LINK's own switch and
+/// whether drawing is latched, so remembering the tool means writing both.
 void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
   section("The tool outlives the window");
 
@@ -5091,8 +5055,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
                : juce::String(ovt::ui::pointerToolName(t));
   };
 
-  // Every one of the three, and in an order that leaves LINK in the session
-  // before the other two are asked for: that is the case the fault needed.
+  // Every one of the three, in an order that leaves LINK in the session before
+  // the other two are asked for.
   for (auto chosen : {PointerTool::Link, PointerTool::Pointer,
                       PointerTool::Draw, PointerTool::Pointer}) {
     const auto got = reopenedOn(chosen);
@@ -5104,10 +5068,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
 
   // ---- and after LINK's own settings have been touched ---------------------
   //
-  // The way it was actually met. Changing LINK's scope or curve writes its
-  // switch through the settings callback, so the session says LINK until
-  // something writes it again, and choosing another tool did not. A window
-  // opened after that came up on LINK whatever it had been left on.
+  // Changing LINK's scope or curve writes its switch through the settings
+  // callback, so choosing another tool afterwards has to write it again.
   {
     {
       std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
@@ -5147,10 +5109,9 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
 
 /// The preset button survives the window being shut.
 ///
-/// A window is opened and closed far more often than a preset is chosen, and a
-/// session restored from disk has no window at all until someone asks for one.
-/// The name lives on the processor for that reason: the editor cannot work it
-/// out, since a preset of your own has no program index to be found by.
+/// The name lives on the processor, since a session restored from disk has no
+/// window and a preset of your own has no program index for the editor to find
+/// it by.
 void testPresetNameOutlivesTheWindow() {
   section("The preset name outlives the window");
 
@@ -5195,15 +5156,10 @@ void testPresetNameOutlivesTheWindow() {
 
 /// The glyph is drawn from the parameter, never from a remembered choice.
 ///
-/// A preset always did reset the parameter. What it did not reset was the
-/// picture, because nothing told the button to paint again when something
-/// other than a click moved the value. The repaint itself is scheduled through
-/// a ParameterAttachment and is not observable from here: there is no peer to
-/// collect a dirty region and no message loop to deliver the callback.
-///
-/// What is observable, and what this holds, is that the button never caches
-/// the shape. Anyone later storing it in a member set only from the menu would
-/// reintroduce exactly the bug this fixed, and would fail here.
+/// The repaint is scheduled through a ParameterAttachment and cannot be
+/// observed here, with no peer and no message loop. What this holds is that the
+/// button never caches the shape, so a value moved by a host or a preset is
+/// what it draws.
 void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
   section("The shape glyph follows the parameter");
 
@@ -5253,27 +5209,57 @@ void testShapeButtonFollowsTheParameter(OvertoniumProcessor &p) {
         "a change from outside is what the button reports (" +
             shown().toStdString() + ")");
 
-  // And a factory preset, which is how this was noticed. Every preset that
-  // ships leaves both modulators on sine, so this is also the check that they
-  // sound as they did before shapes existed.
+  // And a factory preset. Every preset that ships leaves both modulators on
+  // sine.
   p.applyFactoryPreset(ovt::presets::names().indexOf("Drawbar Organ"));
 
   check(shown() == "Sine", "and loading a preset puts it back to sine (" +
                                shown().toStdString() + ")");
+
+  // On a channel nobody can hear the screen is off: two different shapes
+  // draw the same dark ground, where lit they differ.
+  ShapeButton *first = nullptr;
+
+  for (auto *b : buttons)
+    if (b->getTitle().contains("Harmonic 1 pitch"))
+      first = b;
+
+  if (first != nullptr) {
+    const auto picture = [first, param](float shape, bool unlit) {
+      param->setValueNotifyingHost(param->convertTo0to1(shape));
+      first->getProperties().set("unlit", unlit);
+      return first->createComponentSnapshot(first->getLocalBounds());
+    };
+
+    const auto same = [](const juce::Image &a, const juce::Image &b) {
+      if (a.getBounds() != b.getBounds())
+        return false;
+
+      for (int y = 0; y < a.getHeight(); ++y)
+        for (int x = 0; x < a.getWidth(); ++x)
+          if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+            return false;
+
+      return true;
+    };
+
+    check(!same(picture(0.0f, false), picture(4.0f, false)),
+          "a lit screen shows which shape is chosen");
+    check(same(picture(0.0f, true), picture(4.0f, true)),
+          "and on a silenced channel the screen is off, whatever the shape");
+
+    first->getProperties().set("unlit", false);
+    param->setValueNotifyingHost(param->convertTo0to1(0.0f));
+  }
 }
 
 /// A preset tells the host what changed, and nothing else.
 ///
-/// This instrument has 782 parameters, which is far outside what a host
-/// expects, and a preset is written as a neutral base plus the rows that
-/// differ. Sent as they were decided that is over a thousand parameter
-/// changes for one preset, most of them either immediately overwritten or not
-/// changes at all. A host keeps per-parameter bookkeeping for automation and
-/// undo and is entitled to believe every one of them.
-///
-/// So the applier collects and sends once, skipping anything already at the
-/// value asked for. What is held here is the property rather than a number:
-/// no parameter is written twice, and nothing is reported that did not move.
+/// A preset is written as a neutral base plus the rows that differ, which sent
+/// as decided is over a thousand parameter changes, most overwritten or not
+/// changes at all. The applier collects and sends once, skipping anything
+/// already at the value asked for. Held here as a property: no parameter is
+/// written twice, and nothing is reported that did not move.
 void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
   section("A preset reports only what it changed");
 
@@ -5326,7 +5312,7 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
         "no preset reports more changes than it made (worst was " +
             std::to_string(worstExtra) + " extra, on " + worstName + ")");
 
-  // The case that used to be worst: the preset already loaded.
+  // The preset already loaded, where nothing should be reported.
   p.applyFactoryPreset(names.indexOf("Wurli"));
   counter.changes = 0;
   p.applyFactoryPreset(names.indexOf("Wurli"));
@@ -5341,9 +5327,8 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
 /// Six of the thirty-two channels have nothing for TUNE to move.
 ///
 /// An octave is 1200 cents in equal temperament and in just intonation alike,
-/// so the blend does nothing to the sound on partials 1, 2, 4, 8, 16 and 32.
-/// The strip says so on those and gives the cent figure on the rest, which is
-/// the difference between a knob that looks broken and one that is explained.
+/// so the blend does nothing on partials 1, 2, 4, 8, 16 and 32. The strip says
+/// so on those and gives the cent figure on the rest.
 void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
   section("The channels TUNE cannot move");
 
@@ -5408,10 +5393,9 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 
 /// Whether each modulator is one circuit the whole keyboard hears.
 ///
-/// A global switch reached from a per-channel menu, so the thing to check is
-/// that the pitch button and the amplitude button reach different switches.
-/// Getting that wrong is invisible: both menus would tick and untick, and one
-/// of the two modulators would quietly never share anything.
+/// A global switch reached from a per-channel menu, so this checks that the
+/// pitch button and the amplitude button reach different switches. Both menus
+/// would still tick and untick if they did not.
 void testModulatorsInPhase(OvertoniumProcessor &p) {
   section("Modulators in phase across the keyboard");
 
@@ -5485,6 +5469,8 @@ void testModulatorsInPhase(OvertoniumProcessor &p) {
         "and both go back off for whatever runs next");
 }
 
+/// What the SETTINGS menu is, and the order it says it in. The menu is
+/// reachable only by clicking, so this is the only check on its grouping.
 void testSettingsMenu(OvertoniumProcessor &p) {
   section("Settings menu");
 
@@ -5516,9 +5502,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     return s;
   };
 
-  // The version stands at the head of the list as a heading of its own, and
-  // is asked for by the same call the menu builds it from rather than written
-  // out here, which would have to be edited on every release.
+  // The version heads the list as a heading of its own, asked for by the same
+  // call the menu builds it from.
   const auto wanted = TopBar::versionLine().toStdString() +
                       " / Polyphony / Pitch bend range / Expression / "
                       "Tuning / Output / ";
@@ -5531,9 +5516,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     return it == entries.end() ? -1 : (int)(it - entries.begin());
   };
 
-  // Legato is a tick beside the voice count, and the list's old first entry
-  // is no longer offered: a session that stored it reads as one voice with
-  // the tick on.
+  // Legato is a tick beside the voice count, and the list's old first entry is
+  // not offered: a session that stored it reads as one voice with the tick on.
   check(at("Legato") == at("No stack") + 1 && at("1 voice") >= 0,
         "Legato sits beside No stack, under the voice counts");
   check(std::count(entries.begin(), entries.end(), std::string("Legato")) == 1,
@@ -5625,15 +5609,15 @@ void testSettingsMenu(OvertoniumProcessor &p) {
         "below everything that is about the instrument itself");
 
   // It answers the other half of the polyphony question, so it sits with the
-  // voice counts rather than off among the output switches. Bounded by
-  // entries rather than by the headers around them, since the headers are
+  // voice counts. Bounded by entries rather than headers, since the headers are
   // collected separately above.
   check(at("No stack") > at("16 voices") && at("No stack") < at("0 semitones"),
         "No stack sits with the voice counts (" +
             std::to_string(at("No stack")) + ")");
 }
 
-/// The way back from a window that was left narrow.
+/// That Fit all 32 channels brings back a window that was left narrow and
+/// short.
 void testFitAllChannels(OvertoniumProcessor &p) {
   section("Fitting the mixer back in");
 
@@ -5645,15 +5629,13 @@ void testFitAllChannels(OvertoniumProcessor &p) {
     return;
 
   // The 8 is the gap before the noise channel and the 10 is the parameter
-  // scrollbar beyond it, both private to the editor, both written here the
-  // same way the gap already was.
+  // scrollbar beyond it, both private to the editor.
   const auto wanted = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 + 10 +
                       ovt::kNumHarmonics * ovt::ui::kStripWidth;
 
-  // The size to come back to, taken from the editor rather than worked out
-  // here: the height follows whatever is folded away, so there is no number to
-  // write down. An editor opens at whatever size was left in the state, which
-  // earlier tests have been dragging around, so it is asked once first.
+  // The size to come back to, taken from the editor, since the height follows
+  // whatever is folded away. An editor opens at the size left in the state by
+  // earlier tests, so it is fitted once first.
   editor->fitAllChannels();
 
   const auto fitted = editor->getBounds();
@@ -5665,27 +5647,22 @@ void testFitAllChannels(OvertoniumProcessor &p) {
   check(fitted.getHeight() > 600, "and the strips are their full height (" +
                                       std::to_string(fitted.getHeight()) + ")");
 
-  // Dragged narrow and short, the way somebody would, and narrow enough that
-  // the bar has to reflow onto two rows: the height has to come back as well
-  // as the width.
+  // Dragged narrow and short, narrow enough that the bar reflows onto two rows,
+  // so the height has to come back as well as the width.
   editor->setSize(700, fitted.getHeight() - 120);
 
   check(editor->getWidth() == 700, "a window can be dragged narrow (" +
                                        std::to_string(editor->getWidth()) +
                                        ")");
 
-  // Short, and now allowed to be: the rows scroll, so the floor is far below
-  // this and the height asked for is simply taken. It used to come to rest on
-  // the floor here, because the floor was the height of every row at once and
-  // the bar's second row had pushed it above what was asked for.
+  // Short, and allowed to be: the rows scroll, so the floor is far below this
+  // and the height asked for is taken.
   check(editor->getHeight() == fitted.getHeight() - 120,
         "and as short as it was asked for (" +
             std::to_string(editor->getHeight()) + ")");
 
-  // Not checked here that a shorter request stops at the floor, because
-  // setSize does not consult the constrainer at all, which is the whole reason
-  // Fit all 32 channels could land under it. The floor itself is asserted in
-  // testFittingLandsWhereADragCanReturn, through the constrainer.
+  // setSize does not consult the constrainer, so the floor is not checked here.
+  // It is checked in testFittingLandsWhereADragCanReturn.
 
   editor->fitAllChannels();
 
@@ -5700,15 +5677,12 @@ void testFitAllChannels(OvertoniumProcessor &p) {
         "asking twice changes nothing the second time");
 }
 
-/// The two machine menus say what is running.
+/// The machine menus say what is running.
 ///
-/// Both the echo and the reverb hang four choices off one button, and behind
-/// each button are two parameters rather than one: an on switch that predates
-/// the choice of machine, and a type beside it. A tick that reads only one of
-/// them would say Off while a plate was audible, or name a machine that was
-/// switched off, and nothing in the audio path would be wrong. So the pairing
-/// is checked here, from the parameters the host writes to the menu the player
-/// reads.
+/// The echo and the reverb each have an on switch and a type behind one button,
+/// so a tick that read only one of them could say Off while a plate was
+/// audible. This checks the pairing from the parameters the host writes to the
+/// menu the player reads.
 void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
   section("The machine menus follow their parameters");
 
@@ -5805,7 +5779,7 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
     bar->updatePanelReadouts(48000.0);
   }
 
-  // ---- and the output stage, which became one of these ---------------------
+  // ---- and the output stage -------------------------------------------------
   {
     write(ovt::params::safetyClipId, 0.0f);
 
@@ -5837,15 +5811,9 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
 
   // ---- and the button they came from can say them ------------------------
   //
-  // The menu above has room for whatever a shape is called. The button does
-  // not: it is 62 px with a label area of 46, and the ten pixels it would
-  // take to fit ASYMMETRIC belong to the converter's readouts beside it,
-  // which are already at the width they need to name their units. So the
-  // button carries short forms, and this is what says they are short enough.
-  //
-  // Measured rather than eyed, because a label that overflows is not a
-  // failure a rendered window announces: JUCE shaves the ends and the word
-  // goes on looking like a word.
+  // The button is 62 px with a label area of 46, so it carries short forms of
+  // the shape names, and this checks they fit. Measured, since JUCE shaves the
+  // ends of a label that overflows and it still looks like a word.
   {
     std::function<juce::TextButton *(juce::Component &)> findClip =
         [&findClip](juce::Component &c) -> juce::TextButton * {
@@ -5929,14 +5897,8 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
   write(ovt::params::reverbTypeId, 0.0f);
 }
 
-/// The Settings menu says which build this is.
-///
-/// The bug report template will not take a report without a version and tells
-/// people to read it off this menu. It was not on it, and not anywhere else
-/// either, so the one question every report has to answer was the one thing
-/// the instrument would not say. This holds the menu to saying it, and to
-/// saying the version this was actually built as rather than a number typed
-/// out beside it.
+/// The Settings menu says which build this is, as the version the plugin was
+/// built as. The bug report template asks people to read it off this menu.
 void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
   section("The Settings menu names the version");
 
@@ -5980,30 +5942,24 @@ void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
 
   check(items[0].text == line, "and the menu opens with it");
 
-  // A fact rather than a choice. An ordinary item, enabled or not, reads as
-  // something to press.
+  // A heading rather than an item, since an ordinary item reads as something to
+  // press.
   check(items[0].isSectionHeader,
         "as a heading rather than as something to click");
 
-  // Directly under it, because the two are one thought: this is the build you
-  // have, and here is whether to look for a newer one.
+  // Directly under it, since the two belong together: the build you have, and
+  // whether to look for a newer one.
   check(items[1].text == "Check for new versions",
         "with the update check directly beneath it");
 
-  // Below both, rather than above them as they were. The version is the one
-  // thing in this menu that does not change while you use the plugin, so it
+  // Below both. The version does not change while you use the plugin, so it
   // reads first and the undo pair follows.
   check(items[2].text == "Undo" && items[3].text == "Redo",
         "and undo and redo below, not above");
 }
 
-/// A wheel over a knob must not also scroll the mixer sideways.
-///
-/// When the window is narrow enough for the series to need scrolling, a scroll
-/// over a knob was reported as doing both: moving the knob and dragging the
-/// view along under it. The wheel is how most of this instrument gets
-/// adjusted, so a knob that also shoves the panel sideways is the difference
-/// between a control and a fight.
+/// A wheel over a knob moves the knob and does not also scroll the mixer
+/// sideways, when the window is narrow enough for the series to scroll.
 void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   section("A wheel over a knob does not scroll the mixer");
 
@@ -6087,11 +6043,10 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 
   knob->mouseWheelMove(e, wheel);
 
-  // And then what JUCE does next, which is the half that bit. Every ancestor
-  // holding a deep mouse listener is handed the same wheel after the target
-  // has had it, whether the target took it or not. The strip holds one so that
-  // a pointer resting on a knob is reported by the strip rather than swallowed
-  // by the control. See MouseListenerList::sendMouseEvent.
+  // And then what JUCE does next: every ancestor holding a deep mouse listener
+  // is handed the same wheel after the target, whether the target took it or
+  // not. The strip holds one so a pointer on a knob is reported by the strip.
+  // See MouseListenerList::sendMouseEvent.
   ovt::ui::ChannelStrip *strip = nullptr;
   for (auto *c = knob->getParentComponent(); c != nullptr;
        c = c->getParentComponent())
@@ -6133,13 +6088,9 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 
   // ---- and shift on the strip still scrolls it sideways -------------------
   //
-  // The other half of what was asked for, and the thing a careless fix would
-  // break: swallowing every wheel the strip is handed would stop the series
-  // scrolling at all, which is worse than what was reported.
-  //
-  // It is the shifted wheel now rather than the plain one. The plain one moves
-  // the parameters, and shift is free because a wheel over a fader belongs to
-  // the fader and never reaches here.
+  // A wheel the strip is handed is not simply swallowed. The plain
+  // wheel moves the parameters, and shift is free because a wheel over a fader
+  // belongs to the fader and never reaches here.
   if (strip != nullptr) {
     const auto held = viewport->getViewPositionX();
 
@@ -6169,9 +6120,8 @@ void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 }
 
 /// The same for the three bars above the mixer. Each listens deeply for
-/// right-clicks, so it hears every wheel its knobs take as well, and handing
-/// those on sent them to the editor, which scrolled the mixer sideways or the
-/// parameters up and down under a hand turning a knob in the top bar.
+/// right-clicks, so it hears every wheel its knobs take as well, and must not
+/// hand those on to the editor to scroll the mixer or the parameters.
 void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   section("A wheel over a knob in a bar does not scroll the mixer");
 
@@ -6341,8 +6291,7 @@ void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
     }
   }
 
-  // A wheel on the top bar's own panel still goes on to the mixer, so the
-  // fix is not swallowing every wheel the bar is handed.
+  // A wheel on the top bar's own panel still goes on to the mixer.
   {
     viewport->setViewPosition(span / 2, 0);
     const auto x = viewport->getViewPositionX();
@@ -6365,21 +6314,13 @@ void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 
 /// One right-click opens one LINK menu.
 ///
-/// Right-clicking the gap between two sections opened two menus stacked on
-/// each other. Picking an item on the front one left the back one standing and
-/// its ticks unmoved, so the setting appeared not to have taken while the
-/// instrument had in fact changed.
+/// The strip listens to everything inside it, so a right-click on a knob opens
+/// the LINK menu rather than being swallowed by the control. JUCE hands such a
+/// listener the component's own events too, so a click on the strip's own
+/// background, such as the gap between sections, arrives twice and has to open
+/// one menu.
 ///
-/// The cause is the strip listening to everything inside it, which is what
-/// lets a right-click on a knob open the LINK menu rather than being swallowed
-/// by the control. JUCE hands a listener registered that way the component's
-/// own events too, so a click on the strip's own background arrives twice:
-/// once because the strip is what the pointer is over, and once more through
-/// that listener. The gap between sections is the strip's own background,
-/// which is why only that strip of pixels did it.
-///
-/// Counted through a stub rather than by opening anything: a real PopupMenu
-/// wants a window and there is none here.
+/// Counted through a stub, since a real PopupMenu needs a window.
 void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
   section("One right-click, one LINK menu");
 
@@ -6391,7 +6332,7 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu(const juce::String &) override { ++opened; }
-    // Nowhere to scroll, so the wheel would fall through as it used to.
+    // Nowhere to scroll, so the wheel falls through.
     bool scrollParameters(int) override { return false; }
 
     bool drawStarted(juce::Point<int>) override { return false; }
@@ -6468,12 +6409,8 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
   }
 }
 
-/// A click on the rule between two sections folds that section.
-///
-/// The gutter's headings have always done this. Reaching them means leaving
-/// the partial you are working on, crossing the mixer and coming back, and by
-/// then you have lost which column you were in. The rules across a strip line
-/// up with those headings, so the same click works where your hand already is.
+/// A click on the rule between two sections folds that section, as the gutter's
+/// headings do, so the fold is reachable without leaving the column.
 void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
   section("The rules between sections fold them");
 
@@ -6553,10 +6490,8 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
 
   // ---- and the pointer on a rule says which row it is on -------------------
   //
-  // The caption in the gutter lighting is how this panel says what is under
-  // the pointer, and the rules are the one part of a strip that can be clicked
-  // without carrying a control. Left out of the answer, the only clickable
-  // part of a strip was the only part that said nothing.
+  // The rules are the one part of a strip that can be clicked without carrying
+  // a control, so they light their caption in the gutter like any row.
   {
     for (int i = 0; i < ovt::ui::kNumSections; ++i) {
       const auto want = ovt::ui::sectionHeading((ovt::ui::Section)i);
@@ -6600,9 +6535,8 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
 
   // ---- a right-click on a rule is still the LINK menu ----------------------
   //
-  // The rules are the only part of a strip with nothing standing on them,
-  // which is what makes them clickable at all, and is also where a right-click
-  // reaches the strip. One button each.
+  // The rules have nothing standing on them, so a right-click there reaches the
+  // strip. One button each.
   {
     folded.clear();
     link.menus = 0;
@@ -6620,21 +6554,10 @@ void testTheRulesFoldTheirSections(OvertoniumProcessor &p) {
   }
 }
 
-/// Folding and unfolding a section puts the window back where it was.
-///
-/// Reported from a Mac: shrink the window so the faders are squeezed, fold a
-/// section, and the faders keep their height, which is right. Unfold it again
-/// and they grow far taller than they were, filling the screen and running
-/// under the dock.
-///
-/// The window's height is the sum of the rows plus whatever is left for the
-/// fader, so a fader that grew means the window grew by more than the rows it
-/// got back.
 /// Energy at one frequency, by Goertzel, normalised by the sample count.
 ///
-/// Enough to ask "is the note where it should be", which is the question a
-/// sample rate bug answers wrongly while leaving every level and every
-/// finiteness check happy.
+/// Enough to ask whether the note is where it should be, which a sample rate
+/// fault gets wrong while every level and finiteness check passes.
 double toneAt(const std::vector<float> &x, double freq, double sampleRate) {
   if (x.empty() || freq <= 0.0 || freq >= sampleRate * 0.5)
     return 0.0;
@@ -6678,10 +6601,8 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
 }
 
 /// A wheel over a strip moves the parameters, and shift still moves the mixer.
-///
-/// The end of the chain the bands are for: a window too short to show every
-/// row has to be scrollable, and scrolling has to move every column together
-/// or the gutter's captions end up beside the wrong knobs.
+/// Every column scrolls together, so the gutter's captions stay beside their
+/// knobs.
 void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   section("The wheel scrolls the parameters");
 
@@ -6692,11 +6613,9 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  // Short enough that not every row fits, which is the whole case, and well
-  // above the floor so nothing is being tested at a limit. Set outright rather
-  // than through sizeEditor, whose second argument is height above the
-  // minimum: that minimum is now low enough that the usual slack put this
-  // window taller than the mixer needs, where nothing scrolls at all.
+  // Short enough that not every row fits, and well above the floor. Set
+  // outright rather than through sizeEditor, whose usual slack would give a
+  // window where nothing scrolls.
   editor->setSize(1348, 700);
 
   ovt::ui::ChannelStrip *strip = nullptr;
@@ -6713,11 +6632,8 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   if (strip == nullptr)
     return;
 
-  // One named control as the marker, rather than whichever happens to be at
-  // the top. The top of the band is always at the same height, so "the first
-  // visible slider" never moves however far it is scrolled: what changes is
-  // which slider that is, which is how the first version of this test passed
-  // nothing while appearing to measure something.
+  // One named control as the marker. The top of the band is always at the same
+  // height, so the first visible slider never moves however far it scrolls.
   juce::Slider *marker = nullptr;
   for (auto *child : strip->getChildren())
     if (auto *s = dynamic_cast<juce::Slider *>(child))
@@ -6756,9 +6672,9 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   check(!marker->isVisible() || marker->getY() < before,
         "a wheel on a strip moves the parameters");
 
-  // And every column with it, or a caption names the wrong knob. The gutter
-  // and the noise channel lay out the same rows from the same scroll, so the
-  // check is that they agree about where a row starts.
+  // And every column with it, or a caption names the wrong knob. The gutter and
+  // the noise channel lay out the same rows from the same scroll, so they have
+  // to agree on where a row starts.
   ovt::ui::NoiseStrip *noise = nullptr;
   std::function<void(juce::Component &)> findNoise = [&](juce::Component &c) {
     for (auto *child : c.getChildren()) {
@@ -6772,9 +6688,7 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   check(noise != nullptr, "the noise channel is there");
 
   if (noise != nullptr) {
-    // The two lay out the same rows from the same scroll, so the topmost
-    // visible control in each has to sit at the same height. That is the
-    // property the gutter's captions depend on.
+    // So the topmost visible control in each has to sit at the same height.
     const auto topOf = [](juce::Component &c) {
       int y = -1;
       for (auto *child : c.getChildren())
@@ -6790,8 +6704,8 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
               std::to_string(topOf(*noise)) + ")");
   }
 
-  // Back up again, and the top row returns. Scrolling past either end is the
-  // clamp's job and has to be a no-op rather than a drift.
+  // Back up again, and the top row returns. Scrolling past either end has to be
+  // a no-op rather than a drift.
   juce::MouseWheelDetails up{};
   up.deltaY = 1.0f;
 
@@ -6805,11 +6719,9 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
 
 /// A sideways gesture moves the mixer, not the parameters.
 ///
-/// A trackpad sends one as deltaX with deltaY near zero. The vertical handler
-/// worked its distance out from deltaY alone, came to nothing, and still
-/// reported the wheel as taken, so the event was swallowed and a two-finger
-/// swipe moved nothing at all. On a screen too narrow for 32 channels that is
-/// the only way across.
+/// A trackpad sends one as deltaX with deltaY near zero, and the vertical
+/// handler must not take it. On a screen too narrow for 32 channels that is the
+/// only way across.
 void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
   section("A sideways wheel moves the mixer");
 
@@ -6895,13 +6807,8 @@ void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
 /// The border between the gutter and the channels is one line, all the way.
 ///
 /// Each column covers its pinned header with an opaque cap so a row can scroll
-/// under it. A cap repeats what the column paints, and the gutter paints one
-/// thing its cap did not: a divider down its right edge, drawn for the full
-/// height after the background. The cap covered the top of it and the border
-/// changed colour at the header.
-///
-/// Read off a render rather than argued about, because the fault is a colour
-/// in one band of pixels and nothing short of looking at them would see it.
+/// under it, and the gutter's cap has to repeat the divider down its right
+/// edge. Read off a render, since the fault is a colour in one band of pixels.
 void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
   section("The gutter border is one line");
 
@@ -6937,27 +6844,20 @@ void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
             " rows differ)");
 }
 
-/// The three bands have to lay a column out exactly as one column used to.
+/// The three bands lay a column out exactly as one column would.
 ///
-/// Scrolling the parameters is a change to what a short window does, and must
-/// be no change at all to a window with room in it. At or above the preferred
-/// height everything fits, so nothing scrolls, the rows run from the top of
-/// the strip to the bottom without a gap or an overlap, and the fader takes
-/// the slack the way it always has. That is the whole of the old behaviour,
-/// asserted here rather than left to be noticed.
+/// At or above the preferred height nothing scrolls, the rows run from the top
+/// of the strip to the bottom without a gap or an overlap, and the fader takes
+/// the slack.
 ///
-/// Below the preferred height the two part company on purpose: the old layout
-/// squeezed the fader to its floor to keep every row on screen, and this keeps
-/// the fader and scrolls the rows, because a fader pushed off the bottom is
-/// what the request was about.
+/// Below it the fader keeps its floor and the rows scroll, so the fader is
+/// never pushed off the bottom.
 void testTheBandsLayOutAColumn() {
   section("The bands lay out a column");
 
   using namespace ovt::ui;
 
-  // Every fold state, since the bands are worked out from the fold mask and a
-  // section folded away is the case where the arithmetic is easiest to get
-  // wrong.
+  // Every fold state, since the bands are worked out from the fold mask.
   int states = 0, scrolling = 0;
 
   for (SectionMask mask = 0; mask < (1 << kNumSections); ++mask) {
@@ -7014,9 +6914,8 @@ void testTheBandsLayOutAColumn() {
         "and every one of them scrolls a pixel under its preferred height (" +
             std::to_string(scrolling) + ")");
 
-  // The shortest window the bands allow, which is what the resize limits will
-  // be built from. Far shorter than the old floor, which is the point: the old
-  // one had to fit every row at once.
+  // The shortest window the bands allow, which the resize limits are built
+  // from. It does not have to fit every row at once.
   const int shortest = minimumStripHeight(0);
   const auto squeezed = layoutBands({0, 0, kStripWidth, shortest}, 0);
 
@@ -7027,8 +6926,7 @@ void testTheBandsLayOutAColumn() {
 
   // ---- what scrolling looks like from the outside -------------------------
   //
-  // Two properties that were both wrong at first and that no height or total
-  // would have caught.
+  // Two properties no height or total would catch.
   {
     const juce::Rectangle<int> area(0, 0, kStripWidth, 600);
     const auto bands = layoutBands(area, 0);
@@ -7040,9 +6938,8 @@ void testTheBandsLayOutAColumn() {
     for (int scroll = 0; scroll <= bands.maxScroll; scroll += 17) {
       const auto rows = layoutRows(area, 0, scroll);
 
-      // The rows on screen have to be one unbroken run in layout order. They
-      // were not: a row too tall to fit was skipped and a shorter one behind
-      // it took the space, so controls came and went out of order.
+      // The rows on screen have to be one unbroken run in layout order, so a
+      // row too tall to fit is not skipped for a shorter one behind it.
       bool started = false, ended = false, broken = false;
       int lastBottom = -1;
 
@@ -7065,9 +6962,8 @@ void testTheBandsLayOutAColumn() {
       if (broken)
         ++runs;
 
-      // And the run has to reach the foot of the band. It used to stop short
-      // whenever the next row was too tall for what was left, leaving a strip
-      // of nothing that read as the end of the list.
+      // And the run has to reach the foot of the band rather than stopping
+      // short when the next row is too tall for what is left.
       if (lastBottom < bands.middle.getBottom())
         ++gaps;
 
@@ -7079,10 +6975,8 @@ void testTheBandsLayOutAColumn() {
                          std::to_string(runs) + " broken)");
     check(gaps == 0, "and always reach the foot of the band (" +
                          std::to_string(gaps) + " short)");
-    // Dragging the bar is now a plain pixel offset, so there is no snapping
-    // left to be non-monotonic. What has to hold instead is that a row can sit
-    // part way over the top of the band, since that is what smooth means and
-    // what the column's header cap exists to cover.
+    // Dragging the bar is a plain pixel offset, so a row can sit part way over
+    // the top of the band, which the column's header cap exists to cover.
     int clippedAtTop = 0;
 
     for (int scroll = 1; scroll <= bands.maxScroll; scroll += 13) {
@@ -7109,17 +7003,10 @@ void testTheBandsLayOutAColumn() {
 
 /// The grain tile must not outlive the windows that use it.
 ///
-/// It used to be a static, built once and kept for the life of the process,
-/// which reads as an obvious saving and was a hang. A juce::Image on JUCE 9
-/// under Windows is backed by Direct2D, so releasing one hands GPU resources
-/// back, and a static is released when the host unloads the binary. On Windows
-/// that runs under the loader lock, and the driver threads the teardown has to
-/// reach are parked waiting for the same lock, so it never finishes. Hosts that
-/// unload the binary hung on removing the plugin and hosts that keep it loaded
-/// did not, which is exactly the split that was reported.
-///
-/// Nothing about that is visible from the outside except this: the tile is
-/// built again after the last look and feel goes, rather than surviving it.
+/// A juce::Image on JUCE 9 under Windows is backed by Direct2D, and a static
+/// image is released under the loader lock when a host unloads the binary,
+/// which hangs. So the tile is built again after the last look and feel goes,
+/// rather than surviving it.
 void testTheGrainTileDoesNotOutliveTheWindows() {
   section("The grain tile does not outlive the windows");
 
@@ -7142,15 +7029,14 @@ void testTheGrainTileDoesNotOutliveTheWindows() {
     (void)ovt::ui::grainTile();
   }
 
-  // The whole claim. If this reads equal, the tile survived the look and feel
-  // that was holding it, which is the state that hangs a host on unload.
+  // If this reads equal, the tile survived the look and feel that was holding
+  // it, which is the state that hangs a host on unload.
   check(ovt::ui::grainTileBuildCount() == afterFirst + 1,
         "and built afresh for the next one, having been released with the "
         "last (" +
             std::to_string(ovt::ui::grainTileBuildCount()) + " builds)");
 
-  // Two at once share one, which is the saving the static was there for and
-  // which the fix has to keep.
+  // Two at once share one.
   const int beforeShared = ovt::ui::grainTileBuildCount();
   {
     ovt::ui::OvertoniumLookAndFeel one;
@@ -7164,14 +7050,10 @@ void testTheGrainTileDoesNotOutliveTheWindows() {
 
 /// A session file the plugin did not write must not be able to poison it.
 ///
-/// setStateInformation already refuses anything that is not our XML, but a
-/// file that is our XML with nonsense in the values gets through to the
-/// parameters, which is what a corrupt or truncated session looks like. Of
-/// everything such a file can say, NaN was the only thing that survived:
-/// every clamp in JUCE's range handling is a pair of comparisons and both are
-/// false against NaN, so jlimit hands it straight back. It reached the
-/// oscillators and the plugin output NaN for the rest of the session, which in
-/// a host is a silent master bus until someone reloads it.
+/// A file that is our XML with nonsense in the values gets through to the
+/// parameters. NaN passes every clamp in JUCE's range handling, since both
+/// comparisons are false against it, and would reach the oscillators and output
+/// NaN for the rest of the session.
 void testACorruptStateCannotPoisonTheOutput() {
   section("A corrupt session cannot poison the output");
 
@@ -7196,9 +7078,8 @@ void testACorruptStateCannotPoisonTheOutput() {
         ++poisoned;
       }
 
-    // If this ever reads zero the test is passing on an empty state rather
-    // than a poisoned one, which is the way a check like this goes quietly
-    // wrong.
+    // If this reads zero the test is passing on an empty state rather than a
+    // poisoned one.
     if (poisoned == 0) {
       check(false, std::string("the state carried values to poison with \"") +
                        poison + "\"");
@@ -7222,17 +7103,11 @@ void testACorruptStateCannotPoisonTheOutput() {
   check(checked == (int)std::size(poisons), "every poison was tried");
 }
 
-/// The instrument has to be an instrument at every rate a host can ask for.
+/// The instrument plays at every rate a host can ask for.
 ///
-/// The suite otherwise lives at 48 kHz with a few excursions, and 88.2, 176.4
-/// and 192 kHz were never rendered at all. Every delay line in the effects
-/// sizes itself from the sample rate, which is exactly the kind of arithmetic
-/// that is right at one rate and wrong at four times it.
-///
-/// Both halves matter. Finite output from a plugin that rendered silence
-/// proves nothing, so this insists the preset actually sounds at every rate,
-/// and that the level is the same one, since a filter cutoff worked out in the
-/// wrong units would still be finite and would not be Big Saw.
+/// Every delay line in the effects sizes itself from the sample rate. Finite
+/// output from a plugin that rendered silence proves nothing, so this also
+/// checks the preset sounds at every rate, at the same level and in tune.
 void testEveryHostRateStaysFinite() {
   section("Every host rate renders");
 
@@ -7263,11 +7138,8 @@ void testEveryHostRateStaysFinite() {
       check(stats.peak > 1.0e-3, "and the instrument actually sounds (" +
                                      std::to_string(stats.peak) + ")");
 
-      // And in tune, which is the half that finiteness and loudness cannot
-      // see. An engine that believes every host runs at 48 kHz renders a
-      // perfectly good note two octaves down at 192 kHz: finite, audible and
-      // exactly as loud. Only the pitch says otherwise, so the pitch is what
-      // is asked.
+      // And in tune, which finiteness and loudness cannot see: an engine that
+      // assumed 48 kHz would render a good note two octaves down at 192 kHz.
       if (block == 512) {
         OvertoniumProcessor tone;
         tone.setRateAndBufferSizeDetails(rate, block);
@@ -7280,10 +7152,9 @@ void testEveryHostRateStaysFinite() {
         const double below = toneAt(wave, f0 / 4.0, rate);
         const double above = toneAt(wave, f0 * 4.0, rate);
 
-        // Measured across every rate here, the fundamental runs 150 to 400
-        // times the subharmonic and 12 to 17 times the fourth harmonic, so
-        // these leave a factor of three either way rather than sitting on
-        // the number.
+        // Measured across every rate, the fundamental runs 150 to 400 times the
+        // subharmonic and 12 to 17 times the fourth harmonic, so these leave a
+        // factor of three either way.
         check(at > 20.0 * below,
               "and middle C at " + std::to_string((int)rate) +
                   " Hz is not two octaves flat (" + std::to_string(at) +
@@ -7292,9 +7163,8 @@ void testEveryHostRateStaysFinite() {
               "nor two octaves sharp (" + std::to_string(above) + ")");
       }
 
-      // 8 kHz is left out of the level comparison on purpose: most of the
-      // series is above its Nyquist and is correctly not there, which is a
-      // quieter patch rather than a broken one.
+      // 8 kHz is left out of the level comparison, since most of the series is
+      // above its Nyquist and correctly not there.
       if (rate > 20000.0) {
         lowest = std::min(lowest, (double)stats.peak);
         highest = std::max(highest, (double)stats.peak);
@@ -7303,19 +7173,14 @@ void testEveryHostRateStaysFinite() {
   }
 
   // Measured at 0.457 to 0.462 across 22 kHz to 192 kHz, so a tenth is slack
-  // rather than a target. A rate-dependent coefficient shows up here long
-  // before it is audible.
+  // rather than a target.
   check(highest < lowest * 1.1,
         "and the same patch is the same loudness at every rate above 20 kHz (" +
             std::to_string(lowest) + " to " + std::to_string(highest) + ")");
 }
 
-/// The safety clip's whole job is a bound, so the bound is checked.
-///
-/// It was not. One test switches the clipper off to measure headroom and
-/// nothing anywhere switched it on to see whether it does what its name says.
-/// The clipper is threshold + (1 - threshold) * tanh, which cannot exceed one
-/// by construction, and this is what holds that construction in place.
+/// The safety clip holds the output to unity on every clip type, since that
+/// bound is its whole job.
 void testTheSafetyClipHoldsUnity() {
   section("The safety clip holds unity");
 
@@ -7333,18 +7198,16 @@ void testTheSafetyClipHoldsUnity() {
         q->setValueNotifyingHost(v);
     };
 
-    // Driving this by setting every parameter to its maximum does not work:
-    // that includes the envelope's delay and attack, and nothing sounds at all
-    // inside the render. The master opened to +12 dB over a patch that already
-    // sounds, with a fistful of notes on it, is what makes it loud.
+    // Every parameter at its maximum would include the envelope's delay and
+    // attack, and nothing would sound inside the render. The master at +12 dB
+    // over a patch that already sounds, with several notes, is what makes it
+    // loud.
     set(ovt::params::masterGainId, 1.0f);
     set(ovt::params::safetyClipId, 1.0f);
 
-    // Every one of the five, because the bound is the stage's promise rather
-    // than a property of whichever shape happens to be selected. The limiter
-    // is the one that does not keep it by its shape: it keeps it by seeing
-    // the peak coming, with a hard clip behind it for whatever its window is
-    // too short to have seen, and this is what says so.
+    // Every one of the eight. The limiter, and Console, Cassette and Print,
+    // which end in it, keep the bound by seeing the peak coming, with a hard
+    // clip behind it for whatever the window is too short to see.
     for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
           (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
@@ -7381,8 +7244,7 @@ void testTheSafetyClipHoldsUnity() {
       ++sounded;
   }
 
-  // Without this the two checks above pass on silence, which is how the first
-  // attempt at this test passed while rendering nothing.
+  // Without this the two checks above pass on silence.
   check(sounded == 3, "and it was driven hard enough to mean it (peak " +
                           std::to_string(worst) + ")");
 }
@@ -7459,15 +7321,12 @@ void testFittingShowsEveryRow(OvertoniumProcessor &p) {
   setOpen(tuning, false);
 }
 
-/// Fit all 32 channels must land somewhere a drag can get back to.
+/// Fit all 32 channels lands somewhere a drag can get back to.
 ///
 /// setSize consults no limits, so the fit could put the window below the
-/// shortest one the constrainer allows. It did: the floor was worked out at
-/// the narrowest width, where the top bar takes three rows, and used at every
-/// width, so a fitted window sat 84 pixels under a floor of 997 and the first
-/// drag afterwards snapped it up. The floor now follows the width, which fixes
-/// that and also lets a wide window be dragged shorter than the fit leaves it,
-/// since the bar is two rows shorter there.
+/// shortest one the constrainer allows. The floor follows the width, since the
+/// top bar takes more rows on a narrow window, so a wide window can be dragged
+/// shorter than a narrow one.
 void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
   section("Fitting lands where a drag can return");
 
@@ -7494,9 +7353,8 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
             std::to_string(fitted) + " against " + std::to_string(wideFloor) +
             ")");
 
-  // Which is the half that would have passed on its own if the floor were
-  // simply lowered everywhere. It must still be a floor: narrow the window to
-  // where the bar needs another row and it has to rise.
+  // It must still be a floor: narrow the window to where the bar needs another
+  // row and it has to rise.
   const int fittedWidth = editor->getWidth();
 
   editor->setSize(700, editor->getHeight());
@@ -7509,21 +7367,13 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
           std::to_string(wideFloor) + " to " + std::to_string(narrowFloor) +
           ")");
 
-  // There used to be a third check here, that the fitted window came out
-  // shorter than a narrow one's floor. It caught the wide window being held to
-  // the narrow one's chrome, and it worked because the floor was the height of
-  // every row at once and left no slack. Now that the rows scroll, the floor
-  // is far below both and the comparison cannot fail whether the fault is
-  // there or not. The check above it still catches the fault, by asking
-  // whether the floor moves with the width at all.
-
-  // The window has to have been taken with it, or the bar gains a row into
-  // space the mixer is still using and the strips run off the bottom.
+  // The window has to rise with it, or the bar gains a row into space the mixer
+  // is still using and the strips run off the bottom.
   check(editor->getHeight() >= narrowFloor,
         "and takes the window up with it rather than leaving it short");
 
-  // Back out again, and the fit's height stops being the shortest thing
-  // available: the whole point of the floor following the width.
+  // Back out again, and the fit's height is no longer the shortest available,
+  // since the floor follows the width.
   editor->setSize(fittedWidth, editor->getHeight());
 
   check(limits->getMinimumHeight() == wideFloor,
@@ -7532,6 +7382,13 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
         "so a wide window can be dragged shorter than fitting leaves it");
 }
 
+/// Folding and unfolding a section puts the window back where it was.
+///
+/// With the window shrunk so the faders are squeezed, folding a section leaves
+/// the faders their height, and unfolding it again must not make them taller
+/// than they were. The window's height is the rows plus what is left for the
+/// fader, so a fader that grew means the window grew by more than the rows it
+/// got back.
 void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   section("Folding and unfolding leaves the window where it was");
 
@@ -7556,9 +7413,8 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   if (strip == nullptr)
     return;
 
-  // Squeezed: down to the shortest the window will go, which is where the
-  // fader has given up everything it can and the fault shows. Asked of the
-  // constrainer rather than set to some small number, since setSize on its own
+  // Squeezed down to the shortest the window will go, where the fader has given
+  // up everything it can. Asked of the constrainer, since setSize on its own
   // does not go through it and a host's drag does.
   auto *limits = editor->getConstrainer();
 
@@ -7570,9 +7426,9 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
 
   const auto squeezed = editor->getHeight();
 
-  // A second apart, because a strip throws away a click bearing the same time
-  // as the one before it: that is how the echo of its own listener is told
-  // from a real click. Two folds a microsecond apart are one fold.
+  // A second apart, since a strip throws away a click bearing the same time as
+  // the one before it, which is how the echo of its own listener is told from a
+  // real click.
   int clicks = 0;
 
   const auto foldOnce = [&](ovt::ui::Section s) {
@@ -7606,10 +7462,7 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   std::printf("  squeezed to %d, folded to %d, unfolded back to %d\n", squeezed,
               folded, back);
 
-  // Folding used to take the window down by exactly the rows it hid, because
-  // every row had to be on screen. Now they scroll, so folding is about seeing
-  // more at once and the window is left alone, which is the half of issue #5
-  // about collapsing a section shifting the mixer out of view.
+  // The rows scroll, so folding shows more at once and leaves the window alone.
   check(folded == squeezed, "folding leaves the window where it is (" +
                                 std::to_string(squeezed) + " to " +
                                 std::to_string(folded) + ")");
@@ -7620,10 +7473,7 @@ void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
 
   // ---- and from a window with room to spare ------------------------------
   //
-  // This used to be the case the ordering in toggleSection was written for,
-  // back when folding moved the window and the order of the arithmetic against
-  // the limits decided whether it moved by the right amount. There is no
-  // arithmetic left to get wrong: the window holds still at both heights.
+  // The window holds still at both heights here too.
   {
     editor->setSize(editor->getWidth(), limits->getMinimumHeight() + 240);
 
@@ -7811,11 +7661,9 @@ void testOptionBars(OvertoniumProcessor &p) {
         "and the floor comes back down when it closes");
 }
 
-/// Puts every session setting back where a fresh instance has it.
-///
-/// A preset leaves these alone, since they belong to the session rather than
-/// to the sound, so a test that moves the temperament or the root has to put
-/// them back itself, or every test after it runs on F# at 415 Hz.
+/// Puts every session setting back where a fresh instance has it. A preset
+/// leaves these alone, so a test that moves the temperament or the root has to
+/// put them back itself.
 void restoreSessionSettings(OvertoniumProcessor &p) {
   for (const auto *id : ovt::params::kSessionParamIds)
     if (auto *param = p.apvts.getParameter(id))
@@ -7921,8 +7769,8 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
               ")");
   }
 
-  // The switches flip, and nothing outside the lists is claimed, which is what
-  // lets the Settings menu hand everything to apply first.
+  // The switches flip, and nothing outside the lists is claimed, so the
+  // Settings menu can hand everything to apply first.
   for (const auto &sw :
        {std::pair<int, const char *>{st::kMpe, ovt::params::mpeId},
         {st::kOneVoicePerKey, ovt::params::oneVoicePerKeyId},
@@ -8379,9 +8227,9 @@ void testPlayingReadouts(OvertoniumProcessor &p) {
   setParam(ovt::params::mpeId, 0.0f);
   send({});
 
-  // The editor reads all of this from the message thread while the audio
-  // thread writes it. Nothing here can see a race, but a run under the thread
-  // sanitizer can, and this is what gives it two threads to watch.
+  // The editor reads all of this from the message thread while the audio thread
+  // writes it. This gives a run under the thread sanitizer two threads to
+  // watch.
   {
     std::atomic<bool> playing{true};
     std::thread audio([&] {
@@ -9555,11 +9403,10 @@ void testSegmentCells() {
 
   // ---- a middle bar reads as a bar
   //
-  // Each half runs to the centre of the cell. Stopping short of the centre
-  // upright left them a pixel or two each at the size the names are drawn, so
-  // the middle of an H read as two dots. Measured at that size, nine cells in
-  // a bar's height, against the bottom bar, which runs the whole width of a
-  // cell: the middle has to be lit nearly as much.
+  // Each half runs to the centre of the cell, so the middle of an H is a bar
+  // and not two dots. Measured at the size the names are drawn, nine cells in a
+  // bar's height, against the bottom bar, which runs the whole width of a cell:
+  // the middle has to be lit nearly as much.
   {
     // How much light a reading adds over the same display with nothing on
     // it, so the screen's own ground and rim count for nothing.
@@ -9603,16 +9450,233 @@ void testSegmentCells() {
   }
 }
 
-/// LINK comes back the way it was left.
+/// The tool button shows the tool as soon as it is chosen.
 ///
-/// Reported as LINK not being retained when the plugin is closed and opened.
-/// Two thirds of it were: the scope and the curve have always been written to
-/// the editor's state, and the switch that decides whether either of them
-/// applies was not. So a window reopened remembering exactly how a drag would
-/// be shared out, with the drag switched off.
+/// The button draws from a cache of its last looks, keyed by what its drawing
+/// reads, so the icon has to be part of the key.
+void testToolButtonShowsTheTool(OvertoniumProcessor &p) {
+  section("The tool button shows the tool");
+
+  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
+  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  // Found by having no words on it: it wears the tool's cursor instead.
+  juce::TextButton *button = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    if (auto *b = dynamic_cast<juce::TextButton *>(&c))
+      if (b->getButtonText().isEmpty() &&
+          b->getTitle().containsIgnoreCase("tool"))
+        button = b;
+    for (auto *child : c.getChildren())
+      look(*child);
+  };
+
+  editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  look(*editor);
+
+  check(button != nullptr, "the gutter carries the tool button");
+  if (button == nullptr)
+    return;
+
+  const auto shot = [button] {
+    return button->createComponentSnapshot(button->getLocalBounds(), true,
+                                           1.0f);
+  };
+
+  const auto same = [](const juce::Image &a, const juce::Image &b) {
+    if (a.getWidth() != b.getWidth() || a.getHeight() != b.getHeight())
+      return false;
+
+    for (int y = 0; y < a.getHeight(); ++y)
+      for (int x = 0; x < a.getWidth(); ++x)
+        if (a.getPixelAt(x, y) != b.getPixelAt(x, y))
+          return false;
+
+    return true;
+  };
+
+  const auto pointer = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Link);
+  const auto link = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Draw);
+  const auto draw = shot();
+
+  editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  const auto back = shot();
+
+  check(!same(pointer, link), "choosing Link changes the icon at once");
+  check(!same(link, draw), "and so does choosing Draw");
+  check(same(pointer, back), "and the pointer comes back as it was");
+}
+
+/// Picking channels by their numbers, for the Selected scope.
 ///
-/// All three are checked rather than the one that was missing, so the next
-/// setting added here cannot be the one forgotten.
+/// A command-click on a number picks that channel, and a drag from there
+/// across the numbers picks every channel it crosses. Making a selection
+/// chooses LINK with the Selected scope, and a LINK drag then moves only the
+/// channels picked. Starting on a picked channel takes channels away instead,
+/// the selection is kept with the session, and the menu can clear it.
+void testSelectingChannels(OvertoniumProcessor &p) {
+  section("Selecting channels");
+
+  const auto open = [&p] {
+    return std::unique_ptr<juce::AudioProcessorEditor>(p.createEditor());
+  };
+
+  const auto stripsOf = [](juce::Component &root) {
+    std::vector<ovt::ui::ChannelStrip *> strips;
+    std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
+      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(&c))
+        strips.push_back(s);
+      for (auto *child : c.getChildren())
+        gather(*child);
+    };
+    gather(root);
+    return strips;
+  };
+
+  const auto picked = [](const std::vector<ovt::ui::ChannelStrip *> &strips) {
+    std::string out;
+    for (size_t i = 0; i < strips.size(); ++i)
+      if (strips[i]->isSelected())
+        out += std::to_string(i + 1) + " ";
+    return out;
+  };
+
+  {
+    auto base = open();
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+    auto *target = dynamic_cast<ovt::ui::LinkTarget *>(editor);
+
+    check(editor != nullptr && bar != nullptr && target != nullptr,
+          "the editor opens and takes selections");
+    if (editor == nullptr || bar == nullptr || target == nullptr)
+      return;
+
+    auto strips = stripsOf(*editor);
+
+    if (strips.size() != (size_t)ovt::kNumHarmonics)
+      return;
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+
+    const auto number = [&strips](int i) {
+      return strips[(size_t)i]->localPointToGlobal(
+          juce::Point<int>(strips[(size_t)i]->getWidth() / 2, 10));
+    };
+
+    // ---- a drag across the numbers picks a run of channels -----------------
+    target->selectionStarted(2, number(2));
+    target->selectionMovedTo(number(5));
+    target->selectionEnded();
+
+    check(picked(strips) == "3 4 5 6 ",
+          "a drag from channel 3 to 6 picks the four (" + picked(strips) + ")");
+
+    check(editor->currentTool() == ovt::ui::PointerTool::Link &&
+              bar->getLinkScope() == ovt::ui::LinkScope::Selected,
+          "and making a selection chooses LINK with the Selected scope");
+
+    // ---- a LINK drag moves only the channels picked ------------------------
+    //
+    // On the pan knobs, which LINK moves in a straight line from wherever each
+    // one is. The faders are shared out in decibels, so one standing at the
+    // bottom would stay there and look left out.
+    const auto panOf = [&p](int i) {
+      auto *param = p.apvts.getParameter(
+          ovt::params::oscParamId(ovt::params::panSuffix, i));
+      return param != nullptr ? param->getValue() : -1.0f;
+    };
+
+    std::array<float, ovt::kNumHarmonics> before{};
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      before[(size_t)i] = panOf(i);
+
+    auto *source =
+        dynamic_cast<juce::RangedAudioParameter *>(p.apvts.getParameter(
+            ovt::params::oscParamId(ovt::params::panSuffix, 3)));
+
+    if (source == nullptr)
+      return;
+
+    // A little either way of where it stands, so it cannot meet an end.
+    const auto to = source->convertFrom0to1(
+        source->getValue() + (source->getValue() > 0.5f ? -0.1f : 0.1f));
+
+    target->linkDragStarted(ovt::ui::Role::Pan, 3);
+    source->setValueNotifyingHost(source->convertTo0to1(to));
+    target->linkValueChanged(ovt::ui::Role::Pan, 3, to);
+    target->linkDragEnded(ovt::ui::Role::Pan, 3);
+
+    std::string moved;
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      if (std::abs(panOf(i) - before[(size_t)i]) > 1.0e-4f)
+        moved += std::to_string(i + 1) + " ";
+
+    check(moved == "3 4 5 6 ",
+          "a LINK drag on channel 4 moves the picked channels and no others (" +
+              moved + ")");
+
+    // Put back, so the tests after this one find the pans they expect.
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      if (auto *param = p.apvts.getParameter(
+              ovt::params::oscParamId(ovt::params::panSuffix, i)))
+        param->setValueNotifyingHost(before[(size_t)i]);
+
+    // ---- starting on a picked channel takes channels away ------------------
+    target->selectionStarted(4, number(4));
+    target->selectionMovedTo(number(5));
+    target->selectionEnded();
+
+    check(picked(strips) == "3 4 ",
+          "a drag that starts on a picked channel takes channels away (" +
+              picked(strips) + ")");
+  }
+
+  // ---- kept with the session ------------------------------------------------
+  {
+    auto base = open();
+    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+
+    if (editor == nullptr || bar == nullptr)
+      return;
+
+    auto strips = stripsOf(*editor);
+
+    check(picked(strips) == "3 4 ",
+          "the selection is still there when the window opens again (" +
+              picked(strips) + ")");
+
+    check(bar->onSelectionCleared != nullptr,
+          "and the menu can ask for it to be cleared");
+
+    if (bar->onSelectionCleared)
+      bar->onSelectionCleared();
+
+    check(picked(strips).empty(), "which leaves no channel picked");
+
+    editor->chooseTool(ovt::ui::PointerTool::Pointer);
+  }
+
+  {
+    auto base = open();
+    auto strips = stripsOf(*base);
+
+    check(picked(strips).empty(), "and that is kept with the session too");
+  }
+}
+
+/// LINK comes back the way it was left: its switch, scope and curve all survive
+/// the window being closed and opened. All three are checked so a new setting
+/// cannot be the one forgotten.
 void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
   section("LINK survives a reopen");
 
@@ -9665,8 +9729,8 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
 
   // ---- and switched off again, which has to stick as well ------------------
   //
-  // A setting that is only written when it is true reads as working until
-  // somebody turns it off.
+  // A setting written only when it is true reads as working until it is turned
+  // off.
   {
     auto [window, bar] = reopen();
 
@@ -9693,14 +9757,10 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
 
 /// Holding the modifier draws the faders a drag passes over.
 ///
-/// Setting neighbouring partials one fader at a time is the tedious way to
-/// shape a spectrum, which is most of what this instrument is for. Held, a
-/// drag across the fader area sets each column it crosses from the pointer's
-/// height instead of moving one of them.
-///
-/// It is not LINK by another name. LINK shares one relative move out across a
-/// scope by a rule; this sets absolute values freehand, and neither can do the
-/// other's job.
+/// Held, a drag across the fader area sets each column it crosses from the
+/// pointer's height instead of moving one of them. Unlike LINK, which shares
+/// one relative move out across a scope by a rule, this sets absolute values
+/// freehand.
 void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   section("Drawing the faders");
 
@@ -9743,8 +9803,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
     return;
 
   // The two switches in the caption gutter, found by the words on them. DRAW
-  // latches the tool on without the modifier, which is what a test can reach:
-  // holding a key is not something a headless run can do.
+  // latches the tool on without the modifier, since a headless run cannot hold
+  // a key.
   const auto switchNamed = [&](const juce::String &text) -> juce::TextButton * {
     juce::TextButton *found = nullptr;
 
@@ -9769,8 +9829,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   if (toolSwitch == nullptr)
     return;
 
-  // Chosen through the editor rather than through the menu the button opens:
-  // a PopupMenu needs a real window and a headless run has none.
+  // Chosen through the editor rather than through the menu the button opens,
+  // since a PopupMenu needs a real window.
   const auto choose = [editor](ovt::ui::PointerTool which) {
     editor->chooseTool(which);
   };
@@ -9781,10 +9841,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- the menu knows which tool is current -------------------------------
   //
-  // It took the tool as a defaulted argument and both callers left it out, so
-  // it built itself as though the plain pointer were always chosen: a tick
-  // that never moved and LINK's two lists greyed out for good. Read as data,
-  // which is the only way to read a menu that needs a window to open in.
+  // The tick follows the current tool, and LINK's two lists are live when LINK
+  // is chosen. Read as data, since a menu needs a window to open in.
   {
     // Only the three tools. The scope and the curve carry ticks of their
     // own, which are theirs to carry and say nothing about the tool.
@@ -9801,9 +9859,7 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
       return found;
     };
 
-    // Asked for by the name the menu gives it rather than by a word guessed
-    // at here: the item reads "Odd harmonics", and a test looking for "Odd"
-    // found nothing and called it disabled.
+    // Asked for by the name the menu gives it, "Odd harmonics".
     const auto scopeEnabled = [](juce::PopupMenu &menu) {
       const auto wanted =
           juce::String(ovt::ui::linkScopeName(ovt::ui::LinkScope::Odd));
@@ -9860,9 +9916,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
     // ---- and the faders light to say where the drawing reaches ------------
     //
-    // The same preview LINK uses to say what the next drag would touch, in the
-    // accent rather than each channel's own colour, since every fader is
-    // equally drawable and the band is one surface rather than 33 answers.
+    // The same preview LINK uses, in the accent rather than each channel's own
+    // colour, since every fader is equally drawable.
     {
       const auto faderOf = [](juce::Component &strip) -> juce::Slider * {
         juce::Slider *found = nullptr;
@@ -9938,9 +9993,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 
   // ---- and LINK reads as off while it is armed ----------------------------
   //
-  // Without being off: the setting is untouched and comes back the moment the
-  // tool is let go. A switch left lit for a gesture that has been taken away
-  // from it is a lie the mouse-up would expose.
+  // The setting itself is untouched and comes back the moment the tool is let
+  // go.
   {
     check(editor->currentTool() != ovt::ui::PointerTool::Link,
           "LINK reads as off while drawing has the drag");
@@ -9970,13 +10024,12 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   }
 }
 
-/// The tick in the Zoom submenu, which is the only thing on the panel that
-/// says which zoom you are at.
+/// The tick in the Zoom submenu, which is the only thing on the panel that says
+/// which zoom you are at.
 ///
-/// The editor holds the zoom and the bar holds a copy of it to draw the tick
-/// from, and the restore was the only thing that ever wrote the copy. So the
-/// window scaled correctly and the menu went on ticking 100%. Driven through
-/// the callback the menu item calls, since opening the menu needs a window.
+/// The bar holds a copy of the editor's zoom to draw the tick from, so every
+/// zoom change has to reach it. Driven through the callback the menu item
+/// calls, since opening the menu needs a window.
 void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   section("The zoom tick follows the zoom");
 
@@ -10013,9 +10066,7 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     return found;
   };
 
-  // Every zoom the menu offers, asked for in turn rather than compared against
-  // where the state happened to leave this editor, and ending at 100% for
-  // whatever runs next.
+  // Every zoom the menu offers, in turn, ending at 100% for whatever runs next.
   for (const auto factor : {1.25f, 0.75f, 1.5f, 1.0f}) {
     const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
 
@@ -10028,10 +10079,9 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
 
 /// That every word the bar has to say fits in the button that says it.
 ///
-/// The bar shouts in capitals at a font it picks from its own height, so the
-/// widest name a control can show decides how wide that control has to be.
-/// Measured rather than eyeballed, because the failure is silent: a name that
-/// does not fit is drawn with the middle taken out of it and nothing says so.
+/// The bar picks its font from its own height, so the widest name a control can
+/// show decides how wide it has to be. Measured, since a name that does not fit
+/// is drawn with the middle taken out and nothing says so.
 void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   section("Words on the bar");
 
@@ -10055,8 +10105,7 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   };
 
   // The short names, which is what the button shows, plus the word it shows
-  // instead when the effect is off. The menu says what each machine is and has
-  // the room to; the caption under the button says which effect it belongs to.
+  // when the effect is off.
   juce::StringArray echoWords{"Off"};
   for (int i = 0; i < (int)ovt::EchoType::NumTypes; ++i)
     echoWords.add(ovt::echoTypeShortName((ovt::EchoType)i));
@@ -10115,7 +10164,7 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
   // ---- the clipper's switch, which is the shortest button on the bar -------
   //
   // At 16 px tall it picks a 9 px font for itself rather than the 13 the taller
-  // buttons get, so it is measured at that rather than at theirs.
+  // buttons get, so it is measured at that.
   {
     const auto shortFont =
         makeFont(juce::jlimit(8.0f, 13.0f, 16.0f * 0.58f), true);
@@ -10132,10 +10181,9 @@ void testBarButtonsFitTheirWords(OvertoniumProcessor &p) {
 
   // ---- and the word under each of them -------------------------------------
   //
-  // The button shows a value, so the group is named underneath it in the band
-  // the knob captions occupy, at the font those captions use. A word wider
-  // than the button it sits under is drawn with its middle taken out, and the
-  // knob caption six pixels to its right would have it running into that.
+  // The group is named underneath the button in the band the knob captions
+  // occupy, at their font. A word wider than its button would run into the knob
+  // caption six pixels to its right.
   {
     const auto captionFont = makeFont(9.0f, true);
 
@@ -10211,8 +10259,6 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
               std::to_string(wordmark) + " px wordmark)");
   }
 
-  // The figure the design notes quote. It moves whenever a control on the bar
-  // changes width, and when it moves the notes move with it.
   // And where it comes onto two and three, which the design notes also give.
   for (int w = 475, lastHeight = TopBar::heightForWidth(475); w < onOneRow; ++w)
     if (TopBar::heightForWidth(w) < lastHeight) {
@@ -10220,10 +10266,15 @@ void testBarComesOntoOneRow(OvertoniumProcessor &p) {
       std::printf("  it gets a row shorter at %d px\n", w);
     }
 
+  /// The figure the design notes quote, which moves whenever a control on the
+  /// bar changes width.
   check(onOneRow == 1285, "and comes onto it at the width written down (" +
                               std::to_string(onOneRow) + ")");
 }
 
+/// A knob carries its caption underneath, so its dial does not sit in the
+/// middle of the row. Checks that the bar's controls line up with the knobs'
+/// dials rather than with the middle of the row.
 void testTopBarAlignment(OvertoniumProcessor &p) {
   section("Top bar alignment");
 
@@ -10249,9 +10300,7 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
         continue;
 
       // Nor does the master fader, which is aligned to the lamps it lies over
-      // rather than to the row. The meter carrying those lamps is on the row
-      // and is checked like everything else, and the fader is checked against
-      // the meter below, which is the alignment that can actually be seen.
+      // rather than to the row. It is checked against the meter below.
       if (auto *slider = dynamic_cast<juce::Slider *>(child))
         if (slider->getSliderStyle() == juce::Slider::LinearHorizontal)
           continue;
@@ -10284,10 +10333,8 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     return centres;
   };
 
-  // The fader has one alignment to keep and it is not the row's: it has to
-  // stand on the lamps. A cap floating below them reads as a control that has
-  // come loose, and it did, because the meter keeps its decibel marks in a
-  // strip under the bars and the fader was given the whole meter to lie on.
+  // The fader has to stand on the lamps rather than on the whole meter, which
+  // keeps its decibel marks in a strip under the bars.
   {
     bar.setSize(1412, TopBar::heightForWidth(1412));
 
@@ -10345,9 +10392,8 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
                        at);
   }
 
-  // And the three things under the meter sit under it, inside the row, at
-  // every width the bar can be given. Excluding them from the rule above would
-  // otherwise be a hole rather than a decision.
+  // And the three things under the meter sit under it, inside the row, at every
+  // width the bar can be given, since the rule above leaves them out.
   for (int width : {1412, 1100, 900, TopBar::minimumWidth()}) {
     bar.setSize(width, TopBar::heightForWidth(width));
 
@@ -10392,17 +10438,11 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     check(apart, "and none of the three overlaps another" + at);
   }
 
-  // A number with no unit beside it is a number nobody can read. At the width
-  // the window opens at, both readouts have to be wide enough to name what
-  // they are counting.
-  //
-  // This is what moving LINK off the bar was for. With it there, the output
-  // group was squeezed forty pixels at this width and both readouts came out
-  // at 38, which draws the figure and nothing else.
+  // At the width the window opens at, both readouts have to be wide enough to
+  // name what they are counting as well as the figure.
   {
-    // The width the window opens at, scrollbar included. Leaving that out
-    // put this ten pixels short of the real thing, which is the margin the
-    // converter readouts live on.
+    // The width the window opens at, scrollbar included, since the converter
+    // readouts live on that margin.
     const int width = ovt::ui::kGutterWidth + ovt::ui::kStripWidth + 8 +
                       ovt::kNumHarmonics * ovt::ui::kStripWidth +
                       ovt::ui::kScrollBarThickness;
@@ -10428,23 +10468,16 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
   }
 }
 
-/// Undo, which is only worth having if a LINK drag across 32 channels comes
-/// back in one step. The round trip runs parameter -> value tree -> undo
-/// manager and back again.
-/// A factory preset has to give the same instrument whatever was loaded
-/// before it.
+/// A factory preset gives the same instrument whatever was loaded before it.
 ///
-/// Written against every parameter rather than against a list, so it catches
-/// the next global somebody adds and forgets to reset, which is exactly how
-/// STRETCH, TRACK and the converter each got missed.
+/// Checked against every parameter rather than a list, so it catches a new
+/// global that a preset forgets to reset.
 void testPresetsAreReproducible(OvertoniumProcessor &p) {
   section("Presets start from a known state");
 
-  // What a preset deliberately leaves alone: how you play it, as opposed to
-  // what it sounds like, which takes in how loud it is. Asked of the one list
-  // rather than copied into a second one here, which is the whole reason that
-  // list is shared. The copy this replaced had already fallen three settings
-  // behind it.
+  // What a preset deliberately leaves alone is how you play it, as opposed to
+  // what it sounds like, which includes how loud it is. That comes from the one
+  // shared list.
 
   const auto snapshot = [&p] {
     std::vector<std::pair<juce::String, float>> out;
@@ -10467,10 +10500,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     put(ovt::params::stretchId, 700.0f);
     put(ovt::params::trackId, 9.0f);
 
-    // The character has to be in here for the same reason everything else is.
-    // A preset that says nothing about it is asking for Pure rather than for
-    // whatever the last patch was, and a preset that asks for one has to get
-    // that one whatever was showing before it.
+    // The character is in here too. A preset that says nothing about it asks
+    // for Pure rather than whatever the last patch had.
     put(ovt::params::characterId, (float)(int)ovt::Character::Opamp);
 
     put(ovt::params::lofiRateId, 5.0f); // 8 kHz
@@ -10523,9 +10554,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
     std::printf("  parameters left over from the previous patch: %s\n",
                 drifted.joinIntoString(", ").toRawUTF8());
 
-  // The other half of the rule: what a preset is not allowed to touch has to
-  // still be there afterwards. Skipping these in the comparison above says
-  // nothing about that either way.
+  // What a preset is not allowed to touch has to still be there afterwards,
+  // which the comparison above does not check.
   const auto set = [&p](const char *id, float plain) {
     if (auto *param = p.apvts.getParameter(id))
       param->setValueNotifyingHost(param->convertTo0to1(plain));
@@ -10568,9 +10598,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
             std::to_string(reproducible) + ")");
 }
 
-/// Knobs come out whatever size the row they land in happens to be, so a row
-/// height typed a couple of pixels off is a knob a couple of pixels off, and
-/// nothing complains. The sizes that differ should differ on purpose.
+/// Knob sizes. A knob takes the size of the row it lands in, so the sizes that
+/// differ should differ on purpose.
 void testKnobSizes(OvertoniumProcessor &p) {
   section("Knob sizes");
 
@@ -10581,10 +10610,8 @@ void testKnobSizes(OvertoniumProcessor &p) {
   if (editor == nullptr)
     return;
 
-  // Tall enough that nothing scrolls, because this is about the sizes a knob
-  // is drawn at and a knob scrolled out of the band is not drawn at all. It
-  // used to pass at 160, back when every row had to be on screen whatever the
-  // height and the fader simply gave way.
+  // Tall enough that nothing scrolls, since a knob scrolled out of the band is
+  // not drawn at all.
   sizeEditor(*editor, 1348, 1010);
 
   // The diameter the look and feel will draw, which is what the eye sees,
@@ -10644,14 +10671,11 @@ void testKnobSizes(OvertoniumProcessor &p) {
         "and the noise strip uses exactly the same two (" + list(noise) + ")");
 }
 
-/// A knob whose bottom does nothing is a knob with less of itself.
+/// No parameter has travel at the bottom of its knob that does nothing.
 ///
-/// That is what fitting a power curve through a midpoint across several
-/// decades produces: the curve leaves its low end with a slope of exactly
-/// zero, so the first stretch of travel moves the value by nothing at all. It
-/// is easy to reintroduce by reaching for setSkewForCentre on the next wide
-/// range somebody adds, so this checks every parameter rather than the handful
-/// known to have had it.
+/// A power curve fitted through a midpoint across several decades, such as
+/// setSkewForCentre gives, leaves its low end with a slope of exactly zero. So
+/// every parameter is checked.
 void testNoDeadTravel(OvertoniumProcessor &p) {
   section("Knob travel");
 
@@ -10741,13 +10765,9 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
 
   // ---- every default survives being set --------------------------------
   //
-  // A host sets a parameter to its default and reads it straight back. If the
-  // value it gets is not the one it wrote, auval reports the parameter as one
-  // that would not hold its default, which it did for all 66 decay and release
-  // knobs while the logarithmic range converted in float.
-  //
-  // Exact equality on purpose. A tolerance here would pass the thing being
-  // guarded against, since the discrepancy was a single bit.
+  // A host sets a parameter to its default and reads it straight back, and
+  // auval reports a parameter that does not hold it. Exact equality on purpose,
+  // since the discrepancy a float conversion gives is a single bit.
   int inexact = 0;
   juce::String worstDefault;
 
@@ -10772,10 +10792,9 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
             std::to_string(inexact) + " do not" +
             (inexact ? ", such as " + worstDefault.toStdString() : "") + ")");
 
-  // And the shortest attack time really is 0.2 ms, not a number that rounds
-  // to it. On a partial it is where the phase region below meets the times,
-  // so it has to convert there and back exactly. The noise channel has no
-  // cycle to start in, so its range simply begins there.
+  // And the shortest attack time really is 0.2 ms. On a partial it is where the
+  // phase region meets the times, so it has to convert there and back exactly.
+  // The noise channel has no cycle to start in, so its range begins there.
   const auto attackId = ovt::params::oscParamId(ovt::params::attackSuffix, 0);
 
   if (auto *param = p.apvts.getParameter(attackId)) {
@@ -10793,14 +10812,12 @@ void testNoDeadTravel(OvertoniumProcessor &p) {
           "and the noise channel's attack starts at 0.2 ms");
 }
 
-/// The undo history, which holds what a person did and nothing else.
+/// The undo history, which holds what a person did and nothing else, and brings
+/// a LINK drag across 32 channels back in one step.
 ///
-/// A control opens a gesture around whatever it writes and closes it
-/// afterwards, which is what the processor listens for. Automation writes the
-/// same parameters with no gesture around them, and that is the whole of the
-/// difference. So these drive the parameters the way a control does rather
-/// than the way a host does, and there is one below that does the opposite on
-/// purpose.
+/// A control opens a gesture around whatever it writes, which is what the
+/// processor listens for, and automation writes with no gesture. So these drive
+/// the parameters the way a control does, and the next test does the opposite.
 void testUndo(OvertoniumProcessor &p) {
   section("Undo");
 
@@ -10888,10 +10905,7 @@ void testUndo(OvertoniumProcessor &p) {
 }
 
 /// What a host does, which is the same writes with no gesture around them.
-///
-/// A lane being played back moves parameters continuously for as long as the
-/// piece lasts. None of it is somebody editing, and a history filling up with
-/// a fader that was automated three minutes ago is a history of nothing.
+/// Automation playback is not an edit and leaves no history.
 void testAutomationLeavesNoHistory(OvertoniumProcessor &p) {
   section("Automation is not an edit");
 
@@ -10915,10 +10929,8 @@ void testAutomationLeavesNoHistory(OvertoniumProcessor &p) {
   check(std::abs(param->getValue() - 1.0f) < 1.0e-4f,
         "the automation moved the parameter");
 
-  // Parameter values reach the value tree on a timer, and it is the tree that
-  // used to record them. Flushed by hand here, so that this cannot pass by
-  // asking before anything has been written rather than because nothing is
-  // written.
+  // Parameter values reach the value tree on a timer. Flushed by hand here, so
+  // this cannot pass by asking before anything was written.
   p.apvts.copyState();
 
   check(!undo.canUndo(),
@@ -11023,6 +11035,8 @@ void testUndoGrouping(OvertoniumProcessor &p) {
   undo.clearUndoHistory();
 }
 
+/// The bus layouts the plugin offers: one output bus, stereo or mono, no
+/// inputs, MIDI in and none out.
 void testBusLayouts(OvertoniumProcessor &p) {
   section("Bus layouts");
 
@@ -11052,10 +11066,7 @@ void testBusLayouts(OvertoniumProcessor &p) {
 
 /// A buffer narrower than the layout claims.
 ///
-/// A host is supposed to hand over a channel for every enabled bus, and not
-/// all of them do. pluginval once processed a two-channel buffer against a
-/// wider layout and segfaulted on the Linux runner, because the write went by
-/// what the layout said rather than by what the buffer held. Nothing here may
+/// Not every host hands over a channel for every enabled bus, so nothing may
 /// reach outside the buffer it was given, whatever the layout says.
 void testUndersizedBuffer() {
   section("Undersized buffers");
@@ -11100,11 +11111,7 @@ void testUndersizedBuffer() {
 }
 
 /// A host that took the mono layout gets the mix folded down, not half of it.
-///
-/// The stereo path copies two channels straight across, so nothing about it
-/// would notice the fold being wrong. Mono is the only output that runs a sum,
-/// and it is the layout a host with one channel to give will ask for, so it
-/// wants exercising rather than merely being declared supported.
+/// Mono is the only output that runs a sum.
 void testMonoOutput() {
   section("Mono output");
 
@@ -11147,10 +11154,9 @@ void testMonoOutput() {
   check(mono > 1.0e-4f, "a mono layout is given audio");
   check(stereo > 1.0e-4f, "and so is a stereo one");
 
-  // The default patch is centred, so both channels carry the same thing and
-  // averaging them gives back what either one held. A fold that dropped a
-  // channel or halved the sum of two identical ones would land at half this,
-  // which is well outside the tolerance.
+  // The default patch is centred, so both channels carry the same thing and the
+  // fold gives back what either held. A fold that dropped a channel or halved
+  // the sum would land at half this.
   check(mono > stereo * 0.8f && mono < stereo * 1.25f,
         "and the fold keeps the level of a centred patch rather than halving "
         "it");
@@ -11159,19 +11165,9 @@ void testMonoOutput() {
 /// The session properties the editor keeps on the state tree, written from the
 /// message thread while a host may be saving from another one.
 ///
-/// Worth being plain about what this can and cannot say on its own. Run
-/// ordinarily it proves almost nothing: the window in which the two threads
-/// touch the same reference counts is a few instructions wide, and a storm
-/// that happens to miss it passes. Its value is under the thread sanitiser,
-/// which reports a race from the accesses rather than from them colliding in
-/// real time.
-///
-/// It was checked that way rather than assumed. With the lock removed from
-/// the editor's six write sites and nothing else changed, the sanitiser
-/// reported fourteen races here, all of them on a juce::var reference count
-/// inside ValueTree::SharedObject, with copyState on one stack and setProperty
-/// on the other. With the lock back, none. The same run found the second race
-/// this fixes, on the program number beside the tree.
+/// Run ordinarily this proves little, since the window in which the two threads
+/// collide is a few instructions wide. Its value is under the thread sanitiser,
+/// which reports a race from the accesses rather than from a collision.
 ///
 /// Both guarded paths are exercised: the background thread saves, and this one
 /// restores between editor actions.
@@ -11236,8 +11232,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
 
     sizeEditor(*editor, 1200 + (round % 8) * 20);
 
-    // The other guarded path. From this thread rather than a third, because
-    // one restore racing another restore is not a thing a host does.
+    // The other guarded path, from this thread, since one restore racing
+    // another is not something a host does.
     if (round % 50 == 0) {
       juce::MemoryBlock carried;
       proc.getStateInformation(carried);
@@ -11255,8 +11251,7 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
   check(incomplete.load() == 0, "and none came back without the parameters (" +
                                     std::to_string(incomplete.load()) + ")");
 
-  // The window is still the one that was being driven, rather than something
-  // the storm left in a state of its own.
+  // The window is still the one that was being driven.
   editor->chooseTool(PointerTool::Draw);
 
   juce::MemoryBlock carried;
@@ -11277,6 +11272,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
   }
 }
 
+/// The state round trip: parameters survive being saved and restored, and a
+/// chunk that is not ours changes nothing.
 void testStateRoundTrip(OvertoniumProcessor &p) {
   section("State round trip");
 
@@ -11317,20 +11314,17 @@ void testStateRoundTrip(OvertoniumProcessor &p) {
 
 /// The factory presets as the host sees them.
 ///
-/// Exposing programs is what puts the presets in Logic's own menu, and it also
-/// hands the host a lever it pulls without being asked. A VST3 session restore
-/// sets every parameter, and JUCE makes the program one of them, so the
-/// dangerous case is not choosing a preset: it is reopening a session built on
-/// one. The plugin has to come back with the edits, not with the preset.
+/// A VST3 session restore sets every parameter, the program among them, so
+/// reopening a session built on a preset has to come back with the edits, not
+/// with the preset.
 void testPrograms(OvertoniumProcessor &p) {
   section("Programs");
 
   const auto names = ovt::presets::names();
 
   // Programs are the Audio Unit's alone. Everything else reports one, so the
-  // VST3 wrapper does not publish a Program parameter that would rewrite every
-  // other parameter when a host moves it. This harness is a console app, so
-  // the wrapper type is undefined and the count is the collapsed one.
+  // VST3 wrapper publishes no Program parameter. This harness is a console app,
+  // so the wrapper type is undefined and the count is the collapsed one.
   check(p.wrapperType != juce::AudioProcessor::wrapperType_AudioUnit,
         "the test harness is not the Audio Unit");
   check(p.getNumPrograms() == 1,
@@ -11367,10 +11361,9 @@ void testPrograms(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(chosen);
 
-  // A parameter the presets actually set, so the value read below is one the
-  // preset put there rather than whatever happened to be lying about. Anything
-  // a preset left alone would survive the reload and make every check pass
-  // without proving a thing.
+  // A parameter the presets set, so the value read below is the preset's.
+  // Anything a preset left alone would survive the reload and pass without
+  // proving anything.
   auto *volume = p.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
 
@@ -11398,10 +11391,9 @@ void testPrograms(OvertoniumProcessor &p) {
   check(std::abs(edited() - editedTo) < 0.005f,
         "an edit made on top of a preset survives a state round trip");
 
-  // The host now does what a host does after restoring: tells the plugin which
-  // program the session was on. It is the one already loaded, so this has to
-  // be a no-op. Were it not, the edit above would be replaced by the pristine
-  // preset and the session would open sounding wrong.
+  // The host then tells the plugin which program the session was on. It is the
+  // one already loaded, so this has to be a no-op, or the edit above would be
+  // lost.
   p.setCurrentProgram(chosen);
 
   check(std::abs(edited() - editedTo) < 0.005f,
@@ -11416,12 +11408,10 @@ void testPrograms(OvertoniumProcessor &p) {
 
   // ---- what a renumbering does to a session already saved -----------------
   //
-  // Factory presets sort alphabetically, so adding one moves every preset
-  // after it and an index written last year now names a different sound. The
-  // saved name is the one thing that does not move, so it decides, and the
-  // index is only the fallback. Simulated here by writing a wrong index into
-  // a state that still carries the right name, which is exactly the state an
-  // older session becomes.
+  // Factory presets sort alphabetically, so adding one moves the index of every
+  // preset after it. The saved name decides and the index is the fallback.
+  // Simulated by writing a wrong index into a state that carries the right
+  // name.
   const int wasOn = names.indexOf("Wurli");
   p.applyFactoryPreset(wasOn);
 
@@ -11449,9 +11439,8 @@ void testPrograms(OvertoniumProcessor &p) {
     check(false, "the session state could be reread");
   }
 
-  // A name that is not a factory preset is one of the user's own, or a patch
-  // edited past recognising, and neither has a program to be. The index is all
-  // there is to go on there.
+  // A name that is not a factory preset is a user preset or an edited patch, so
+  // the index is all there is to go on.
   if (auto xml = juce::AudioProcessor::getXmlFromBinary(
           session.getData(), (int)session.getSize())) {
     const int elsewhere = names.indexOf("Cathedral");
@@ -11498,8 +11487,7 @@ void testPrograms(OvertoniumProcessor &p) {
 ///
 /// The audio thread only writes the number down, and the timer that reads it
 /// needs a message loop this harness does not run, so the message-thread half
-/// is called by hand. That is the same arrangement the docs renderer uses for
-/// the editor's timer.
+/// is called by hand.
 void testProgramChangeMidi(OvertoniumProcessor &p) {
   section("Program change over MIDI");
 
@@ -11633,10 +11621,9 @@ void testStandaloneWindow(OvertoniumProcessor &p) {
           "the editor opens wide enough for every strip (" +
               std::to_string(editor->getWidth()) + " px)");
 
-    // Handed to a window the way the standalone hands it over, which is the
-    // step that used to cost it its size: a document window is 128 px square
-    // until it is told otherwise, and anything that lays the content out
-    // during the handover squashes the editor into that and leaves it there.
+    // Handed to a window the way the standalone hands it over. A document
+    // window is 128 px square until told otherwise, and the editor must not be
+    // squashed into that during the handover.
     juce::DocumentWindow host("Overtonium", juce::Colour(0xff323e44),
                               juce::DocumentWindow::closeButton);
 
@@ -11665,13 +11652,10 @@ void testStandaloneWindow(OvertoniumProcessor &p) {
           "in the colour the panel stands on");
   }
 
-  // The window outlives the editor by however long the application takes to
-  // close, and the look and feel it was given belongs to the editor. What
-  // keeps that from being a dangling pointer is that a component holds its
-  // look and feel by weak reference and falls back to the application's own.
-  // Pinned here because it is the kind of thing only ever noticed by
-  // crashing, and because it is what allows the editor to lend out something
-  // it owns.
+  // The window outlives the editor, and the look and feel it was given belongs
+  // to the editor. A component holds its look and feel by weak reference and
+  // falls back to the application's own, which is what keeps this from
+  // dangling.
   check(&window.getLookAndFeel() == stock,
         "and falls back to the application's own once the editor has gone");
 }
@@ -11738,19 +11722,15 @@ void testCharacterControl(OvertoniumProcessor &p) {
 
   // ---- a factory preset decides it too -------------------------------------
   //
-  // Init, which says nothing about the character and never will, since it is
-  // the patch that clears everything. A patch saying nothing is a patch that
-  // wants the plain oscillator, the same way one that says nothing about
-  // STRETCH wants none, and that comes through the neutral base rather than
-  // from any preset naming it.
+  // Init says nothing about the character, which means the plain oscillator,
+  // set by the neutral base.
   p.applyFactoryPreset(presetIndex("Init"));
 
   check(current() == ovt::Character::Pure,
         "a factory preset that says nothing puts it back to Pure");
 
   // The pair the site plays against each other to show what TUNE does. They
-  // differ in that one control and in nothing else, so a character on either
-  // of them would be demonstrating something other than tuning.
+  // differ in that one control only, so neither has a character.
   for (auto *name : {"Just Saw", "Equal Saw"}) {
     set(ovt::Character::Valve);
     p.applyFactoryPreset(presetIndex(name));
@@ -11759,10 +11739,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
           juce::String(name).toStdString() + " stays on Pure on purpose");
   }
 
-  // And that the factory set asks for characters at all. Which preset gets
-  // which was decided by ear and is not something to pin down here, but a
-  // preset load that quietly dropped the character would otherwise show up
-  // only as most of the factory set sounding wrong.
+  // And the factory set asks for characters at all, so a preset load that
+  // dropped the character would fail here.
   int asking = 0;
 
   for (int i = 0; i < ovt::presets::names().size(); ++i) {
@@ -11818,25 +11796,25 @@ void testCharacterControl(OvertoniumProcessor &p) {
             "and follows a change it did not make");
 
       // Lit in the character's own colour, and not lit at all on the one that
-      // adds nothing. The colours are the mixer's own band, running down from
-      // the yellow at the top of it to the red the fifth stands in, which is
-      // the colour of channel 3.
+      // adds nothing.
       check(bar->isCharacterLit(), "a character lights the button");
 
       check(bar->getCharacterColour() ==
                 ovt::ui::characterColour(ovt::Character::Bulb),
             "in its own colour");
 
+      check(bar->getCharacterRingColour() == bar->getCharacterColour(),
+            "and the knobs in its frame light with it");
+
       set(ovt::Character::Pure);
       bar->updatePanelReadouts(48000.0);
 
       check(!bar->isCharacterLit(), "and Pure does not light it");
+
+      check(bar->getCharacterRingColour() == ovt::ui::colours::accent,
+            "while its knobs, which still work on Pure, keep the accent");
     }
   }
-
-  check(ovt::ui::characterColour(ovt::Character::Bulb) ==
-            ovt::ui::bandColour(1.0f - 2.0f / 8.0f * (4.0f / 11.0f)),
-        "the circuits keep their places on the mixer's band");
 
   // The three measured from a synthesizer or a chip light in their
   // instrument's colour instead.
@@ -11848,12 +11826,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
                 juce::Colour(0xff00825f),
         "6581, PD and FM light in their instrument's colour");
 
-  check(ovt::ui::characterColour(ovt::Character::Opamp) ==
-            ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
-        "and the hardest on the red of channel 3");
-
-  // The band runs by how hard each one is rather than by when it was added,
-  // so a list that left one out would put two characters on the same colour.
+  // Each is there to be told apart from the others, so a list that left one
+  // out, or gave two the same, would defeat it.
   {
     std::vector<juce::Colour> seen;
 
@@ -11868,17 +11842,49 @@ void testCharacterControl(OvertoniumProcessor &p) {
     }
   }
 
+  // The machines likewise, within each set, and the echo and the reverb
+  // beside each other never on the same colour.
+  {
+    const auto distinct = [](const std::vector<juce::Colour> &colours) {
+      for (size_t i = 0; i < colours.size(); ++i)
+        for (size_t j = i + 1; j < colours.size(); ++j)
+          if (colours[i] == colours[j])
+            return false;
+
+      return true;
+    };
+
+    std::vector<juce::Colour> resonator, echo, reverb, clip, beside;
+
+    for (int m = 1; m < (int)ovt::ResonatorMode::NumModes; ++m)
+      resonator.push_back(ovt::ui::resonatorColour((ovt::ResonatorMode)m));
+
+    for (int t = 0; t < (int)ovt::EchoType::NumTypes; ++t)
+      echo.push_back(ovt::ui::echoColour((ovt::EchoType)t));
+
+    for (int t = 0; t < (int)ovt::ReverbType::NumTypes; ++t)
+      reverb.push_back(ovt::ui::reverbColour((ovt::ReverbType)t));
+
+    for (int t = 0; t < (int)ovt::ClipType::NumTypes; ++t)
+      clip.push_back(ovt::ui::clipColour((ovt::ClipType)t));
+
+    beside = echo;
+    beside.insert(beside.end(), reverb.begin(), reverb.end());
+
+    check(distinct(resonator) && distinct(echo) && distinct(reverb) &&
+              distinct(clip) && distinct(beside),
+          "every machine lights in a colour of its own within its set");
+  }
+
   set(ovt::Character::Pure);
   p.applyFactoryPreset(presetIndex("Init"));
 }
 
 /// Folding a section away.
 ///
-/// Everything in the mixer lays itself out from one RowBounds, so this is
-/// mostly a test of layoutRows: get that right and the gutter, the strips, the
-/// lamps and the hover all follow. What it has to prove is that a folded
-/// section takes no height, that its heading stays to be clicked, and that the
-/// height the window loses is exactly the height the rows gave up.
+/// Everything in the mixer lays itself out from one RowBounds, so this mostly
+/// tests layoutRows: a folded section takes no height, its heading stays to be
+/// clicked, and the rows below close up.
 void testCollapsibleSections() {
   section("Collapsible sections");
 
@@ -11902,8 +11908,7 @@ void testCollapsibleSections() {
   check(open[(size_t)Row::Delay].getHeight() > 0,
         "and takes height again when the section is open");
 
-  // Only that section. A fold that quietly took a neighbour with it would be
-  // hard to see and worse to use.
+  // Only that section, not a neighbour with it.
   for (auto r : {Row::PmRate, Row::Swell, Row::AmRate, Row::Velocity})
     check(folded[(size_t)r].getHeight() == open[(size_t)r].getHeight(),
           std::string("folding the envelope leaves ") + rowLabel(r) + " alone");
@@ -11920,10 +11925,8 @@ void testCollapsibleSections() {
   check(preferredStripHeight(envMask) ==
             preferredStripHeight() - collapsedRowsHeight(envMask),
         "the strip wants exactly that much less room");
-  // And the shortest it will go is no longer anything to do with folding.
-  // It used to be the height of every unfolded row at once, so folding was the
-  // only way to get the window down. Now what does not fit scrolls, so the
-  // floor is the pinned header and the band's own minimum whatever is folded.
+  // The shortest it will go does not depend on folding: what does not fit
+  // scrolls, so the floor is the pinned header and the band's own minimum.
   check(minimumStripHeight(envMask) == minimumStripHeight(),
         "and the shortest window no longer depends on what is folded");
 
@@ -11969,10 +11972,9 @@ void testCollapsibleSections() {
 
 /// Deciding whether a release is newer, and reading the feed that says so.
 ///
-/// The fetch itself needs a network and is not exercised here. These two are
-/// the parts that can be wrong quietly: a comparison that comes out backwards
-/// nags every user forever, and one that is too eager treats a malformed feed
-/// as an upgrade.
+/// The fetch needs a network and is not exercised here. A comparison that comes
+/// out backwards nags every user, and one that is too eager treats a malformed
+/// feed as an upgrade.
 void testUpdateCheck() {
   section("Update check");
 
@@ -11996,8 +11998,7 @@ void testUpdateCheck() {
   check(isNewerVersion("1.1", "1.0.9"), "a missing component counts as zero");
   check(!isNewerVersion("1.1", "1.1.0"), "so 1.1 and 1.1.0 are one release");
 
-  // Nothing that fails to parse may read as an upgrade, or a web server having
-  // a bad day turns into a badge nobody can clear.
+  // Nothing that fails to parse may read as an upgrade.
   for (const char *junk : {"", "  ", "latest", "1.0.0-beta", "v", "1..0",
                            "<!doctype html>", "1.0.0a"})
     check(!isNewerVersion(junk, "1.0.0"),
@@ -12010,15 +12011,31 @@ void testUpdateCheck() {
   using ovt::parseReleaseJson;
 
   const auto good = parseReleaseJson(
-      R"({"version":"1.1.0","url":"https://example.invalid/v1.1.0"})");
+      R"({"version":"1.1.0","url":"https://github.com/benjamindehli/overtonium/releases/tag/v1.1.0"})");
   check(good.has_value(), "a well-formed feed parses");
   check(good && good->version == "1.1.0", "and carries the version");
-  check(good && good->url == "https://example.invalid/v1.1.0",
+  check(good && good->url == "https://github.com/benjamindehli/overtonium/"
+                             "releases/tag/v1.1.0",
         "and the page to send someone to");
 
   const auto noUrl = parseReleaseJson(R"({"version":"1.1.0"})");
-  check(noUrl.has_value() && noUrl->url.isNotEmpty(),
+  check(noUrl.has_value() && noUrl->url == ovt::kLatestRelease,
         "a feed with no url still works, falling back to the releases page");
+
+  // The link is opened in a browser, so only this project's pages pass.
+  for (const char *elsewhere :
+       {"https://example.invalid/v1.1.0",
+        "http://github.com/benjamindehli/overtonium/", "file:///etc/passwd",
+        "javascript:alert(1)",
+        "https://github.com/benjamindehli/overtonium.evil.example/",
+        "https://github.com/someone-else/overtonium/releases",
+        "https://github.com/benjamindehli/overtonium/../../someone-else"}) {
+    const auto moved = parseReleaseJson(
+        juce::String(R"({"version":"1.1.0","url":")") + elsewhere + "\"}");
+    check(moved.has_value() && moved->url == ovt::kLatestRelease,
+          std::string("a link to ") + elsewhere +
+              " is replaced by the releases page");
+  }
 
   for (const char *bad : {"", "{}", "[]", "not json", R"({"version":""})",
                           R"({"version":null})", "null"})
@@ -12028,12 +12045,9 @@ void testUpdateCheck() {
 
 /// Opening editors must not turn the update check on, or ask anything.
 ///
-/// This is the shape that crashed pluginval: a host walking its plugin folder
-/// makes instances and opens editors with nobody there to answer, and it does
-/// it dozens of times. The preference is deliberately not asserted to any
-/// particular value, since it is machine-wide and whoever is running the tests
-/// may legitimately have it either way. What must hold is that none of this
-/// changes it.
+/// A host scanning its plugins makes instances and opens editors many times
+/// with nobody there to answer. The preference is machine-wide and not asserted
+/// to any value, only that none of this changes it.
 void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
   section("Update check stays quiet");
 
@@ -12171,17 +12185,11 @@ void testUpdateDialogs(OvertoniumProcessor &p) {
 
 /// The preference survives the object that wrote it.
 ///
-/// It used to be held in one shared PropertiesFile that lived in a static,
-/// which made this unfalsifiable: a write and a read went to the same object
-/// in memory and agreed with each other whatever the file on disk said, or
-/// whether there was one. That static was a deadlock on unload, so the file is
-/// now built where it is used and destroyed there, and every read is a fresh
-/// object reading the disk. Which means the two can now disagree, if the path
-/// is ever computed differently between one call and the next, and that is
-/// what this is here to catch.
+/// The PropertiesFile is built where it is used and destroyed there, so every
+/// read is a fresh object reading the disk. This catches the path being
+/// computed differently between one call and the next.
 ///
-/// The preference is put back afterwards. It is machine-wide and belongs to
-/// whoever is running the tests, not to the tests.
+/// The preference is put back afterwards, since it is machine-wide.
 void testThePreferenceOutlivesItsWriter() {
   section("The preference outlives its writer");
 
@@ -12201,16 +12209,9 @@ void testThePreferenceOutlivesItsWriter() {
 
 /// The fetch belongs to the instance, not to the window.
 ///
-/// Which is what lets a window close without waiting for a socket. If the
-/// editor owned the fetch, closing one would join a network thread on the
-/// message thread, and a server that accepts and then goes quiet is allowed
-/// five seconds of that: long enough for the join to expire, for JUCE to kill
-/// the thread where it stands, and for whatever lock it held to take the
-/// message thread with it.
-///
-/// Nothing here reaches the network, so what is pinned is the ownership rather
-/// than the timing. A check that stays put across nine windows is one that
-/// cannot be joined by any of them.
+/// So a closing window never joins a network thread on the message thread.
+/// Nothing here reaches the network, so what is pinned is the ownership: a
+/// check that stays put across nine windows cannot be joined by any of them.
 void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
   section("Update check outlives its editors");
 
@@ -12224,9 +12225,9 @@ void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
   check(&p.updates() == first,
         "nine windows come and go and the fetch is the same one throughout");
 
-  // Both of the things a closing editor does, on a check that never started.
-  // An editor closed before its fetch begins is the ordinary case, not an edge
-  // one, since the offer to switch the check on is declined by default.
+  // Both of the things a closing editor does, on a check that never started,
+  // which is the ordinary case since the offer to switch the check on is
+  // declined by default.
   p.updates().cancel();
   p.updates().cancel();
   p.updates().setListener(nullptr);
@@ -12237,15 +12238,11 @@ void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
 
 /// Every control says what it is.
 ///
-/// JUCE reads a control's accessible name from Component::getTitle, gives it a
-/// role and reads its value out on its own. The name is the one part it cannot
-/// work out, and its own documentation says an element with neither a name nor
-/// a description may be skipped by accessibility clients entirely. On a mixer
-/// of six hundred sliders that is the difference between an instrument someone
-/// can use without seeing it and one they cannot.
-///
-/// Buttons are excluded: JUCE falls back to their text, which is why the mute
-/// and solo buttons are named explicitly here anyway. Their text is M and S.
+/// JUCE reads a control's accessible name from Component::getTitle, and an
+/// element with neither a name nor a description may be skipped by
+/// accessibility clients. Buttons are excluded, since JUCE falls back to their
+/// text, but the mute and solo buttons, whose text is M and S, are named here
+/// anyway.
 void testEveryControlIsNamed(OvertoniumProcessor &p) {
   section("Accessible names");
 
@@ -12298,11 +12295,9 @@ void testEveryControlIsNamed(OvertoniumProcessor &p) {
 
   // ---- the controls that are not sliders -----------------------------------
   //
-  // A button is named by the word on it, which for most of the bar is the
-  // control's own name and needs nothing further. Two of them carry a value
-  // instead, and a value with nothing saying what it is of is no name at all.
-  // The same goes for the converter readouts, whose digits are drawn rather
-  // than written and cannot be read any other way.
+  // A button is named by the word on it, but two of them carry a value instead,
+  // which needs a name saying what it is of. So do the converter readouts,
+  // whose digits are drawn rather than written.
   std::map<std::string, std::string> titled;
 
   std::function<void(juce::Component &)> walkAll = [&](juce::Component &c) {
@@ -12345,16 +12340,13 @@ void testEveryControlIsNamed(OvertoniumProcessor &p) {
 
 /// MPE slide, both places it can go.
 ///
-/// Driven through the real MIDI path rather than by poking the voice, because
-/// the wiring is most of what could be wrong: a missing listener override, a
-/// note that never gets its channel's timbre, a routing switch read from the
-/// wrong parameter.
+/// Driven through the real MIDI path rather than by poking the voice, since the
+/// wiring is most of what could be wrong.
 void testMpeSlide() {
   section("MPE slide");
 
-  // Its own processor, not the one the rest of the suite shares. An earlier
-  // test leaves notes decaying and a master gain of its own, and this
-  // measures loudness, so borrowing that state measures the leftovers instead.
+  // Its own processor, since an earlier test leaves notes decaying and a master
+  // gain of its own, and this measures loudness.
   OvertoniumProcessor p;
 
   const auto setParam = [&p](const juce::String &id, float plain) {
@@ -12382,10 +12374,9 @@ void testMpeSlide() {
   p.setRateAndBufferSizeDetails(48000.0, 512);
   p.prepareToPlay(48000.0, 512);
 
-  // A gesture rather than a position, because that is what slide now is: the
-  // first value a note is given is its rest, and only movement away from it
-  // reaches the sound. So the note is sent where the controller's axis sits
-  // when it engages, and then where the finger takes it.
+  // Slide is a gesture: the first value a note is given is its rest, and only
+  // movement away from it reaches the sound. So the note is sent where the axis
+  // sits when it engages, and then where the finger takes it.
   const auto rms = [&](int restCC, int cc74) {
     juce::MidiBuffer off;
     off.addEvent(juce::MidiMessage::allNotesOff(2), 0);
@@ -12436,14 +12427,11 @@ void testMpeSlide() {
 
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
 
-  // A controller that rests near the centre, which is what a Seaboard does.
+  // A controller that rests near the centre.
   //
   // 63 rather than 64 on purpose. JUCE hands a new note the centre of the
-  // timbre axis and only calls back when a value differs from what it holds, so
-  // a rest of exactly 64 is indistinguishable from the note's own starting
-  // value and passes without a word. No real controller sits on that one code,
-  // and one that did would still reach the whole of the slide, since the travel
-  // is measured from wherever the rest ends up.
+  // timbre axis and calls back only when a value differs, so a rest of exactly
+  // 64 would pass unnoticed.
   const auto back = rms(63, 0);
   const auto centre = rms(63, 63);
   const auto forward = rms(63, 127);
@@ -12472,12 +12460,9 @@ void testMpeSlide() {
 
   // ---- a controller whose slide rests at one end --------------------------
   //
-  // An Expressive E Osmose spends the first part of the key travel on pressure
-  // and only then starts sending CC74, from the bottom of its range upward.
-  // Read as a position that is the far dark end of the slide, so engaging the
-  // axis used to take the note abruptly darker before it began to brighten.
-  // Read as a movement it is the note's rest, and the patch is left alone until
-  // the finger actually goes somewhere.
+  // Some controllers start sending CC74 from the bottom of the range once a key
+  // is pressed. Read as a movement that is the note's rest, and the patch is
+  // left alone until the finger moves.
   setParam(ovt::params::slideDestId, (float)ovt::SlideDestination::Brightness);
 
   const auto engaged = rms(0, 0);
@@ -12513,11 +12498,8 @@ void testMpeSlide() {
         "both ends sound with slide aimed at tuning");
 }
 
-/// Clearing every mute or every solo at once.
-///
-/// The menu a right-click on an M or an S opens. Thirty-three strips is a lot
-/// of places for a solo to be left on, and the whole point is not having to
-/// find it.
+/// Clearing every mute or every solo at once, from the menu a right-click on an
+/// M or an S opens.
 void testClearMuteAndSolo(OvertoniumProcessor &p) {
   section("Clearing mutes and solos");
 
@@ -12602,6 +12584,8 @@ void testClearMuteAndSolo(OvertoniumProcessor &p) {
   check(on(ovt::params::muteSuffix) == 0, "and clearing nothing is harmless");
 }
 
+/// Muting a partial removes it from the output, and soloing one leaves only
+/// that partial.
 void testSoloAndMute(OvertoniumProcessor &p) {
   section("Solo and mute");
 
@@ -12705,6 +12689,8 @@ int main(int argc, char **argv) {
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
   testDrawingAcrossTheFaders(processor);
+  testSelectingChannels(processor);
+  testToolButtonShowsTheTool(processor);
   testLinkSurvivesAReopen(processor);
   testSegmentCells();
   testOptionBars(processor);

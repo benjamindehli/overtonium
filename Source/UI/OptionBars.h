@@ -16,14 +16,9 @@
 
 namespace ovt::ui {
 
-/// A bar that opens between the top bar and the mixer.
-///
-/// For the settings a player changes while playing and wants to see at a
-/// glance, which in a menu are hidden until it is opened and take two or
-/// three clicks to change. One row high and drawn the way the top bar is, so
-/// it reads as more of the same panel rather than as a window laid over it.
-/// It takes its height from the mixer, which scrolls, so opening one never
-/// costs a channel.
+/// A bar that opens between the top bar and the mixer, for settings a player
+/// changes while playing. Drawn the way the top bar is, and its height comes
+/// out of the mixer, which scrolls.
 class OptionBar : public juce::Component {
 public:
   /// One row of the top bar with the padding above and below it, which is how
@@ -40,7 +35,7 @@ public:
   std::function<void()> onHeightMayChange;
 
   /// A right-click on a knob in the bar, carrying its parameter's id. As
-  /// TopBar::onLearnRequested: what the menu offers is the editor's to say.
+  /// TopBar::onLearnRequested.
   std::function<void(const juce::String &)> onLearnRequested;
 
   explicit OptionBar(juce::String name);
@@ -52,12 +47,9 @@ public:
   /// since a right-click on a knob goes to the knob and nowhere else.
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// Heard from every control in the bar too, since the bar listens deeply
-  /// for right-clicks, and Component's own handler passes whatever it is
-  /// given up to the parent. So a wheel a knob had already taken went on to
-  /// the editor and scrolled the mixer under the hand turning the knob. Only
-  /// a wheel that landed on the bar itself is passed on, as the noise strip
-  /// does it.
+  /// Heard from every control in the bar too, since the bar listens deeply.
+  /// Only a wheel that landed on the bar itself is passed up, so turning a
+  /// knob does not also scroll the mixer.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
@@ -137,14 +129,12 @@ private:
   static int widthOf(const Group &);
 
   /// How many of a group's shown controls stand on each line within a width:
-  /// all of them when they fit, and otherwise as few lines as they need with
-  /// the controls shared out evenly between them, so twelve in two lines are
-  /// six and six rather than eleven and one.
+  /// all of them when they fit, and otherwise shared out evenly over as few
+  /// lines as they need.
   static int perLine(const Group &, int room);
 
   /// Where each group goes at a width, row by row, wrapping as the top bar
-  /// does. The same answer for heightForWidth and resized, so the two cannot
-  /// disagree about how many rows there are.
+  /// does. Shared by heightForWidth and resized so they agree.
   std::vector<juce::Rectangle<int>> placeGroups(juce::Rectangle<int> area,
                                                 int *rows) const;
 };
@@ -193,10 +183,9 @@ public:
 
   void mouseDown(const juce::MouseEvent &) override;
 
-  /// What a right-click on a macro knob offers: for a macro that is made, MIDI
-  /// Learn for its amount and a way into MACROS to change it, and for one that
-  /// is not, only a way to make it, since a controller bound to a macro that
-  /// drives nothing would do nothing.
+  /// What a right-click on a macro knob offers: for a made macro, MIDI Learn
+  /// for its amount and a way into MACROS to change it, and for one that is
+  /// not, only a way to make it.
   enum MacroMenuIds { kAssignMacro = 9101, kEditMacro = 9102 };
   static juce::PopupMenu macroMenu(int macro, bool made, const MidiLearn &,
                                    juce::RangedAudioParameter *amount);
@@ -223,10 +212,11 @@ private:
   ActivityNeedle bendNeedle{colours::accent}, wheelNeedle{colours::accent},
       pressureNeedle{colours::accent};
 
-  /// What it was last handed, so a needle can be put back where it belongs
-  /// once the layout has given it a width to measure its travel on.
+  /// What it was last handed, so the needles can be placed again after a
+  /// layout.
   PlayingActivity shown;
 
+  /// Moves the needles to what was last shown.
   void pushNeedles();
 
   /// Each macro's amount, the same parameter the slider in the MACROS panel
@@ -237,8 +227,7 @@ private:
       params::kNumMacros>
       macroAttachments;
 
-  /// Where a made macro's knob shows its amount while it is turned. An
-  /// unmade one shows nothing, since its amount does nothing.
+  /// Where a made macro's knob shows its amount while it is turned.
   juce::Component &popupParent;
 };
 
@@ -313,6 +302,7 @@ private:
   /// What the engine last settled, which Adaptive's displays read.
   AdaptiveSnapshot chord;
 
+  /// Updates the twelve scale displays from the parameters and the chord.
   void showScale();
 
   /// A light ground behind each white key's display and its name, like the
@@ -327,13 +317,10 @@ private:
   int scaleGroup = -1;
   std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>
       retuneAttachment;
-  /// What Adaptive did with the held chord: PURE, lit in a screen like the
-  /// gutter's switches while every interval in it is pure. An indicator, not
-  /// a switch.
+  /// PURE, an indicator lit while every interval in the held chord is pure.
   ScreenSwitch pure;
 
-  /// Whether Adaptive puts a seventh on 7:4 at all, a cap that lights while
-  /// it does, like LEGATO and MPE.
+  /// Whether Adaptive puts a seventh on 7:4.
   GlowButton sevenths;
 
   /// Whether Adaptive stays home rather than drifting, a cap captioned NO

@@ -29,8 +29,7 @@ juce::PopupMenu MuteSoloButton::buildMenu() {
   const auto soloed = params::channelsSwitchedOn(apvts, params::soloSuffix);
 
   // Greyed out rather than absent when there is nothing to clear, so the menu
-  // is the same shape every time and also answers the question the player
-  // opened it to ask: is anything soloed at all.
+  // keeps its shape.
   m.addItem(kClearMutes, entry("Clear all mutes", muted), muted > 0);
   m.addItem(kClearSolos, entry("Clear all solos", soloed), soloed > 0);
 

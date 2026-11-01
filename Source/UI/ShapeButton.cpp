@@ -8,20 +8,15 @@
 namespace ovt::ui {
 
 namespace {
-/// How many points one turn is drawn with.
-///
-/// Enough that a sine reads as a curve at 30 px across, and the square shapes
-/// are drawn from their own corners rather than sampled, so nothing here has
-/// to resolve a vertical edge.
+/// How many points one turn is drawn with. The square shapes are drawn from
+/// their corners rather than sampled.
 constexpr int kCurvePoints = 48;
 
-/// The random shapes have no single picture, since the whole point of them is
-/// that the next turn is not this one. A fixed sequence is drawn instead: not
-/// what will be heard, but the right shape of thing, and the same every time
-/// so the glyph does not flicker as the mixer repaints.
+/// A fixed sequence drawn for the random shapes, so the glyph stays the same
+/// on every repaint.
 constexpr float kRandomPoints[] = {-0.6f, 0.35f, -0.15f, 0.8f, -0.45f};
 
-/// Well past any shape's index, so these cannot collide as shapes are added.
+/// Menu ids well past any shape's index, so they cannot clash.
 constexpr int kEveryChannel = 1000;
 constexpr int kInPhase = 1001;
 } // namespace
@@ -86,8 +81,7 @@ void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
   }
 
   case LfoShape::Random: {
-    // The same points the stepped one uses, joined rather than held, so the
-    // pair read as two ways of doing one thing.
+    // The same points the stepped one uses, joined rather than held.
     const int steps = (int)std::size(kRandomPoints);
 
     path.startNewSubPath(at(0.0f, kRandomPoints[0]));
@@ -164,17 +158,14 @@ void ShapeButton::paintShape(juce::Graphics &g) {
   paintRecess(g, area, 2.0f);
   paintDisplayGround(g, area, 2.0f, hovered);
 
-  // The same accent the tuning digits light up in, so the two displays on a
-  // strip read as the same kind of thing rather than as a screen and a label.
-  //
-  // Unlit it goes to the same grey everything else on a silenced channel does,
-  // this being a display and the display beside it having gone dark. A lit
-  // waveform on a channel nobody can hear says the opposite of the truth.
-  const bool live = !(bool)getProperties().getWithDefault("unlit", false);
+  // On a channel nobody can hear the screen is dark, like the readouts beside
+  // it.
+  if ((bool)getProperties().getWithDefault("unlit", false))
+    return;
 
+  // The same accent the tuning digits light in.
   drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            live ? colours::accent.withAlpha(hovered ? 1.0f : 0.88f)
-                 : colours::textDim.withAlpha(0.65f));
+            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
 }
 
 juce::PopupMenu ShapeButton::buildMenu() const {
@@ -185,15 +176,12 @@ juce::PopupMenu ShapeButton::buildMenu() const {
   for (int i = 0; i < names.size(); ++i)
     m.addItem(i + 1, names[i], true, i == current);
 
-  // Thirty-three channels is a lot of clicking otherwise, and this is the one
-  // control on a strip LINK cannot reach.
+  // LINK cannot reach this control, so the menu sets every channel instead.
   m.addSeparator();
   m.addItem(kEveryChannel, "Set every channel to this");
 
   // Whether this modulator is one circuit the whole keyboard hears or one per
-  // note. A switch over every channel at once, reached from a per-channel menu
-  // for the same reason the entry above it is: this is the menu that belongs
-  // to the modulator, and the modulator is what the switch is about.
+  // note.
   m.addSeparator();
   m.addItem(kInPhase, "Shared by all notes", true, inPhase());
 
@@ -201,10 +189,7 @@ juce::PopupMenu ShapeButton::buildMenu() const {
 }
 
 const char *ShapeButton::inPhaseId() const {
-  // By what the suffix says rather than by where it points. Both callers hand
-  // over the same constant this compares against, so the addresses happen to
-  // match today, and a copy of the string anywhere would silently give every
-  // button the amplitude's switch.
+  // Compared by content, not by address, so a copy of the string still works.
   const auto pitch = std::strcmp(sharedSuffix, params::pmShapeSuffix) == 0;
 
   return pitch ? params::pmInPhaseId : params::amInPhaseId;
@@ -241,9 +226,7 @@ void ShapeButton::applyToEveryChannel(int index) {
   const auto set = [this, index](const juce::String &target) {
     auto *param = apvts.getParameter(target);
 
-    // The noise channel has a tremolo but no pitch modulator, so one of the
-    // two suffixes finds nothing there. Asking and getting nothing is the
-    // check.
+    // The noise channel has no pitch modulator, so it is skipped.
     if (param == nullptr)
       return;
 
@@ -259,8 +242,7 @@ void ShapeButton::applyToEveryChannel(int index) {
 }
 
 void ShapeButton::mouseDown(const juce::MouseEvent &e) {
-  // Right-click belongs to LINK, the same as every other control on a strip,
-  // so it is left alone here and reaches the strip underneath.
+  // Right-click is left to reach the strip underneath, which opens its menu.
   if (e.mods.isPopupMenu())
     return;
 

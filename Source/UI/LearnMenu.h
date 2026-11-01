@@ -6,14 +6,11 @@
 
 namespace ovt::ui {
 
-/// The MIDI Learn end of a right-click, kept in one place because the menu it
-/// joins is built somewhere else for every control that has one.
+/// The MIDI Learn items of a right-click menu, shared by every menu that
+/// offers them.
 ///
-/// A control carries the id of the parameter it moves, set where the
-/// attachment is made, since that is the one place that already knows it.
-/// JUCE's component properties are how this codebase hangs facts on controls
-/// already, so there is nothing new to maintain: see the "meteredGroove" flag
-/// a fader sets for the look and feel.
+/// A control carries the id of the parameter it moves as a component
+/// property, set where its attachment is made.
 namespace learn {
 
 inline const juce::Identifier kParameterProperty{"paramId"};
@@ -21,17 +18,14 @@ inline const juce::Identifier kParameterProperty{"paramId"};
 /// Item ids, well clear of the menus these join.
 enum MenuIds { kLearn = 9001, kCancel = 9002, kForget = 9003 };
 
+/// Marks a control with the parameter it moves.
 inline void tag(juce::Component &control, const juce::String &parameterId) {
   control.getProperties().set(kParameterProperty, parameterId);
 }
 
 /// The parameter a click landed on, looking outwards from the component that
-/// was hit.
-///
-/// Outwards because a control is rarely one component: a knob is a slider
-/// inside a labelled frame, and a click on the number under it lands on a
-/// label whose parent is the thing with the id. Stops at the first one found,
-/// so a tagged control inside a tagged container answers for itself.
+/// was hit, since a click may land on a part inside the tagged control. The
+/// innermost tag wins.
 inline juce::String parameterIdAt(const juce::Component *hit) {
   for (const auto *c = hit; c != nullptr; c = c->getParentComponent()) {
     const auto id = c->getProperties().getWithDefault(kParameterProperty, {});
@@ -44,10 +38,6 @@ inline juce::String parameterIdAt(const juce::Component *hit) {
 }
 
 /// The control that moves this parameter, looking inwards from a window.
-///
-/// The other direction from parameterIdAt, and wanted for the same reason in
-/// reverse: the map knows which parameter is waiting and the window has to
-/// find the thing to mark.
 inline juce::Component *controlFor(juce::Component &root,
                                    const juce::String &parameterId) {
   if (parameterId.isEmpty())
@@ -75,10 +65,8 @@ inline void markArmed(juce::Component &control, bool armed) {
   else
     control.getProperties().remove("learnArmed");
 
-  // And on whatever inside it the look and feel actually draws. A knob on the
-  // bar is a slider inside a frame that carries the caption, and the tag goes
-  // on the frame so that a right-click on the caption still finds it, so the
-  // mark has to reach inwards to the part with a paint method that reads it.
+  // And on the slider or button inside it, which is what the look and feel
+  // draws, since the tag may sit on an outer frame.
   for (auto *child : control.getChildren())
     if (dynamic_cast<juce::Slider *>(child) != nullptr ||
         dynamic_cast<juce::Button *>(child) != nullptr)
@@ -103,8 +91,7 @@ inline bool appendItems(juce::PopupMenu &menu, const MidiLearn &map,
   const auto cc = map.controllerFor(parameter);
 
   if (waiting) {
-    // Named rather than ticked, because what it is waiting for is the thing
-    // somebody has to do next and a tick says nothing about that.
+    // A header saying what to do next, rather than a tick.
     menu.addSectionHeader("Move a controller to bind it");
     menu.addItem(kCancel, "Stop waiting");
 

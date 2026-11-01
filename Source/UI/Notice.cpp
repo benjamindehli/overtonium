@@ -17,8 +17,7 @@ constexpr int kButtonGap = 8;
 constexpr int kSecondaryWidth = 80;
 
 /// The message laid out at the width it has, in the face and colour it is
-/// drawn in. The same layout is measured for the card's height and drawn, so
-/// the two cannot break the lines in different places.
+/// drawn in. Used both to measure the card and to draw it, so they agree.
 juce::TextLayout layoutOf(const juce::String &text, int width) {
   juce::AttributedString s;
   s.append(text, makeFont(12.0f, false), colours::textDim);
@@ -53,8 +52,7 @@ void Notice::show(const juce::String &title, const juce::String &text,
   primaryAction = std::move(onPrimary);
   secondaryAction = std::move(onSecondary);
 
-  // What a screen reader is told when the card comes up, since what it says is
-  // painted rather than written into a label.
+  // For a screen reader, since the text is painted.
   setTitle(title);
   setDescription(text);
 
@@ -65,8 +63,7 @@ void Notice::show(const juce::String &title, const juce::String &text,
 }
 
 void Notice::answer(const std::function<void()> &action) {
-  // Put away first, so an answer that opens something else is not covered by
-  // the question it answered.
+  // Put away first, so an answer that opens something else is not covered.
   setVisible(false);
 
   if (action != nullptr)
@@ -85,7 +82,7 @@ void Notice::resized() {
   secondary.setBounds(buttons.removeFromRight(kSecondaryWidth));
   buttons.removeFromRight(kButtonGap);
 
-  // As wide as its words want, which differ between the two questions.
+  // As wide as its words want.
   const auto primaryWidth =
       juce::jmin(buttons.getWidth(),
                  juce::roundToInt(juce::GlyphArrangement::getStringWidth(

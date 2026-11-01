@@ -99,11 +99,8 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   const auto targetFeedback = (float)std::min(
       0.99999, std::pow(10.0, -3.0 / (f * decay)) / std::max(1.0e-6, passLoss));
 
-  // Struck as it is, so a pluck keeps the energy it was given and rings at
-  // about the level of the noise that struck it, however long DECAY lets it
-  // ring. Breathed into steadily, a string that rings longer builds up more,
-  // as a resonating body does. The comb POINT makes adds a delayed copy of the
-  // noise to itself, which doubles its power, and that is taken back off.
+  // A fixed input gain, so a pluck rings at about the level of the noise that
+  // struck it. The 1/sqrt(2) takes back the power POINT's comb adds.
   inputGain = 0.70710678f;
 
   pointDelay =
@@ -133,9 +130,8 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   delayStep = (target - delay) / (double)len;
   fadeStep = (targetFade - fade) / (float)len;
 
-  // Moved across the block too. A loop gain that changes in one step, as it
-  // does when a damper comes down, leaves a step in the line where the last
-  // pass at the old gain meets the first at the new one, and that is a click.
+  // Moved across the block too, since a loop gain changed in one step leaves
+  // a step in the line, which is a click.
   feedbackStep = (targetFeedback - feedback) / (float)len;
 }
 

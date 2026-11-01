@@ -43,16 +43,12 @@ private:
   std::uint64_t h = 1469598103934665603ull;
 };
 
-/// The last two looks of one control, kept as pictures.
+/// The last two looks of one control, kept as pictures, so the 33 strips are
+/// copied rather than drawn again when soloing, scrolling or resizing. Two,
+/// because soloing swaps a control between its lit and unlit look.
 ///
-/// The mixer has 33 strips of the same few controls, and soloing, scrolling
-/// or resizing redraws every one of them. Most of them look exactly as they
-/// did the last time, so the drawing is done once and copied after that.
-/// Two looks rather than one because soloing swaps each control between its
-/// lit and its unlit look, and both should be ready.
-///
-/// Held by the control itself, so the pictures go with its window. Nothing
-/// here may be static: see the notes on the grain tile in LookAndFeel.cpp.
+/// Held by the control itself. Nothing here may be static. See GrainTile in
+/// Theme.h.
 class PaintCache {
 public:
   /// Draws `component` from a picture, or with `draw` if nothing matches

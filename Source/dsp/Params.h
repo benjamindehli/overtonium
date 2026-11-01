@@ -11,29 +11,20 @@
 
 namespace ovt {
 
-/// Where MPE slide goes, which is the forward and back axis under a finger on
-/// a Seaboard or a Linnstrument.
+/// Where MPE slide goes. Brightness is the default. Tuning slides that note
+/// alone between equal temperament and just intonation.
 ///
-/// Brightness is what a player's hands expect from it, so it is the default.
-/// Tuning is the one only this instrument can offer: push a finger forward and
-/// that note alone slides between equal temperament and just intonation while
-/// the rest of the chord stays where it is.
-///
-/// Declared here rather than beside the parameter it comes from, because the
-/// voice branches on it and the DSP core is not allowed to include JUCE.
+/// Declared here because the voice branches on it and the DSP core does not
+/// include JUCE.
 enum class SlideDestination { Off = 0, Brightness, Tuning };
 
-/// When a new note glides from the one before it rather than starting at its
-/// own pitch. Always glides from the last note played even after its key has
-/// come up, which is how a portamento circuit with one voice behaves. Legato
-/// glides only while another key is still held down, so a phrase played
-/// detached lands on each note and a phrase played joined slides through them.
+/// When a new note glides from the one before it. Always glides from the
+/// last note played even after its key is released. Legato glides only while
+/// another key is still held.
 enum class GlideTrigger { Always = 0, Legato };
 
-/// What a channel's glide time means. Rate reads it as the time an octave
-/// takes, so a wide leap takes longer than a narrow one, the way a finger
-/// sliding along a string at a steady pace does. Time reads it as the time any
-/// interval takes, so every note lands on the beat however far it travelled.
+/// What a channel's glide time means. Rate is the time an octave takes, so a
+/// wide leap takes longer. Time is the time any interval takes.
 enum class GlideMode { Rate = 0, Time };
 
 inline const char *glideTriggerName(GlideTrigger t) {
@@ -44,8 +35,8 @@ inline const char *glideModeName(GlideMode m) {
   return m == GlideMode::Time ? "Fixed time" : "Fixed rate";
 }
 
-/// A per-block snapshot of one channel strip. Deliberately plain data: the DSP
-/// core never touches JUCE, which keeps it unit-testable and portable.
+/// A per-block snapshot of one channel strip. Plain data, since the DSP core
+/// does not use JUCE.
 struct OscParams {
   // Pitch
   float tuneBlend = 0.0f; ///< 0 = equal temperament, 1 = just intonation
@@ -53,27 +44,20 @@ struct OscParams {
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
-  /// note gets its own rate, so nothing ever locks together.
+  /// note gets its own rate, so nothing locks together.
   float driftCents = 0.0f;
   /// How long this partial takes to reach a new note's pitch, in seconds, or
-  /// in seconds per octave under GlideMode::Rate. Zero is no glide at all.
-  ///
-  /// Per partial, because the series does not have to arrive together: a top
-  /// that lands before the fundamental, or one that trails behind it, smears
-  /// the spectrum in transit and resolves it on arrival, which no single
-  /// portamento can do. See Voice::startGlide.
+  /// in seconds per octave under GlideMode::Rate. Zero is no glide. Per
+  /// partial, so the series can arrive at different times. See
+  /// Voice::startGlide.
   float glideSeconds = 0.0f;
 
   // Amplitude
-  /// How much the speed you strike the key at moves the front of the envelope,
-  /// -1 to 1. Positive brings the delay in and stretches the attack as the blow
-  /// softens, so a hard note arrives sooner and faster, which is what striking
-  /// anything harder does. Negative inverts it. Zero ignores velocity, which is
-  /// what the envelope did before it had this. See strikeAttackScale and
-  /// strikeDelayScale.
+  /// How much strike velocity moves the front of the envelope, -1 to 1.
+  /// Positive makes a harder note arrive sooner and faster, negative inverts
+  /// it, zero ignores velocity. See strikeAttackScale and strikeDelayScale.
   float strikeAmount = 0.0f;
-  /// Held silent before the attack starts, in seconds. Staggering this across
-  /// the series makes the spectrum unfold rather than arrive all at once.
+  /// Held silent before the attack starts, in seconds.
   float delay = 0.0f;
   /// Seconds, or below zero where in its cycle the partial starts with no
   /// attack at all, -1 being its peak. See onsetOctaves.
@@ -81,25 +65,20 @@ struct OscParams {
   float decay = 0.400f;
   float sustain = 1.0f; ///< 0..1
   float release = 0.400f;
-  /// Where the envelope goes when the key is let go, and how long it takes to
-  /// get there. A level above the sustain is a release click or a bloom, below
-  /// it is the fast initial drop into a long tail that a struck string has.
-  /// Zero skips the stage, which is what it did before it had one.
+  /// Where the envelope goes when the key is released, and how long it takes
+  /// to get there. Above the sustain is a release click or bloom, below it is
+  /// a fast drop into a long tail. Zero skips the stage.
   float swell = 0.005f;
   float offLevel = 0.0f;
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
-  /// harder is louder, the way most acoustic instruments behave. Negative
-  /// inverts it, so the partial is loudest when played softly. Setting some
-  /// partials positive and others negative crossfades between two timbres
-  /// across the velocity range.
+  /// harder is louder, negative means softer is louder.
   float velAmount = 0.7f;
   /// How much channel or polyphonic aftertouch moves this partial's level,
-  /// -1 to 1. It adds to the fader rather than scaling it, so a strip parked at
-  /// zero can be faded in entirely by leaning on the key, and a negative amount
-  /// fades an open strip out again.
+  /// -1 to 1. It adds to the fader rather than scaling it, so a strip at zero
+  /// can be faded in by pressure.
   float atAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
@@ -110,12 +89,8 @@ struct OscParams {
   bool audible = true;
 };
 
-/// The noise channel.
-///
-/// It behaves like a strip in every respect except pitch, of which it has
-/// none, so it carries no tuning, pitch modulation or drift. Colour takes
-/// their place: it tilts the spectrum from dark rumble through flat to bright
-/// hiss, which is the difference between adding breath and adding fizz.
+/// The noise channel. Like a strip but with no pitch, so no tuning, pitch
+/// modulation or drift. Colour tilts the spectrum from dark to bright.
 struct NoiseParams {
   float colour = 0.5f; ///< 0 dark, 0.5 flat, 1 bright
 
@@ -135,9 +110,8 @@ struct NoiseParams {
   float volume = 0.0f;
   float pan = 0.0f;
 
-  /// The string the noise strikes. See KarplusString. STRING crossfades from
-  /// the noise as it is to the string alone, so nought is the channel exactly
-  /// as it was without one.
+  /// The string the noise strikes, 0 for the noise alone to 1 for the string
+  /// alone. See KarplusString.
   float stringAmount = 0.0f;
   float stringDecay = 1.5f;  ///< seconds, how long it rings with the key down
   float stringDamp = 0.4f;   ///< 0 bright to 1 dark
@@ -146,6 +120,7 @@ struct NoiseParams {
   bool audible = true;
 };
 
+/// A per-block snapshot of everything that is not a channel strip.
 struct GlobalParams {
   float masterGain = 0.25f; ///< linear
 
@@ -157,99 +132,70 @@ struct GlobalParams {
   /// How long a held note takes to slide to its new version when the adaptive
   /// temperament retunes it. See SynthEngine::settleAdaptive.
   double adaptiveRetuneSeconds = 0.03;
-  /// Whether Adaptive tunes a minor seventh on the harmonic seventh, 7:4 above
-  /// its root, where nothing else in the chord is spoiled by it. Off, every
-  /// seventh takes the size the chain of fifths gives it.
+  /// Whether Adaptive tunes a minor seventh as the harmonic seventh, 7:4 above
+  /// its root, where nothing else in the chord is spoiled by it. Off, it takes
+  /// the size the chain of fifths gives it.
   bool harmonicSevenths = true;
   /// Whether Adaptive keeps the held chord as near home as it can before
-  /// keeping held notes still, so the keyboard does not drift and a held note
-  /// moves a comma instead when a progression pumps.
+  /// keeping held notes still, so the keyboard does not drift.
   bool adaptiveHome = false;
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
   float aftertouch = 0.0f;    ///< current channel pressure, 0..1
   /// Whether a partial starting from silence starts its cycle at a rising zero
-  /// crossing. That is the softest onset there is, since a partial cannot
-  /// reach its own peak until a quarter of its period has passed, which below
-  /// about 500 Hz is longer than any attack. Off, it carries on from wherever
-  /// its phase was.
+  /// crossing, the softest onset. Off, it carries on from wherever its phase
+  /// was.
   bool phaseReset = true;
   /// Inharmonicity, as cents of displacement on the 32nd partial. Zero is the
   /// plain harmonic series. See inharmonicCents.
   float stretchCents = 0.0f;
   /// Keyboard tracking, in dB per octave above the rolloff. Thins the series
-  /// as you play up rather than turning high notes down. Zero is off. See
-  /// trackingGain.
+  /// as you play up. Zero is off. See trackingGain.
   float trackDbPerOctave = 0.0f;
 
-  /// Which oscillator every partial is. One choice for all 32, because an
-  /// instrument is built out of one circuit repeated rather than out of a
-  /// different one per channel. See Character.h.
+  /// Which oscillator every partial is, one for all 32. See Character.h.
   Character character = Character::Pure;
 
-  /// Where a note's MPE slide goes. Stored as the raw choice so the voice can
-  /// branch on it without the DSP core knowing what a parameter is.
+  /// Where a note's MPE slide goes.
   SlideDestination slideDest = SlideDestination::Brightness;
-  /// A warped record under the whole instrument, 0 to 1. Sits between the
-  /// voices and the echo, so the repeats inherit whatever it did rather than
-  /// wobbling on their own. See Wobble.h.
+  /// A warped record under the whole instrument, 0 to 1. Sits before the echo,
+  /// so the repeats inherit it. See Wobble.h.
   float wobbleAmount = 0.0f;
 
-  /// How hard the summed series runs into the bus stage.
-  ///
-  /// Not a parameter and not reachable from the panel: the plugin fills this
-  /// from BusDrive::amountFor, which is a property of the character rather
-  /// than a control. It is a field rather than a lookup inside the stage so
-  /// that a test measuring one part of the instrument can put the rest of it
-  /// out of the way, which is what the whole DSP suite does.
+  /// How hard the summed series runs into the bus stage. Not a parameter: the
+  /// plugin fills it from BusDrive::amountFor. A field so that tests can turn
+  /// it off.
   float busDrive = 0.0f;
-  /// Shape the sum on its way out. 32 faders make it very easy to overshoot,
-  /// which is what this began as, and it is five machines now, so it is part
-  /// of the sound as well as a guard. The master fader sits in front of it, so
-  /// how hard it is driven is a thing a patch decides. See OutputStage.
+  /// Whether the output stage shapes the sum. See OutputStage.
   bool safetyClip = true;
 
-  /// Whether the output stage may look ahead. Off, the default, saves the two
-  /// milliseconds it costs everything, at the price of a rougher Limiter.
+  /// Whether the output stage may look ahead. Off, the default, saves two
+  /// milliseconds of latency at the price of a rougher Limiter.
   bool lookahead = false;
 
-  /// Which of the five, when it is on. Soft is what every patch had before
-  /// there was a choice.
+  /// Which output stage type, when it is on.
   ClipType clipType = ClipType::Soft;
-  /// Whether striking a key that is already sounding takes over the voice it
-  /// is already using, rather than starting a second one beside it. See
-  /// SynthEngine::noteOnImpl.
+  /// Whether striking a key that is already sounding takes over its voice
+  /// rather than starting a second one. See SynthEngine::noteOnImpl.
   bool oneVoicePerKey = true;
 
-  /// Whether a channel's modulator is one circuit the whole keyboard hears
-  /// rather than one per note.
-  ///
-  /// Off, every note carries its own, so two keys struck a moment apart are a
-  /// moment apart in their vibrato for as long as they sound, which is what a
-  /// digital instrument does. On, the phase belongs to the channel and a note
-  /// joins whatever is already running, which is what an instrument with one
-  /// tremolo circuit in it does: a chord breathes as one thing.
-  ///
-  /// Two switches because the two modulators are two circuits. See
+  /// Whether a channel's modulator is shared by the whole keyboard rather
+  /// than one per note. On, a note joins the phase already running, so a chord
+  /// moves as one. One switch for each of the two modulators. See
   /// SynthEngine::advanceSharedModulators.
   bool pitchModInPhase = false;
   bool ampModInPhase = false;
 
-  /// When a note glides, and what the glide times on the channels mean. Both
-  /// belong to the patch, so a preset can be a legato lead. See GlideTrigger
-  /// and GlideMode.
+  /// When a note glides, and what the glide times on the channels mean. See
+  /// GlideTrigger and GlideMode.
   GlideTrigger glideTrigger = GlideTrigger::Always;
   GlideMode glideMode = GlideMode::Rate;
 };
 
-/// The tape echo, which sits across the whole instrument rather than on any one
-/// partial.
 /// Which delay the repeats come out of.
 ///
-/// Declared in full from the start even though they arrive one at a time,
-/// because the length of a list a host can automate is part of its contract:
-/// a choice is stored as a fraction of the range, so adding an entry later
-/// would move every lane ever written against it. See the list-length test.
+/// All types are declared, since a host stores a choice as a fraction of
+/// the range and adding an entry later would move every automation lane.
 enum class EchoType { Tape, Bucket, Digital, NumTypes };
 
 inline const char *echoTypeName(EchoType t) {
@@ -270,45 +216,31 @@ inline const char *echoTypeName(EchoType t) {
   return "Tape";
 }
 
-/// The name in one word, for the button on the bar, which has a button's
-/// worth of room rather than a menu's. The menu says what each one is; the
-/// button only has to say which.
+/// The name in one word, for the button on the bar.
 inline const char *echoTypeShortName(EchoType t) {
   return t == EchoType::Bucket ? "BBD" : echoTypeName(t);
 }
 
+/// The echo, which sits across the whole instrument.
 struct EchoParams {
   bool enabled = false;
 
-  /// Which machine the repeats come from. The switch that turns the thing on
-  /// is separate and older: a preset saved before there was a choice says
-  /// nothing about one, and gets the tape it was made on.
+  /// Which machine the repeats come from. The on switch is separate, so a
+  /// preset without a type gets Tape.
   EchoType type = EchoType::Tape;
   float mix = 0.25f;         ///< 0 dry, 1 fully wet
   float timeSeconds = 0.35f; ///< distance between the heads
   float feedback = 0.35f;    ///< 0..0.95, how much goes round again
-  /// How worn the machine is, 0 to 1, and what that means depends on which
-  /// machine it is.
+  /// How worn the machine is, 0 to 1.
   ///
-  /// On tape it is the three things that go together as a deck ages: the top
-  /// end it loses on every pass, how far the motor wanders, and how hard the
-  /// tape leans over when driven. New is clean and bright, old is dark,
-  /// unsteady and compressed.
-  ///
-  /// On a bucket brigade it is three others that go together just as tightly:
-  /// darker, dirtier on every pass, and the hiss its compander cannot quite
-  /// hide, which swells up behind a chord and ducks away as the repeats die.
-  ///
-  /// One knob either way, because separating any of them meant three that
-  /// were always turned together.
+  /// On tape: less top end on every pass, more motor wander and more
+  /// compression when driven. On a bucket brigade: darker, dirtier on every
+  /// pass, and more compander hiss.
   float age = 0.35f;
 };
 
-/// Which reverb the tail comes out of.
-///
-/// Declared in full from the start, for the reason the echo's types are: the
-/// length of a list a host can automate is part of what a stored choice
-/// means.
+/// Which reverb the tail comes out of. All types are declared, for the same
+/// reason as EchoType.
 enum class ReverbType { Room, Plate, Spring, NumTypes };
 
 inline const char *reverbTypeName(ReverbType t) {
@@ -327,11 +259,8 @@ inline const char *reverbTypeName(ReverbType t) {
   return "Room";
 }
 
-/// What the bar has room to shout, where the menu has room to be accurate.
-///
-/// Only the plate needs one. Its two allpasses wander further than a sheet of
-/// steel ever did, which is what keeps a long decay from repeating itself, and
-/// the menu says so. On a button the word that matters is which machine it is.
+/// The name for the button on the bar, shortened where the menu name is too
+/// long.
 inline const char *reverbTypeShortName(ReverbType t) {
   return t == ReverbType::Plate ? "Plate" : reverbTypeName(t);
 }
@@ -340,24 +269,18 @@ inline const char *reverbTypeShortName(ReverbType t) {
 struct ReverbParams {
   bool enabled = false;
 
-  /// Which machine the tail comes from. The switch that turns it on is
-  /// separate and older, so a preset saved before there was a choice says
-  /// nothing about one and gets the room it was made in.
+  /// Which machine the tail comes from. The on switch is separate, so a preset
+  /// without a type gets Room.
   ReverbType type = ReverbType::Room;
   float mix = 0.25f;
-  /// RT60. The room is sized from it rather than set separately: a long tail in
-  /// a small room is a spring, not a place, and nobody was reaching for that.
+  /// RT60. The room size follows from it.
   float decaySeconds = 2.0f;
   float damping = 0.5f; ///< how fast the top end dies away in the tail
   float preDelaySeconds = 0.0f;
 };
 
-/// Converter quality, downwards.
-///
-/// Both settings default to off, which means whatever the host is running at
-/// and no quantiser, and both are cuts rather than effects: turning them down
-/// does less work, not more. See SynthEngine::renderVoices for why the rate is
-/// a genuine saving rather than a filter over the top.
+/// Converter quality, downwards. Both default to off, meaning the host's
+/// rate and no quantiser. See SynthEngine::renderVoices.
 struct LofiParams {
   /// Render rate in Hz, or 0 for the host's own.
   double rateHz = 0.0;
@@ -413,6 +336,7 @@ struct ResonatorParams {
   float damping = 0.4f;      ///< 0 bright to 1 dark
 };
 
+/// Everything the engine reads for one block.
 struct SynthParams {
   std::array<OscParams, kNumHarmonics> osc{};
   NoiseParams noise{};

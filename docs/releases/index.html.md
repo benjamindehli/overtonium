@@ -1,10 +1,24 @@
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-25
+Last changed: 2026-10-31
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.16.0, 1 November 2026
+
+**Two characters and three output machines, measured.** VCO is an analogue oscillator's sine and the mixer it feeds, which clips one side first when a chord is played hard. Combo is a transistor combo organ's 8' lever, a filtered square with only odd harmonics, where every partial takes the tone of the key you play. Console is a mixing console's mix bus, a transformer, a compressor and a tape stage. Cassette is a four-track cassette recorder with Dolby B, its saturation, its flutter and its hiss. Print is Console recorded to Cassette, with the hiss 6 dB lower.
+
+**Pick channels by their numbers (#75).** Cmd-click or Ctrl-click a channel's number, or drag across the numbers, and LINK's new Selected scope moves only those channels. A macro can take them too, and keeps its own copy.
+
+**Three new presets.** 8-bit Choir, Combo Organ and Tape Pluck, one on each new character, and four presets moved to the new machines. Forty-one in all.
+
+**Colours, less CPU and fixes.** The characters and the machines on the top bar each light in a colour that is easy to tell apart, and the knobs beside each button light with it. A silenced channel's shape screens switch off. The engine uses about a tenth less CPU, and the output stage almost none unless Console, Cassette or Print is chosen. The tool button shows the chosen tool at once, a preset file holding a value that is not a number no longer silences the plugin, and the update notice only opens the project's own pages.
+
+**Before upgrading.** CHARACTER grows from ten choices to twelve, the clip type from five to eight and each macro's scope from fifteen to sixteen, so automation drawn before lands a little further along. MIDI program changes from 5 up land later. Four presets sound different. Still 850 parameters.
+
+[The full notes for 1.16.0](https://github.com/benjamindehli/overtonium/releases/tag/v1.16.0)
 
 ## 1.15.0, 25 October 2026
 

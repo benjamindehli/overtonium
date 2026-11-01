@@ -4,73 +4,11 @@
 
 namespace ovt {
 
-/// Three of the five so far, each the same shape its own tables are rendered
-/// through, so a patch runs into the same kind of circuit twice: once per
-/// partial and once where they all meet.
-///
-/// What separates them is what each does with the two halves of a wave. A
-/// rail treats them alike and therefore cannot tell them apart, so it has a
-/// twelfth to give and no octave at all. A triode leans, so the octave leads.
-/// A mismatched pair of diodes rounds one half more than the other, so the
-/// two arrive together. Measured through a 1 kHz partial at 80% of full scale
-/// at the full amount:
-///
-///   Rail    octave -164 dB, twelfth -18 dB, halves identical
-///   Diode   octave  -15 dB, twelfth -15 dB, halves differ by 27%
-///   Valve   octave  -17 dB, twelfth -20 dB, halves differ by 30%
-///   Op-amp  octave -164 dB, twelfth -18 dB, and its fifth harmonic 9 dB
-///           further up than the rail's, which is the corner talking
-///
-/// Four of the five are curves, since the op-amp turned out to belong here
-/// after all, as the hardest knee of them rather than as the rate limit it is
-/// famous for. Why is in its own case below, with what it measured.
-///
-/// The fifth is not a curve and not distortion. A lamp adds nothing to a
-/// waveform at all: it decides how loud one is and takes half a second to
-/// change its mind. It is the only character that answers playing harder by
-/// giving you less, which is what a Wien bridge does and is the whole reason
-/// the part is in one.
-///
-/// **What each circuit wants**, which is the whole point of the knob and is
-/// what replaces it. One figure per character, since a rail and a triode bend
-/// a waveform differently enough that the same number through both would be
-/// two different amounts of push:
-///
-///   Rail    13%
-///   Diode    7%
-///   Valve   10%
-///   Op-amp  10%
-///   Bulb    15%
-///   Wheel   10%
-///   Pure    none, and never any: it is the oscillator that is not a circuit
-///   FM      none, because that synthesizer's mix measured clean
-///   PD      the measured bow in that synthesizer's mix, at full strength
-///   6581    the measured bow in that chip's mix, at full strength
-///
-/// Wheel uses the triode curve at Valve's amount, because the organ's own
-/// amplifier uses valves.
-/// Found by ear, the first three on 26 September 2026 and the last two on the
-/// 27th. The lamp wants the most of any of them, which follows from it being
-/// the only one that is not distortion: what the others are asked for is an
-/// overtone, and a little goes a long way, where what this one is asked for
-/// is a movement you have to be able to feel. They are not close to each other
-/// for a reason: a rail is the gentlest of the shapes at a given drive, since a
-/// limit that treats both halves alike has only odd harmonics to give, so it
-/// takes more push to say anything. A mismatched pair of diodes is the busiest,
-/// giving an octave and a twelfth together, so it needs the least.
-///
-/// The op-amp landing on the triode's figure is the one that reads oddly,
-/// since it has much the harder knee of the two. It arrives there from the
-/// other direction: a corner reaches further up the spectrum than a bend
-/// does, but it holds a straight line until it gets there, where a triode is
-/// leaning from the first sample. Later and harder comes out at about the
-/// same place as sooner and softer.
-///
-/// These were found behind a temporary parameter, one character at a time,
-/// which is gone now that the last of them has a figure. It was never meant
-/// to ship: what a part does when you push it is a property of the part, and
-/// an instrument that asked you how much of its own circuit you wanted would
-/// be asking the wrong question.
+/// How hard each character's bus stage is run, set by ear per character
+/// since the same figure through different curves is a different amount of
+/// push. The curves are the same shapes each character's own tables are
+/// rendered through. Pure, FM and Combo have no stage, and PD and the 6581
+/// use their measured bow at full strength.
 double BusDrive::amountFor(Character c) noexcept {
   switch (c) {
   case Character::Rail:
@@ -85,10 +23,16 @@ double BusDrive::amountFor(Character c) noexcept {
     return 0.15;
   case Character::Wheel:
     return 0.10;
+  // Set by ear, a little under the op-amp.
+  case Character::Vco:
+    return 0.07;
   case Character::Pd:
   case Character::Sid:
     return 1.0;
+  // The combo organ mixed its notes cleanly, with a difference tone 60 dB
+  // under the notes.
   case Character::Fm:
+  case Character::Combo:
   case Character::Pure:
   case Character::NumCharacters:
     break;
@@ -103,42 +47,28 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
   Recipe out;
   Curve k;
 
-  // Pure has no stage at any amount, which is not the same thing as having
-  // one set to nothing: it is the oscillator that is not a circuit, so there
-  // is no summing amplifier for it to have run out of either.
+  // Pure is the oscillator that is not a circuit, so it has no stage at all.
   if (c == Character::Pure || amount <= 0.0f)
     return out;
 
   if (c == Character::Bulb) {
-    // A Wien bridge holds its level with a lamp in the feedback divider. The
-    // filament warms as the signal grows, its resistance rises, and the gain
-    // comes down with it. That is the whole of the part: it adds nothing to
-    // the waveform, it only decides how much of it there is.
-    //
-    // So this is the one character whose bus behaviour is not distortion.
-    // Where a triode hands you an octave for playing harder, a lamp hands you
-    // nothing and takes a little away instead, then gives it back over about
-    // half a second. Loud passages lean back and quiet ones open up, which is
-    // what a Wien bridge does and is why one is so hard to make sit still.
-    //
-    // Half a second is the filament rather than a choice: it is the figure the
-    // per-partial Bulb settles over, taken from the same part. See
+    // A Wien bridge's lamp: the filament warms as the signal grows and the
+    // gain comes down with it, over about half a second, the same figure as
+    // the per-partial Bulb. It changes the level and not the waveform. See
     // Character::Bulb.
     out.machine = Machine::Lamp;
 
-    // Warm enough that a mix sitting at full scale leans back by six decibels
-    // at the top of the knob, which is as much sag as a bridge that is still
-    // oscillating ever shows.
+    // Warm enough that a mix at full scale leans back by six decibels at the
+    // full amount.
     out.depth = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0;
     out.warming = 1.0 - std::exp(-1.0 / (0.5 * sampleRate));
 
     return out;
   }
 
-  // The phase distortion synthesizer's mix, which bows by a measured amount
-  // rather than running into anything. Sized so that one partial at full fader
-  // gets the second harmonic the instrument's single notes have, plus what was
-  // added to its harmonics by ear. See kPdSummingH2Db.
+  // The phase distortion synthesizer's mix, which bows by a measured amount.
+  // Sized so that one partial at full fader gets the second harmonic of the
+  // instrument's single notes. See kPdSummingH2Db.
   //
   // The second harmonic of a sine of amplitude A through x - c x^2 is c A / 2
   // against the fundamental, and the bend divided by its drive d comes to
@@ -180,23 +110,8 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
 
   out.machine = Machine::Curve;
 
-  // Two, because the knob should spend its travel somewhere useful. Measured
-  // through the triode against a 1 kHz partial at 80% of full scale, a second
-  // one at 2% of it, a 1 kHz and 1.4 kHz pair, and an 18 kHz partial whose
-  // octave can only fold back to 12 kHz, all at the full amount of the drive
-  // named:
-  //
-  //   drive  loud 2nd  quiet 2nd  difference tone  folded octave
-  //     0.5    -34.6      -51.8           -33.5          -43.5
-  //     1.0    -24.1      -68.6           -22.9          -33.3
-  //     1.5    -19.2      -48.0           -17.8          -28.6
-  //     2.5    -15.0      -38.9           -12.9          -25.0
-  //     5.0    -12.6      -28.4            -9.2          -23.6
-  //
-  // Past about 1.5 the curve has stopped adding overtones and started folding
-  // instead: two and a half drives buys three more decibels of octave and four
-  // of aliasing. So the whole knob lives under that, and the useful end of it
-  // is the bottom third.
+  // At most two, since past about 1.5 the curve adds aliasing faster than
+  // overtones.
   const auto drive = (double)std::clamp(amount, 0.0f, 1.0f) * 2.0;
 
   const auto evenly = [&k](double d) {
@@ -206,37 +121,15 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
 
   switch (c) {
   case Character::Rail:
-    // An amplifier that has run out of supply clips both halves of the wave
-    // alike, and a limit that treats them alike cannot tell them apart: odd
-    // harmonics, a twelfth on top of every partial and no octave at all. The
-    // same shape the Rail tables are rendered through, and the plainest of
-    // the five.
+    // A rail clips both halves alike: odd harmonics, a twelfth and no octave.
     evenly(drive);
     break;
 
   case Character::Diode:
-    // Two diodes across the feedback path, which are not the same diode. Each
-    // half of the wave runs into its own one and they do not give way at the
-    // same place, so the wave comes back with one side rounder than the
-    // other. Both halves keep a slope of one where they meet, so what differs
-    // is how fast each bends rather than a corner between them: a kink in the
-    // shape of the wave rather than a step in it.
-    //
-    // Three, because a pair that mismatched is what gives this one a voice of
-    // its own rather than a quieter version of somebody else's. Measured at
-    // full drive against a 1 kHz partial at 80% of full scale:
-    //
-    //   mismatch  octave  twelfth  fourth
-    //        1.6   -21.4    -15.7   -34.1
-    //        2.2   -17.0    -15.1   -27.5
-    //        3.0   -14.6    -15.1   -23.7
-    //        4.0   -13.2    -15.3   -21.5
-    //        6.0   -12.0    -15.7   -19.7
-    //
-    // Under about two it is a rail with a lean on it, since the twelfth still
-    // leads by five or six decibels. At three the octave and the twelfth
-    // arrive together with the fourth beneath them, which is the shape the
-    // Diode tables have and is what a kink sounds like.
+    // Two mismatched diodes, one for each half of the wave, so one side comes
+    // back rounder than the other. Both halves keep a slope of one where they
+    // meet. A mismatch of three makes the octave and the twelfth arrive
+    // together, as in the Diode tables.
     {
       constexpr double kMismatch = 3.0;
 
@@ -249,52 +142,40 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
     break;
 
   case Character::Opamp:
-    // An amplifier with feedback around it holds a straight line until it
-    // reaches the rail and then stops, so it gives way at a corner where the
-    // other three give way gradually. That makes it the hardest knee of the
-    // four and the rail the softest, which is the difference between a part
-    // forced linear until it cannot be and one with nothing forcing it at all.
-    //
-    // A rate limit was tried here first and taken out again, which is worth
-    // knowing because it is the obvious idea: slewing is what an op-amp is
-    // famous for, and it is what the per-partial tables already do. On a
-    // shared bus it does not work, because a rate limit cannot tell the top
-    // of a low note's series from a high note's fundamental. Measured through
-    // a saw patch, as energy at a frequency that is not a harmonic of the
-    // note being played:
-    //
-    //   note        amount 0.05   0.10    0.30
-    //   A2  110 Hz      -67      -67     -67    never engages at all
-    //   A4  440 Hz     -123     -123    -136
-    //   A6 1760 Hz     -183     -104     -53    fifty decibels in one step
-    //   A7 3520 Hz     -178      -88     -73
-    //
-    // So no setting is gentle at both ends of the keyboard: the control is
-    // not "how much" but "above which pitch", and hands move across that. Per
-    // partial the same machine is right, because each oscillator is limited
-    // against its own frequency and what comes out is a band-limited table.
-    // See Character::Opamp and kSlewCornerHz.
+    // An op-amp holds a straight line until it reaches the rail, so it gives
+    // way at a corner where the others bend gradually. It is not a rate limit,
+    // since on a shared bus that cannot tell a low note's upper partials from a
+    // high note's fundamental. See Character::Opamp.
     evenly(drive);
     k.shape = Shape::Cubic;
+    break;
+
+  case Character::Vco:
+    // The mixer the VCO was recorded through: the op-amp's corner, with the
+    // negative half reaching its rail 2.44 times sooner, which gives an octave
+    // as well as a twelfth. See kVcoMixerMismatch.
+    k.shape = Shape::Cubic;
+    k.up.drive = drive;
+    k.up.scale = 1.0 / drive;
+    k.down.drive = drive * kVcoMixerMismatch;
+    k.down.scale = 1.0 / (drive * kVcoMixerMismatch);
     break;
 
   case Character::Valve:
   case Character::Wheel:
   case Character::Fm:
+  case Character::Combo:
   case Character::Pd:
   case Character::Sid:
   case Character::Bulb:
   case Character::Pure:
   case Character::NumCharacters:
     // The triode, biased so one half of the wave leans over before the other,
-    // which is what puts an octave on top of every partial rather than a
-    // twelfth. The tonewheel organ's amplifier also uses valves, so Wheel
-    // uses the same curve.
+    // which puts an octave on top of every partial. Wheel's organ amplifier
+    // also uses valves.
     //
-    // The rest are listed so that adding a character is a compiler error
-    // here until somebody has decided what it does. None of them reaches
-    // this: Pure and FM have no stage at all, Bulb is a lamp and PD and the
-    // 6581 are quadratics, which all leave above.
+    // The rest are listed so that adding a character is a compiler error here
+    // until it has been decided. None of them reaches this.
     evenly(drive);
     k.bias = 0.2;
 
@@ -303,8 +184,7 @@ BusDrive::Recipe BusDrive::recipeFor(Character c, float amount,
 
       k.offset = atRest;
 
-      // The slope at rest, which is what a signal too small to bend the curve
-      // sees. Dividing it back out is what keeps this an overtone control
+      // The slope at rest. Dividing it out keeps this an overtone control
       // rather than a second volume.
       k.up.scale = k.down.scale = 1.0 / (drive * (1.0 - atRest * atRest));
     }
@@ -329,11 +209,9 @@ double BusDrive::delayed(Channel &c, double x) noexcept {
 
 /// One sample in, one out, with the circuit run twice in between.
 ///
-/// Doubling is cheap here because a half-band filter has every second
-/// coefficient at zero and its middle one at exactly a half. So one of the two
-/// samples the circuit sees is the one that arrived, handed straight through,
-/// and only the one between them has to be invented. Coming back down is the
-/// same filter again, reading from the sample that lines up with the host's.
+/// The half-band's middle coefficient is exactly a half and every second
+/// one is zero, so one of the two samples is the input passed through and
+/// only the one between has to be computed.
 double BusDrive::run(Channel &c, const Curve &k, double x,
                      double dcCoef) noexcept {
   const auto &h = Halfband::kernel();
@@ -341,10 +219,8 @@ double BusDrive::run(Channel &c, const Curve &k, double x,
 
   const auto late = delayed(c, x);
 
-  // Nothing to run, so the samples are handed back untouched and merely late,
-  // by the same amount the filters would have cost. A stage that changed the
-  // plugin's latency when a preset chose a character would be worse than one
-  // that is always a few samples behind.
+  // Nothing to run, so the samples are handed back delayed by the same amount
+  // the filters would have cost, keeping the plugin's latency fixed.
   if (k.up.drive <= 0.0)
     return late;
 
@@ -386,26 +262,24 @@ void BusDrive::process(float *left_, float *right_, int numSamples, Character c,
   if (numSamples <= 0)
     return;
 
-  // At the rate the circuit runs at rather than the one the host asked for,
-  // since the blocker is expressed per sample.
+  // At the doubled rate, since the blocker is expressed per sample.
   const auto inner = sampleRate * 2.0;
   const auto recipe = recipeFor(c, amount, sampleRate);
 
-  // About 5 Hz, which is below anything the series can produce and above the
-  // rate at which a chord arrives.
+  // About 5 Hz, below anything the series produces and above the rate at
+  // which a chord arrives.
   const auto dcCoef = std::exp(-6.2831853071795862 * 5.0 / inner);
 
   // A lamp changes a level rather than a shape, so it needs neither the
-  // doubled rate nor the blocker: the samples come through the same delay a
-  // bypassed stage uses, with one gain on them that moves far too slowly to
-  // leave anything on the waveform.
+  // doubled rate nor the blocker. The samples come through the bypass delay
+  // with one slow gain on them.
   if (recipe.machine == Machine::Lamp) {
     for (int n = 0; n < numSamples; ++n) {
       const auto l = delayed(left, (double)left_[n]);
       const auto r = delayed(right, (double)right_[n]);
 
-      // What heats a filament is power rather than pressure, and both
-      // channels at once, since there is one lamp.
+      // Power heats the filament, from both channels at once, since there is
+      // one lamp.
       const auto power = 0.5 * (l * l + r * r);
 
       heat += (power - heat) * recipe.warming;

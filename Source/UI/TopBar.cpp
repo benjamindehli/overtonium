@@ -32,42 +32,26 @@ constexpr int kGroupGap = 6;
 constexpr int kGroupPad = 6;
 
 /// Between the groups that have no frame: the four buttons, the wordmark
-/// with the preset screen, and the first frame after them. The same on both
-/// sides of the wordmark, so it stays centred between the buttons and the
-/// first frame.
+/// with the preset screen, and the first frame after them.
 constexpr int kUnframedGap = 19;
 
 /// Between the four buttons, across and down.
 constexpr int kButtonGap = 7;
 
 /// Below the controls in a frame, so its captions sit 2 px above the frame's
-/// bottom edge as its dials sit 3 px below the top, and every dial in a row is
-/// the same size.
+/// bottom edge.
 constexpr int kBelowControls = 1;
 
 /// Between the wordmark and the preset screen under it.
 constexpr int kWordmarkGap = 2;
 
 /// Minimum width of each group, in the order they are laid out. Only the
-/// output group grows, because the meter is the one thing worth more room.
+/// output group grows.
 ///
-/// The first holds the four buttons that open something, SETTINGS and
-/// MACROS over PLAYING and TUNING, two by two so they take no more of the
-/// row's width than the first two did alone. It is sized against what the
-/// bar can spare rather than against what would be comfortable. Measured in
-/// the font a 24 px button picks, SETTINGS is 61 px of text and MACROS is 54.
-///
-/// Both wear an icon instead, which is what makes 73 enough: the words want
-/// 62 and 54 px, and every pixel taken here is half a pixel off each
-/// converter readout, which stop naming their units below 53. A gear and a rack
-/// of faders say the same thing in a third of the room, and the words are still
-/// what a screen reader is given.
-///
-/// The character and the resonator each have their own frame, so the
-/// resonator's knobs read as belonging to its button.
-///
-/// The first two have no frame, so their widths are their contents: two
-/// 33 px buttons with a gap, and the 132 px preset screen.
+/// The first holds the four buttons, two by two, which wear icons so they fit
+/// 73 px. Every pixel more would come off the converter readouts, which stop
+/// naming their units below 53 px. The first two groups have no frame, so
+/// their widths are their contents.
 constexpr int kGroupMinWidth[] = {73, 132, 218, 194, 232, 228, 172};
 constexpr int kPresetGroupIndex = 1;
 constexpr int kSeriesGroupIndex = 2;
@@ -91,32 +75,21 @@ constexpr int kKnobWidth = 38;
 
 constexpr int kFxToggleGap = 6;
 
-/// Sized for the longest name it has to say, in the capitals the bar shouts
-/// everything in. Measured at the font the button picks from its own height,
-/// which at the bar's 24 px lands on the 13 px clamp: OP-AMP is 51 px, WHEEL
-/// 45, DIODE 40, VALVE 39, PURE and BULB 34, RAIL 29, FM 19 and PD 18. This is
-/// the widest of those plus the air either side that every other button on the
-/// bar has.
-
-/// How far the master fader's cap stands proud of the lamps it lies on, at
-/// each end. A channel's cap does the same against its own meter, which is
-/// what says the two are a fader and a meter rather than one striped control.
+/// How far the master fader's cap stands past the lamps it lies on, at each
+/// end, as a channel's cap does against its meter.
 constexpr int kFaderOverhang = 2;
 
 /// How many rows of bar are worth having above a mixer.
 constexpr int kMaxComfortableRows = 3;
 
-/// The meter is the only thing worth extra room, but not unlimited extra room.
-/// Uncapped it swallows a whole row and reads as a progress bar.
+/// The most extra room the meter takes.
 constexpr int kOutputMaxExtra = 120;
 
-/// ...and the one that can give ground when a row is slightly too tight. A
-/// window a few pixels short of fitting one row should narrow the meter rather
-/// than wrap, which is what used to strand the view group alone on row two.
+/// How far the meter narrows when a row is slightly too tight, rather than
+/// wrap a group onto the next row.
 constexpr int kOutputMaxSqueeze = 40;
 
-/// The sections SETTINGS opens, in the order it opens them, which is what its
-/// tooltip says whenever there is no new release to mention instead.
+/// The SETTINGS tooltip when there is no new release to mention.
 constexpr const char *kSettingsTooltip =
     "Polyphony, pitch bend range, expression, tuning, output and zoom";
 
@@ -147,11 +120,8 @@ float toNormalised(float level) {
                           -kMeterFloorDb);
 }
 
-/// The colour of the lamp standing at this fraction of full scale.
-///
-/// Anchored to decibel positions rather than to the level, so a lamp keeps its
-/// colour whatever the bar is doing and the top of the scale always reads as
-/// the top of the scale.
+/// The colour of the lamp standing at this fraction of full scale. Fixed per
+/// lamp, whatever the level.
 juce::Colour lampColour(float t) {
   if (t < 0.80f)
     return colours::accent;
@@ -189,9 +159,8 @@ bool StereoOutputMeter::Bar::advance(float level, int count) {
   const auto wasLit = lit;
   const auto wasPeak = peakLamp;
 
-  // The same hysteresis as the channel meters: a lamp lights when the level
-  // reaches it and goes out only once the level has fallen clear of it, so a
-  // note sitting on a boundary cannot flicker at the frame rate.
+  // The same hysteresis as the channel meters, so a level sitting on a
+  // boundary does not flicker.
   constexpr float kClearOf = 0.3f;
 
   const auto exact = juce::jlimit(0.0f, 1.0f, displayed) * (float)count;
@@ -238,8 +207,7 @@ void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
 
     const auto colour = lampColour(((float)i + 0.5f) / (float)count);
 
-    // The peak stays alight above the bar it came from, which is the whole
-    // point of holding it.
+    // The peak stays alight above the bar it came from.
     const bool on = i < bar.lit || i == bar.peakLamp;
 
     g.setColour(colour.withAlpha(on ? 0.92f : 0.13f));
@@ -271,24 +239,18 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
 
 // =============================================================================
 
-// =============================================================================
-
 TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                juce::Component &popupParent)
     : apvts(state) {
   logo = logoWordmark();
 
-  // So a right-click on a knob reaches mouseDown, which offers MIDI Learn. A
-  // click goes to the control under it and nowhere else unless an ancestor
-  // asks to hear it.
+  // So a right-click on a knob reaches mouseDown, which offers MIDI Learn.
   addMouseListener(this, true);
 
   masterFader.setPopupDisplayEnabled(true, true, &popupParent);
   masterFader.setTooltip("Output level");
 
-  // Named for a screen reader, which has nothing else to go on: the control
-  // has no caption beside it, since the meter under it is what says what it
-  // is to anyone looking.
+  // Named for a screen reader, since it has no caption.
   masterFader.setTitle("Master level");
 
   // The meter owns the groove. See drawLinearSlider.
@@ -336,13 +298,9 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                                                         wobble.slider);
   learn::tag(wobble, params::wobbleId);
 
-  // Two bars beside the master fader, at the end of the signal path, need no
-  // caption to say what they are.
   addAndMakeVisible(meter);
 
-  // Over the meter rather than under it. Children paint in the order they were
-  // added and the meter arrives later than the fader does, so without this the
-  // cap shows only through the gaps between the lamps.
+  // Over the meter, which was added later and would otherwise paint on top.
   masterFader.toFront(false);
 
   rateDisplay.setTooltip(
@@ -394,8 +352,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
       "down. Octave rings twelve strings from C3, and Series the tuning root's "
       "harmonics.");
 
-  // A menu over one parameter, so the click opens it rather than toggling
-  // anything, and the light says what came back.
+  // The click opens a menu rather than toggling, and the light says what came
+  // back.
   resonatorButton.setClickingTogglesState(false);
 
   resonatorButton.onClick = [this] {
@@ -408,8 +366,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseResonator(result); });
   };
 
-  resonatorButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
   // ---- presets --------------------------------------------------------------
   presetDisplay.setReading(kNoPreset, true);
   presetDisplay.setTooltip("Factory and saved presets, and saving your own");
@@ -417,9 +373,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   addAndMakeVisible(presetDisplay);
 
   // ---- settings -------------------------------------------------------------
-  // Everything that is set once and then left: polyphony, bend range, and the
-  // two switches that used to sit on the panel taking up room they had not
-  // earned.
   macroButton.setButtonText("MACROS");
   macroButton.setTooltip("Single host parameters that each move a whole row of "
                          "knobs, so a row can be automated as one lane.");
@@ -438,15 +391,11 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
 
   settingsButton.setButtonText("SETTINGS");
 
-  // The same plastic as the button beside it. The cap takes its colour from
-  // the one a button lights in, and a button that never lights names none, so
-  // this one was being moulded in the scheme's grey while MACROS was moulded
-  // in the accent. Side by side that read as two different parts.
+  // The cap takes its colour from the lamp, so this one names the accent to
+  // match MACROS even though it never lights for itself.
   settingsButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
-  // A gear rather than the word, which wants 62 px of the 58 the bar can
-  // spare it. The word is still what a screen reader is given and what the
-  // tooltip says. See kGroupMinWidth.
+  // A gear rather than the word, to save width. See kGroupMinWidth.
   settingsButton.onIcon = [](juce::Graphics &g, juce::Rectangle<float> area,
                              juce::Colour colour) {
     drawGearIcon(g, area, colour);
@@ -456,8 +405,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
   settingsButton.onClick = [this] { showSettingsMenu(); };
   addAndMakeVisible(settingsButton);
 
-  // The same plastic as the two above, and lit by the editor while their bars
-  // are open rather than by their own clicks. See setBarsOpen.
+  // Lit by the editor while their bars are open rather than by their own
+  // clicks. See setBarsOpen.
   const struct {
     GlowButton &button;
     const char *word, *title, *tooltip;
@@ -520,22 +469,15 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                     [this](int result) { chooseReverb(result); });
   };
 
-  // The colour the word comes up in, since the face stays where it is. See
-  // GlowButton.
-  echoButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-  reverbButton.setColour(juce::TextButton::textColourOnId, colours::accent);
-
-  // The output stage stands with the converter rather than with the effects,
-  // since what it does is the last thing that happens to the signal and the
-  // readouts beside it are the other two facts about the output. It is a
-  // machine button like the echo and the reverb now rather than a switch,
-  // because it chooses between five shapes rather than turning one on, and it
-  // has left the settings menu for the same reason: it is part of the sound.
+  // The output stage, with the converter at the end of the chain. A machine
+  // button like the echo's and the reverb's.
   styleToggle(clipButton, kClipName,
               "Shapes the output after the master fader. Soft rounds the "
               "peaks, Hard cuts them flat, Asymmetric bends one half of the "
-              "wave first, Limiter turns the level down and Fold folds the "
-              "wave back. Off lets the output go past full scale.");
+              "wave first, Limiter turns the level down, Fold folds the "
+              "wave back, Console is a mixing console's bus, Cassette a "
+              "cassette recorder and Print the console printed to the "
+              "cassette. Off lets the output go past full scale.");
 
   clipButton.onClick = [this] {
     auto m = buildClipMenu();
@@ -546,8 +488,6 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
                         .withStandardItemHeight(22),
                     [this](int result) { chooseClip(result); });
   };
-
-  clipButton.setColour(juce::TextButton::textColourOnId, colours::accent);
 
   addKnob(resonatorControls, "Resonator", "MIX", params::resonatorMixId,
           "From the instrument alone to the resonator alone", popupParent);
@@ -598,11 +538,8 @@ void TopBar::addKnob(std::vector<Control> &into, const juce::String &group,
   c.knob = std::make_unique<LabelledKnob>(caption);
   c.knob->slider.setTooltip(tooltip);
 
-  // Prefixed with the group, since MIX appears in both the echo and the
-  // reverb and the box around them is not something a screen reader conveys.
-  // The tooltip is the description rather than the name: several are whole
-  // sentences, and a name has to be short enough to be read out every time
-  // the control is reached.
+  // Prefixed with the group, since MIX appears in more than one. The tooltip
+  // goes in the description, since a name is read out every time.
   c.knob->slider.setTitle(group + " " + caption.toLowerCase());
   c.knob->slider.setDescription(tooltip);
   c.knob->slider.setPopupDisplayEnabled(true, true, &popupParent);
@@ -652,8 +589,7 @@ void TopBar::setBarsOpen(bool playing, bool tuning) {
 }
 
 void TopBar::setMacrosOn(bool on) {
-  // The panel being up does not change whether any macros are made, and the
-  // lit state says the latter, so opening it is shown by the panel itself.
+  // The lamp says whether any macros are made, not whether the panel is up.
   juce::ignoreUnused(on);
 }
 
@@ -663,11 +599,8 @@ void TopBar::setMacroCount(int made) {
 
   macrosMade = made;
 
-  // Lit when any are made, rather than counted. A macro's work is invisible
-  // until you look at a ring, so the bar should say that something is
-  // modulating, and a count would want twelve pixels the converter readouts
-  // need more: see kGroupMinWidth. The number itself is in the name a screen
-  // reader gets and in the panel, which has room for it.
+  // Lit when any are made. The count goes to the screen reader name rather
+  // than the button, which has no width for it. See kGroupMinWidth.
   macroButton.setToggleState(made > 0, juce::dontSendNotification);
   macroButton.setTitle(made > 0 ? "Macros, " + juce::String(made) + " made"
                                 : juce::String("Macros"));
@@ -676,18 +609,15 @@ void TopBar::setMacroCount(int made) {
 void TopBar::showLinkMenu(juce::Component *anchor,
                           const juce::String &parameterId, MidiLearn *map,
                           PointerTool tool) {
-  const LinkSettings settings{linkOn, scope, curve};
+  const LinkSettings settings{linkOn, scope, curve, hasSelection};
 
   auto m = buildToolMenu(tool, settings);
 
-  // Grown onto the end of the LINK menu rather than given a gesture of its
-  // own. A right-click on a control already opens this, and a second menu
-  // would mean teaching somebody a second way to ask.
+  // MIDI Learn items are added to the end of the LINK menu.
   auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
       parameterId.isEmpty() ? nullptr : apvts.getParameter(parameterId));
 
-  // The glide switches first, on a glide knob only: they are about the knob,
-  // where the learn items are about whatever was clicked.
+  // The glide switches first, on a glide knob only.
   glide::appendItems(m, apvts, parameterId);
 
   if (map != nullptr)
@@ -699,7 +629,7 @@ void TopBar::showLinkMenu(juce::Component *anchor,
   if (anchor != nullptr) {
     options = options.withTargetComponent(anchor);
   } else {
-    // Under the pointer, which is where a right-click expects to find it.
+    // Under the pointer.
     const auto p = juce::Desktop::getInstance()
                        .getMainMouseSource()
                        .getScreenPosition()
@@ -714,6 +644,13 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 
     if (glide::applyChoice(result, apvts))
       return;
+
+    if (isClearSelectionChoice(result)) {
+      if (onSelectionCleared != nullptr)
+        onSelectionCleared();
+
+      return;
+    }
 
     auto picked = PointerTool::Pointer;
 
@@ -741,13 +678,11 @@ void TopBar::showLinkMenu(juce::Component *anchor,
 void TopBar::setPresetName(const juce::String &name) {
   presetName = name;
 
-  // Lit either way. A segment is lit or it is not, and SELECT is as much a
-  // reading as a name is.
+  // Lit either way, the placeholder included.
   presetDisplay.setReading(name.isEmpty() ? kNoPreset : name, true);
 
-  // The same as the character button: the text on it is a value, so the name
-  // has to supply what the value is of. It matters more here than anywhere,
-  // the cells being drawn rather than written and unreadable any other way.
+  // The title names the reading for a screen reader, since the cells are
+  // drawn rather than written.
   presetDisplay.setTitle(name.isEmpty() ? "Preset: none loaded"
                                         : "Preset: " + name);
 }
@@ -785,8 +720,8 @@ void TopBar::chooseClip(int id) {
   if (on == nullptr)
     return;
 
-  // Off writes the switch alone, as the echo does, so coming back on returns
-  // to the shape that was chosen rather than to the first in the list.
+  // Off writes the switch alone, so coming back on returns to the shape that
+  // was chosen.
   if (id == 1) {
     on->setValueNotifyingHost(0.0f);
     return;
@@ -829,9 +764,8 @@ void TopBar::chooseEcho(int id) {
   if (on == nullptr)
     return;
 
-  // Off writes the switch alone and leaves the type where it was, so coming
-  // back on returns to the machine that was chosen rather than to the first
-  // one in the list.
+  // Off writes the switch alone, so coming back on returns to the machine that
+  // was chosen.
   if (id == 1) {
     on->setValueNotifyingHost(0.0f);
     return;
@@ -852,7 +786,7 @@ juce::PopupMenu TopBar::buildResonatorMenu() {
           ? 0
           : juce::roundToInt(mode->convertFrom0to1(mode->getValue()));
 
-  // Off apart from the rest, as the echo's and the reverb's menus have it.
+  // Off apart from the rest.
   for (int i = 0; i < (int)ResonatorMode::NumModes; ++i) {
     m.addItem(i + 1, resonatorModeName((ResonatorMode)i), true, i == which);
 
@@ -944,21 +878,14 @@ void TopBar::showChoiceMenu(const char *paramId,
 
 namespace {
 /// One level of the saved-preset menu: the folders inside it, and the presets
-/// sitting loose in it.
-///
-/// A map rather than a list, because the order a menu shows folders in should
-/// not depend on the order the filesystem handed them over.
+/// sitting loose in it. A map, so folders are sorted by name.
 struct SavedFolder {
   std::map<juce::String, SavedFolder> folders;
   std::vector<std::pair<juce::String, int>> presets;
 };
 
-/// Folders first, then the presets loose in this one.
-///
-/// Folders first because a preset sitting between two of them is easy to lose,
-/// and because it is the order every file browser already uses. Depth is
-/// whatever the folders are: nesting one inside another nests the menu, which
-/// is the behaviour anyone who made the folders would expect.
+/// Folders first, then the presets loose in this one, nested as deeply as the
+/// folders are.
 juce::PopupMenu buildSavedMenu(const SavedFolder &folder,
                                const juce::String &current) {
   juce::PopupMenu m;
@@ -977,10 +904,7 @@ juce::PopupMenu TopBar::buildPresetMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
-  // Ticked in the submenu it lives in, which is the thing a submenu costs: the
-  // list is no longer in front of you, so which one is loaded has to be
-  // findable once you are inside. The button says so too, but only for as long
-  // as the menu is shut.
+  // The loaded preset is ticked in its submenu.
   const auto current = getPresetName();
 
   juce::PopupMenu factoryMenu;
@@ -995,8 +919,7 @@ juce::PopupMenu TopBar::buildPresetMenu() {
   // and one deleted in Finder is not.
   userPresetFiles = presets::userPresets();
 
-  // Only when there is something in it. An empty submenu is a dead end, and
-  // the two items below say where saved presets come from anyway.
+  // Only when there is something in it.
   if (!userPresetFiles.isEmpty()) {
     const auto root = presets::userDirectory();
     SavedFolder tree;
@@ -1004,8 +927,7 @@ juce::PopupMenu TopBar::buildPresetMenu() {
     for (int i = 0; i < userPresetFiles.size(); ++i) {
       const auto &file = userPresetFiles.getReference(i);
 
-      // Where a preset sits under the preset folder is which group it lands
-      // in. One straight in the folder has no parts to walk and stays here.
+      // The preset's folder under the preset directory is its group.
       const auto relative = file.getParentDirectory().getRelativePathFrom(root);
 
       auto *folder = &tree;
@@ -1025,9 +947,8 @@ juce::PopupMenu TopBar::buildPresetMenu() {
   m.addSeparator();
   m.addItem(1, "Save preset...");
   m.addItem(2, "Open the preset folder");
-  // Absent unless the build asked for it. It puts C++ on the clipboard for
-  // pasting into Presets.cpp, which is no use to anyone who is not about to
-  // rebuild the plugin. See OVERTONIUM_PRESET_AUTHORING in CMakeLists.
+  // Puts C++ on the clipboard for pasting into Presets.cpp. Only in builds
+  // with OVERTONIUM_PRESET_AUTHORING. See CMakeLists.
 #if OVERTONIUM_PRESET_AUTHORING
   m.addSeparator();
   m.addItem(3, "Copy as factory preset code");
@@ -1098,8 +1019,7 @@ void TopBar::askForPresetName() {
 
 juce::String TopBar::versionLine() {
   // OVERTONIUM_VERSION comes from project() in CMakeLists, which the release
-  // workflow already holds to the tag being built, so this cannot say one
-  // thing while the release says another.
+  // workflow checks against the tag.
   return juce::String("Overtonium ") + OVERTONIUM_VERSION;
 }
 
@@ -1118,25 +1038,9 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
       m.addItem(it.getItem());
   };
 
-  // Which build this is, above the thing that offers to find a newer one, and
-  // both at the very top.
-  //
-  // It had never been anywhere. The bug report template asks for a version and
-  // will not take a report without one, and told people to read it off the
-  // Settings menu or the credit line under the wordmark, and it was in neither
-  // of those and nowhere else either. Somebody taking the trouble to report a
-  // fault was being asked for a number the instrument would not tell them.
-  //
-  // It went in under the undo pair to begin with, which put the answer to
-  // "which version is this" below two things that have nothing to do with the
-  // question and change every time you use them. A menu is read from the top,
-  // and what this is stays put while the rest of it does not.
-  //
-  // A header rather than an item, because it is a fact about the plugin and
-  // not something to be chosen. Disabled items read as actions that happen to
-  // be unavailable, which this is not.
-  // A new release goes above even that, since it is the reason the gear is
-  // lit and the first thing anyone opening the menu then is looking for.
+  // At the very top: a new release if there is one, then the version as a
+  // header, since it is a fact rather than a choice. The bug report template
+  // asks for this version.
   if (updateVersion.isNotEmpty()) {
     m.addItem(703, "Overtonium " + updateVersion + " is available...");
     m.addSeparator();
@@ -1144,9 +1048,6 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSectionHeader(versionLine());
 
-  // A tick rather than a submenu. It is one decision with two answers, and it
-  // is the only thing in this menu that reaches outside the machine, so it
-  // reads better stated plainly than buried a level down.
   m.addItem(702, "Check for new versions", true,
             isUpdateCheckAllowed && isUpdateCheckAllowed());
   m.addSeparator();
@@ -1157,9 +1058,8 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSectionHeader("Polyphony");
 
-  // The voice counts, from one up, then the other halves of the same
-  // question: how many voices one key may take, and whether a key going down
-  // while another is held starts a note or carries one on.
+  // The voice counts, then how many voices one key may take, and whether a
+  // key going down while another is held starts a note or carries one on.
   addInPlace(settings::voices(apvts));
 
   m.addItem(settings::kOneVoicePerKey, "No stack", true,
@@ -1171,23 +1071,15 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   addInPlace(settings::bendRange(apvts));
 
-  // One subject, so one group. Each of the three says how something the
-  // controller sends should reach the sound, none of them describes the sound
-  // itself, and none travels with a preset. Expression rather than any of the
-  // other names for it, since it is what the E in MPE already stands for.
-  //
-  // Still directly under the bend range, because MPE is the thing that changes
-  // what bend means: with it on, each note is bent and pressed on a channel of
-  // its own, and the range above applies to the wheel across all of them. An
-  // ordinary keyboard plays either way.
+  // How what the controller sends reaches the sound. Directly under the bend
+  // range, since MPE changes what bend means.
   m.addSeparator();
   m.addSectionHeader("Expression");
   m.addItem(settings::kMpe, "MPE", true, settings::isOn(apvts, params::mpeId));
   m.addSubMenu("Aftertouch from", settings::aftertouchFrom(apvts));
   m.addSubMenu("Slide to", settings::slideTo(apvts));
 
-  // Tuning of the keyboard itself, which is a decision about the instrument
-  // and gets set once, so it belongs here rather than on the panel.
+  // The keyboard's tuning.
   const auto temperamentIndex =
       settings::choiceIndex(apvts, params::temperamentId);
 
@@ -1195,24 +1087,21 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addSectionHeader("Tuning");
   m.addSubMenu("Temperament", settings::temperament(apvts));
 
-  // A temperament has to be built on something, and equal temperament is the
-  // one that does not care, unless the resonator's Series is built on it.
+  // Greyed out when nothing uses the root.
   m.addSubMenu("Root", settings::root(apvts), settings::rootInUse(apvts));
 
   m.addSubMenu("Reference pitch", settings::referencePitch(apvts));
 
-  // How fast the adaptive temperament moves a held note, which means nothing
-  // under any other.
+  // How fast the adaptive temperament moves a held note. Adaptive only.
   m.addSubMenu("Retune", settings::retune(apvts),
                temperamentIndex == (int)Temperament::Adaptive);
 
-  // Whether Adaptive puts a seventh on 7:4, which again means nothing under
-  // any other temperament.
+  // Whether Adaptive puts a seventh on 7:4. Adaptive only.
   m.addItem(settings::kHarmonicSevenths, "Harmonic sevenths",
             temperamentIndex == (int)Temperament::Adaptive,
             settings::isOn(apvts, params::adaptiveSeventhId));
 
-  // And whether it stays home rather than letting the keyboard drift.
+  // Whether Adaptive stays home rather than letting the keyboard drift.
   m.addItem(settings::kAdaptiveHome, "No drift",
             temperamentIndex == (int)Temperament::Adaptive,
             settings::isOn(apvts, params::adaptiveHomeId));
@@ -1233,22 +1122,16 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   m.addItem(301, "Safety clip", true,
             clip != nullptr && clip->getValue() > 0.5f);
 
-  // Under the clipper, because what it does is to that stage's limiter. It is
-  // the one setting here that changes what the plugin tells the host, so it
-  // says what it costs rather than leaving that to be found.
+  // The clipper's limiter. It changes the latency reported to the host, so
+  // the item says so.
   m.addItem(304, "Limiter lookahead (2 ms latency)", true,
             ahead != nullptr && ahead->getValue() > 0.5f);
 
-  // Last, and on its own. Everything above it is the instrument: how many
-  // voices, what the controller sends, how the keyboard is tuned, what leaves
-  // the outputs. How big the window is on your screen is not, and grouping it
-  // with any of them would imply it was.
+  // Last, and apart, since it is about the window rather than the instrument.
   m.addSeparator();
   m.addSubMenu("Zoom", zooms);
 
-  // Beside the zoom, since both are about the window rather than about the
-  // instrument, and a size that has been dragged narrow is otherwise
-  // remembered for good.
+  // Beside the zoom, since both are about the window.
   m.addItem(820, "Fit all 32 channels");
 
   return m;
@@ -1264,8 +1147,7 @@ void TopBar::showSettingsMenu() {
                     if (result == 0)
                       return;
 
-                    // Everything the bars offer as well, carried out in the one
-                    // place both go through.
+                    // Everything the bars offer as well.
                     if (settings::apply(apvts, result))
                       return;
 
@@ -1304,11 +1186,8 @@ void TopBar::showSettingsMenu() {
                   });
 }
 
-/// Lights or darkens the ring on every knob of an effect.
-///
-/// Only repaints the ones that actually change, since this runs on the
-/// housekeeping tick and a repaint of four knobs twenty times a second for no
-/// reason is four knobs of paint nobody asked for.
+/// Lights or darkens the ring on every knob of an effect. Only repaints the
+/// ones that change, since this runs on the housekeeping tick.
 void TopBar::setRingsLive(std::vector<Control> &controls, bool live) {
   for (auto &c : controls) {
     auto &slider = c.knob->slider;
@@ -1324,6 +1203,21 @@ void TopBar::setRingsLive(std::vector<Control> &controls, bool live) {
   }
 }
 
+/// Likewise only repaints a knob whose colour changes.
+void TopBar::setRingColour(juce::Slider &slider, juce::Colour colour) {
+  if (slider.findColour(juce::Slider::rotarySliderFillColourId) == colour)
+    return;
+
+  slider.setColour(juce::Slider::rotarySliderFillColourId, colour);
+  slider.repaint();
+}
+
+void TopBar::setRingColour(std::vector<Control> &controls,
+                           juce::Colour colour) {
+  for (auto &c : controls)
+    setRingColour(c.knob->slider, colour);
+}
+
 void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
     auto *p = apvts.getParameter(id);
@@ -1337,10 +1231,8 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto rate = params::kLofiRateChoices[(size_t)chosen(
       params::lofiRateId, (int)params::kLofiRateChoices.size())];
 
-  // Asking for more than the host has is not something anyone can be given, so
-  // the readout says what is actually happening rather than what was picked.
-  // Before the first prepareToPlay there is no host rate to compare against,
-  // and a deliberate choice should still show rather than waiting for one.
+  // The readout shows the rate in effect, not one above the host's. Before
+  // the first prepareToPlay the host rate is unknown, so a choice shows as is.
   const bool known = hostSampleRate > 0.0;
   const bool cutting = rate > 0 && (!known || (double)rate < hostSampleRate);
   const auto shown = cutting ? (double)rate : hostSampleRate;
@@ -1348,15 +1240,11 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto rateReading =
       shown > 0.0 ? juce::String(shown / 1000.0, 1) : juce::String();
 
-  // Lit whether it is cutting or not, since the host's own rate is as true a
-  // reading as a reduced one.
+  // Lit whether it is cutting or not.
   rateDisplay.setReading(rateReading, true);
 
-  // The name carries the reading as well as the label. A screen reader takes
-  // a component's title for its name, so a title of "Sample rate" on its own
-  // would name the control and hide what it says, and the digits on a
-  // seven-segment display are drawn rather than written and cannot be read
-  // any other way.
+  // The title carries the reading too, since a screen reader cannot read the
+  // drawn digits.
   rateDisplay.setTitle("Sample rate: " + (rateReading.isNotEmpty()
                                               ? rateReading + " kHz"
                                               : juce::String("unknown")));
@@ -1369,19 +1257,13 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   bitsDisplay.setTitle("Bit depth: " + juce::String(bits > 0 ? bits : 32) +
                        " bit");
 
-  // Read back rather than written when it is set, because a preset can change
-  // it without anyone having touched the button.
+  // Read back from the parameter, since a preset can change it.
   const auto character =
       chosen(params::characterId, params::characterChoices().size());
 
   // ---- which delay, and whether there is one -------------------------------
   //
-  // The machine's name when it is running and OFF when it is not. It used to
-  // say ECHO when it was off, so that the group could still be found with
-  // nothing switched on. The caption under the button says that now, which
-  // frees the face to say the one thing the caption cannot: whether any of
-  // this is in the signal. Lit either way by the same rule as every other
-  // switch on the bar: the word comes up, the face stays where it is.
+  // The machine's name when it is running and OFF when it is not.
   {
     auto *on = apvts.getParameter(params::echoOnId);
     auto *type = apvts.getParameter(params::echoTypeId);
@@ -1398,12 +1280,14 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
         running ? juce::String(echoTypeShortName(which)).toUpperCase()
                 : juce::String("OFF"));
 
-    // Named rather than shouted for a screen reader, and saying which control
-    // it is: the face reads out as "tape" on its own, which says nothing about
-    // what is being tape.
+    // The title says which control it is, for a screen reader.
     echoButton.setTitle(running ? "Echo: " + name : juce::String("Echo: off"));
+
+    // The lamp colour, one for each machine. See GlowButton.
+    echoButton.setColour(juce::TextButton::textColourOnId, echoColour(which));
     echoButton.setToggleState(running, juce::dontSendNotification);
 
+    setRingColour(echoControls, echoColour(which));
     setRingsLive(echoControls, running);
   }
 
@@ -1424,7 +1308,13 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
     resonatorButton.setButtonText(name.toUpperCase());
     resonatorButton.setTitle(running ? "Resonator: " + name
                                      : juce::String("Resonator: off"));
+    resonatorButton.setColour(juce::TextButton::textColourOnId,
+                              resonatorColour(which));
     resonatorButton.setToggleState(running, juce::dontSendNotification);
+
+    // Off has no colour of its own, and its rings are out anyway.
+    if (running)
+      setRingColour(resonatorControls, resonatorColour(which));
 
     setRingsLive(resonatorControls, running);
   }
@@ -1450,8 +1340,11 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     reverbButton.setTitle(running ? "Reverb: " + name
                                   : juce::String("Reverb: off"));
+    reverbButton.setColour(juce::TextButton::textColourOnId,
+                           reverbColour(which));
     reverbButton.setToggleState(running, juce::dontSendNotification);
 
+    setRingColour(reverbControls, reverbColour(which));
     setRingsLive(reverbControls, running);
   }
 
@@ -1468,40 +1361,39 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
     const juce::String name = clipTypeName(which);
 
-    // The short form, because Asymmetric does not fit across 46 px of label
-    // and the pixels it would need belong to the readouts beside it. See
-    // clipTypeShortName.
+    // The short form, to fit the button. See clipTypeShortName.
     clipButton.setButtonText(
         running ? juce::String(clipTypeShortName(which)).toUpperCase()
                 : juce::String("OFF"));
 
-    // "Clip" rather than the parameter's own word, because what it is called
-    // on the bar is what someone is looking for when they hear it.
+    // Named after the caption on the bar.
     clipButton.setTitle(running ? "Clip: " + name : juce::String("Clip: off"));
+    clipButton.setColour(juce::TextButton::textColourOnId, clipColour(which));
     clipButton.setToggleState(running, juce::dontSendNotification);
   }
 
-  // In capitals, like every other word on the bar. The menu it comes from
-  // keeps the names as they are written, since a list of words is a list of
-  // words rather than a row of switches.
+  // In capitals, like every other word on the bar.
   characterButton.setButtonText(
       params::characterChoices()[character].toUpperCase());
 
-  // Named rather than shouted, and saying which control it is. The button's
-  // own text is the value on its own, which a screen reader would read out as
-  // "squashed" with nothing to say what is.
+  // The title says which control it is, for a screen reader.
   characterButton.setTitle("Character: " +
                            params::characterChoices()[character]);
 
-  // Lit in its own colour, from yellow through to red, and not lit at all on
-  // Pure. Toggled rather than clicked into that state: the button opens a menu
-  // and the light says what came back from it.
+  // Lit in the character's colour, and not at all on Pure.
   const auto which = (Character)character;
 
   characterButton.setColour(juce::TextButton::textColourOnId,
                             characterColour(which));
   characterButton.setToggleState(which != Character::Pure,
                                  juce::dontSendNotification);
+
+  // The knobs in its frame light with it, in the accent on Pure.
+  const auto rings =
+      which == Character::Pure ? colours::accent : characterColour(which);
+
+  for (auto *knob : {&stretch, &track, &wobble})
+    setRingColour(knob->slider, rings);
 }
 
 void TopBar::setZoomChoice(float newZoom) { zoom = newZoom; }
@@ -1544,8 +1436,8 @@ TopBar::RowPlan TopBar::planRows(int fullWidth, int maxRows) {
 
   plan.rows = row;
 
-  // A last row holding one small group looks like a mistake rather than a
-  // layout. If there is a fuller row above it, pull a group down to join it.
+  // A last row holding one small group pulls a group down from a fuller row
+  // above.
   if (plan.rows >= 2) {
     const auto last = plan.rows - 1;
     const auto lastWidth =
@@ -1567,10 +1459,7 @@ int TopBar::heightForWidth(int width) {
 }
 
 int TopBar::minimumWidth() {
-  // The bar keeps working however narrow the window gets, stacking one group
-  // per row if it has to, but at some point the chrome is taller than the
-  // mixer underneath it. This is the narrowest window where it still fits in
-  // kMaxComfortableRows, and the editor takes it as the floor.
+  // The narrowest window where the bar still fits in kMaxComfortableRows.
   for (int width = 2 * kBarMargin + 1; width < 4000; ++width) {
     if (planRows(width - 2 * kBarMargin, kGroupCount).rows <=
         kMaxComfortableRows)
@@ -1607,10 +1496,8 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
                ? bounds.reduced(kGroupPad, 0).withTrimmedBottom(kBelowControls)
                : bounds;
 
-  // Everything in the bar lines up with the dials rather than with the middle
-  // of the row. A knob carries its caption underneath, so its dial sits above
-  // the centre, and anything centred in the row instead reads as sagging next
-  // to it.
+  // Everything in the bar lines up with the dials, which sit above the middle
+  // of the row because their captions are underneath.
   const auto alignedWithDials = [](juce::Component &c,
                                    juce::Rectangle<int> column) {
     const auto dial = LabelledKnob::dialBounds(column);
@@ -1623,8 +1510,7 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     alignedWithDials(b, column);
   };
 
-  /// The switch names the effect, so it stands at the head of its group and
-  /// the knobs follow.
+  // The button at the head of its group and the knobs after it.
   const auto effect = [&](juce::Button &toggle, std::vector<Control> &controls,
                           juce::Rectangle<int> area, int toggleWidth) {
     button(toggle, area.removeFromLeft(toggleWidth));
@@ -1636,26 +1522,14 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
 
   switch (group) {
   case PresetGroup:
-    // The wordmark over the preset name, both the width of the screen, so the
-    // name of the instrument and the name of what it is playing read as one
-    // block. The screen stands on the row's floor and paint puts the
-    // wordmark in what is left above it.
-    //
-    // Not a button. It is a display that opens a menu, the way the converter
-    // readouts are, so it is placed as a component rather than through the
-    // button helper.
+    // The preset screen stands on the row's floor, and paint puts the
+    // wordmark above it.
     presetDisplay.setBounds(r.withTop(r.getBottom() - kControlHeight));
     break;
 
   case VoiceGroup: {
-    // The four things on the bar that open something, two by two. The
-    // preset button is a fifth and stands on its own because it carries the
-    // name of what is loaded rather than a word.
-    //
-    // Two rows fill the row's height rather than lining up with the dials,
-    // which is the one place on the bar that does not: there is no room for
-    // a second row of buttons otherwise, and four in a line pushed the bar
-    // onto another row at the width that shows all 32 channels.
+    // The four buttons, two by two, filling the row's height rather than
+    // lining up with the dials.
     const auto half = (r.getWidth() - kButtonGap) / 2;
     const auto height = (r.getHeight() - kButtonGap) / 2;
 
@@ -1673,22 +1547,16 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
   }
 
   case ResonatorGroup:
-    // Laid out the way an effect is: their button at the head and their
-    // knobs after it.
     effect(resonatorButton, resonatorControls, r, kResonatorWidth);
     break;
 
   case SeriesGroup: {
-    // What the partials are comes before what is done to them, so the
-    // character stands at the head of the group the way an effect's switch
-    // stands at the head of its own.
+    // The character at the head of the group.
     button(characterButton, r.removeFromLeft(kCharacterWidth));
     r.removeFromLeft(kFxToggleGap);
 
-    // Split evenly rather than at the usual knob width, since STRETCH is a
-    // longer caption than anything else in the bar and would otherwise be cut.
-    // It measures 39 px, so what is left over here gives it room without the
-    // group having to be any wider than the character button made it.
+    // Split evenly rather than at the usual knob width, so the caption
+    // STRETCH is not cut.
     const auto each = r.getWidth() / 3;
 
     stretch.setBounds(r.removeFromLeft(each));
@@ -1709,32 +1577,19 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     // The meter takes the whole group, and the fader lies over it.
     alignedWithDials(meter, r);
 
-    // On the lamps rather than on the whole meter, since the scale marks run
-    // under them, and standing a little proud of them at both ends the way a
-    // channel's cap stands proud of its own meter. A cap exactly as tall as
-    // what it sits on reads as part of the meter rather than as something
-    // laid over it. See StereoOutputMeter::barBounds.
+    // Over the lamps rather than the scale, standing a little past them at
+    // both ends. See StereoOutputMeter::barBounds.
     masterFader.setBounds(
         meter.getBounds()
             .withTrimmedBottom(StereoOutputMeter::kScaleHeight)
             .expanded(0, kFaderOverhang));
 
-    // The two readouts go under it, in the band the knob captions occupy, so
-    // the converter reads as the last thing before the output rather than as
-    // another control competing with the meter. Held off the bottom of the
-    // group, since a readout sitting on the border reads as having fallen to
-    // the floor of it.
-    //
-    // Hard up under the meter at the top, though. The digits are drawn as a
-    // share of whatever height they are given, so every pixel between the two
-    // is a pixel off the figures, and the meter's own bottom edge is a clear
-    // enough line to sit against without a gap to prove it.
+    // The readouts go under the meter, in the band the knob captions use,
+    // hard up under the meter and held off the group's bottom border.
     auto below = r.withTop(meter.getBottom() + 1).withTrimmedBottom(3);
 
-    // Three things now, evenly spaced and centred as a block: what the
-    // converter is running at, how many bits it is keeping, and whether the
-    // clipper is catching what comes out. The readouts take what is left after
-    // the switch, up to the 66 px at which they can still name their units.
+    // The rate, the bits and the clipper, centred as a block. The readouts
+    // take what is left after the clipper, up to 66 px.
     const auto each =
         juce::jmin(66, (below.getWidth() - kFxToggleGap * 2 - kClipWidth) / 2);
 
@@ -1745,14 +1600,8 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
     trio.removeFromLeft(kFxToggleGap);
     bitsDisplay.setBounds(trio.removeFromLeft(each));
     trio.removeFromLeft(kFxToggleGap);
-    // The switch is a lamp in a moulding and the two beside it are plain
-    // recessed panels, so the same bounds leave its lit cap shorter than they
-    // are by the width of its own bezel, and the three read as two sizes. It
-    // takes that width back out of the slack above and below, which is there
-    // because the readouts are held off the group's border.
-    //
-    // Measured off the look and feel rather than written down here, so a
-    // moulding that changes width does not quietly put this back out of step.
+    // The clipper grows by its bezel, measured off the look and feel, so its
+    // lit cap is as tall as the readouts beside it.
     const auto bezel = juce::roundToInt(
         (trio.toFloat().getHeight() -
          OvertoniumLookAndFeel::lampCapBounds(
@@ -1760,15 +1609,8 @@ void TopBar::placeGroup(int group, juce::Rectangle<int> bounds) {
              .getHeight()) *
         0.5f);
 
-    // Upwards only, into the gap under the meter. Grown both ways it reached
-    // the group's own border, and a switch sitting on the line round its
-    // group reads as having fallen through it. The readouts are held off that
-    // border deliberately and this keeps the same footing.
-    //
-    // Clamped to the meter above, since that is the meter's own rectangle
-    // rather than spare bar. The runtime suite holds all three of these to
-    // sitting under the meter and inside the bar, which is what caught an
-    // earlier version of this taking its height from the wrong side.
+    // Upwards only, and no higher than the meter's bottom edge. The runtime
+    // tests check all three sit under the meter and inside the bar.
     auto lit = trio;
     lit.setTop(juce::jmax(trio.getY() - bezel, meter.getBottom()));
 
@@ -1805,8 +1647,8 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
     if (g == kOutputGroupIndex && hasOutput)
       width += outputAdjust;
 
-    // Never hand out more than is left, so a very narrow window crops the last
-    // group rather than letting groups overlap each other.
+    // Never more than is left, so a very narrow window crops the last group
+    // rather than overlapping groups.
     width = juce::jmin(width, row.getWidth());
     if (width < 40)
       break;
@@ -1816,8 +1658,8 @@ void TopBar::layoutRow(juce::Rectangle<int> row, int firstGroup,
 }
 
 void TopBar::resized() {
-  // Rescaled at twice the size it is drawn, so it stays sharp on a display
-  // that is doing the same thing again underneath us.
+  // Rescaled at twice the size it is drawn, so it stays sharp on a high
+  // density display.
   if (logo.isValid()) {
     const auto height = kRowHeight * 2;
     const auto width = juce::roundToInt((float)height * (float)logo.getWidth() /
@@ -1861,13 +1703,7 @@ void TopBar::paint(juce::Graphics &g) {
   g.setColour(colours::outline);
   g.fillRect(0, getHeight() - 1, getWidth(), 1);
 
-  // A panel behind each group, which is what carries the "these belong
-  // together" reading. The controls name themselves, so the boxes carry no
-  // titles of their own and cost no extra height.
-  //
-  // Only where there is something to group, though. A box drawn around a
-  // single button says nothing that the button was not already saying, and
-  // four of them in a row turn the bar into a fence.
+  // A panel behind each group with more than one control, untitled.
   for (int group = 0; group < NumGroups; ++group) {
     const auto &r = groupBounds[(size_t)group];
 
@@ -1881,18 +1717,8 @@ void TopBar::paint(juce::Graphics &g) {
     paintGroupPocket(g, r);
   }
 
-  // What the button at the head of each group is choosing, under it, in the
-  // band the knobs beside it put their captions in.
-  //
-  // Every knob in these groups says what it is and the button does not: it
-  // shows a value, so the echo group reads TAPE and nothing on the bar says
-  // that TAPE is the echo. That was tolerable while each of these was one
-  // fixed thing behind a switch. With three machines on each of two of them
-  // the face changes six ways, and a row of value words with nothing naming
-  // them is a bar you have to already know.
-  //
-  // The output group gets none. The meter under it is what says what it is,
-  // and the two readouts below already name their own units.
+  // A caption under the button at the head of each group, saying what it
+  // chooses, since the button shows a value. The output group gets none.
   {
     const struct {
       int group;
@@ -1914,9 +1740,7 @@ void TopBar::paint(juce::Graphics &g) {
       if (r.isEmpty())
         continue;
 
-      // Centred under the head rather than pushed into the corner, because
-      // that is what the knob captions beside it do and the point is to read
-      // as one more of them.
+      // Centred under the button, as the knob captions are.
       const auto band =
           LabelledKnob::captionBounds(r.withTrimmedBottom(kBelowControls))
               .withX(n.head->getX())
@@ -1926,9 +1750,8 @@ void TopBar::paint(juce::Graphics &g) {
     }
   }
 
-  // The wordmark, the width of the preset screen under it, at the top of the
-  // room above it, so its tallest letter is level with the top of the
-  // buttons and the frames.
+  // The wordmark, the width of the preset screen under it, its top level with
+  // the buttons and the frames.
   const auto &preset = groupBounds[(size_t)PresetGroup];
 
   if (preset.isEmpty())
@@ -1944,7 +1767,7 @@ void TopBar::paint(juce::Graphics &g) {
     return;
   }
 
-  // Nothing to fall back to but the name, which is better than a blank corner.
+  // Without the logo image, the name in text.
   g.setColour(colours::text);
   g.setFont(makeFont(18.0f, true));
   g.drawText("OVERTONIUM", above, juce::Justification::centred, false);
@@ -1958,8 +1781,7 @@ void TopBar::setUpdateAvailable(const juce::String &version,
   updateVersion = version;
   updateUrl = url;
 
-  // Lit while there is something to say, which is the one thing besides its
-  // menu that the gear ever says. The first item in the menu is what it is.
+  // Lit while a new release is available.
   settingsButton.setToggleState(version.isNotEmpty(),
                                 juce::dontSendNotification);
   settingsButton.setTooltip(

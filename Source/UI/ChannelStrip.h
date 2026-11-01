@@ -14,25 +14,20 @@
 
 namespace ovt::ui {
 
-/// A Slider that knows whether the human is currently holding it.
+/// A Slider that knows whether the user is holding it.
 ///
-/// That distinction is what makes the LINK switch safe: a value change caused
-/// by a drag gets broadcast to the other 31 strips, while one caused by
-/// automation, a preset load or the broadcast itself does not, so there is no
-/// feedback loop.
+/// A change from a drag is broadcast to the other strips by LINK, while one
+/// from automation, a preset load or the broadcast itself is not, so there
+/// is no feedback loop.
 class LinkableSlider : public juce::Slider {
 public:
-  /// A right-click is the strip's, not the slider's: it opens the LINK menu.
-  /// Left to itself the slider would open a drag gesture it never closes,
-  /// since the mouse-up goes to the menu rather than back here.
+  /// A right-click is the strip's, for the LINK menu. The slider would start a
+  /// drag it never ends, since the mouse-up goes to the menu.
   void mouseDown(const juce::MouseEvent &e) override {
     if (e.mods.isPopupMenu())
       return;
 
-    // A drag that is going to be a drawn one never becomes a slider drag at
-    // all. Letting the slider take it and handing the pointer on as well would
-    // move this fader twice, once from its own drag and once from being the
-    // first column the drawing crosses.
+    // A drawn drag never becomes a slider drag, or this fader would move twice.
     if (onDrawStart != nullptr && onDrawStart(e)) {
       drawing = true;
       return;
@@ -95,10 +90,8 @@ public:
 
   std::function<void()> onUserDragStart, onUserDragEnd;
 
-  /// Drawn from a picture of itself when nothing that decides its look has
-  /// changed. Scrolling the mixer or resizing the window repaints every strip,
-  /// and drawing six hundred knobs again exactly as they were is most of what
-  /// that costs. See paint for what counts as a change.
+  /// Drawn from a cached picture when nothing that decides its look has
+  /// changed. See paint for what counts as a change.
   void paint(juce::Graphics &) override;
 
 private:
@@ -110,10 +103,8 @@ private:
 
 /// An endless, relative control.
 ///
-/// It has no meaningful absolute position. It reports how far it has been
-/// turned since the drag began and springs back to centre on release, so the
-/// 32 strips it drives keep whatever spread you dialled into them instead of
-/// all jumping to one value.
+/// It reports how far it has been turned since the drag began and springs
+/// back to centre on release, so the strips it drives keep their spread.
 class RelativeKnob : public juce::Slider {
 public:
   RelativeKnob();
@@ -128,8 +119,8 @@ public:
 
 /// A knob with a caption underneath.
 ///
-/// The strips get their captions from the gutter, so this is for the controls
-/// that stand on their own: the master section and the effects.
+/// For the controls that stand on their own, such as the master section and
+/// the effects. The strips get their captions from the gutter.
 class LabelledKnob : public juce::Component {
 public:
   explicit LabelledKnob(juce::String captionText,
@@ -140,19 +131,14 @@ public:
 
   /// Where the dial sits inside bounds of this size.
   ///
-  /// Public because a panel that mixes knobs with buttons has to line the
-  /// buttons up with the dials rather than with the middle of the row: the
-  /// caption underneath means the two are not the same place.
+  /// Public so a panel can line buttons up with the dials rather than with the
+  /// middle of the row.
   static juce::Rectangle<int> dialBounds(juce::Rectangle<int>);
 
-  /// And where the caption under it sits, for the same reason turned around.
-  /// The bar names a group in the band its knobs put their captions in, and
-  /// reading that band off the same function is what keeps the two on one
-  /// line however the band is sized.
+  /// Where the caption under the dial sits, so a group name can share its line.
   static juce::Rectangle<int> captionBounds(juce::Rectangle<int>);
 
-  /// For a knob whose name follows what it is aimed at. Leaves the spoken
-  /// name alone, which the owner keeps as it needs.
+  /// Changes the caption only, leaving the accessible name to the owner.
   void setCaption(const juce::String &);
   const juce::String &getCaption() const noexcept { return caption; }
 
@@ -162,112 +148,66 @@ private:
   juce::String caption;
 };
 
-/// A small seven-segment readout, the way a piece of hardware labels a value.
+/// A small segment readout with a fixed number of cells.
 ///
-/// Used for the converter settings on the bar and for the two figures under
-/// each channel, the cents a partial is tuned by and the level its fader is
-/// at. Digits, a decimal point, a sign, and the few letters needed to say the
-/// things that are not numbers: ET for a partial left in equal temperament,
-/// and -inF for a fader all the way down.
-///
-/// Dimming means the value is a statement of fact rather than something being
-/// changed: a converter left at the host's own rate still says what that rate
-/// is, and a partial with no tuning to do still says so.
-///
-/// Give it an onClick and it becomes a control, opening whatever menu the
-/// value came from, and picks up a hover outline to say so. Without one it is
-/// a readout and stays quiet under the pointer.
+/// Used for the converter settings on the bar and for the cents and level
+/// figures under each channel. With an onClick it becomes a control that
+/// opens a menu and shows a hover outline.
 class SegmentDisplay : public juce::Component,
                        public juce::SettableTooltipClient {
 public:
-  /// How many bars a cell has, which decides what it can say.
-  ///
-  /// Seven manages the digits and about five letters, which is everything a
-  /// readout on this panel has to report. Fourteen carries the alphabet, for
-  /// the one display that has to spell: a preset is called Glockenspiel.
+  /// How many bars a cell has: seven for digits and a few letters, fourteen
+  /// for the whole alphabet.
   enum class Bars { Seven, Fourteen };
 
   /// The most cells a display can have.
   static constexpr int kMaxCells = 16;
 
   /// @param unit   drawn small beside the digits, or empty for none.
-  /// @param cells  how many cells the display has, each with its bars and a
-  ///               decimal point. Fixed, as on a real display, so the figures
-  ///               are the same size whatever they say: a reading lights some
-  ///               of the cells and leaves the rest unlit.
+  /// @param cells  how many cells the display has. Fixed, so the figures are
+  ///               the same size whatever they say.
   explicit SegmentDisplay(juce::String unit, Bars bars = Bars::Seven,
                           int cells = 4);
 
   /// @param digits  0 to 9, a minus, which takes a cell, a decimal point,
   ///                 which lights the point of the cell before it, and the
-  ///                 letters in segmentsFor. A fourteen-bar display takes the
-  ///                 whole alphabet as well, upper-casing as it goes, which is
-  ///                 what a display with no lower case does. Anything else is
-  ///                 drawn blank.
-  /// @param active  false leaves every bar unlit, for a display with nothing
-  ///                 to say. A segment is lit or it is not, so there is no
-  ///                 dimmer reading in between.
+  ///                 letters in segmentsFor. A fourteen-bar display also takes
+  ///                 the whole alphabet, upper-cased. Anything else is blank.
+  /// @param active  false leaves every bar unlit.
   void setReading(const juce::String &digits, bool active);
 
-  /// Gives the display a sharp sign beside its cells, the way a tuner's screen
-  /// has one printed into it: a fixed shape, lit when the reading has a # in
-  /// it and unlit otherwise. Fourteen bars can only draw a sharp as a broken
-  /// letter, and a note name needs one.
+  /// Gives the display a fixed sharp sign beside its cells, lit when the
+  /// reading has a # in it.
   void showSharpSign(bool shouldShow);
 
-  /// How wide this display has to be, at a given height, for every cell to
-  /// stand at its full width with room for the sharp sign and the unit if it
-  /// has them. A display given less squeezes its cells, so its figures come
-  /// out narrower than every other display's at the same height.
+  /// How wide this display has to be at @p height for every cell to stand at
+  /// full width, with room for the sharp sign and the unit if it has them.
   int naturalWidth(int height) const;
 
-  /// How many bars its cells have, which says what it is for: a seven-bar one
-  /// reports a number and a fourteen-bar one spells a name. Read back by the
-  /// tests, which hold each display's reading against what its own cells can
-  /// draw rather than against a single alphabet.
+  /// How many bars its cells have. Read back by the tests.
   Bars howManyBars() const noexcept { return bars; }
 
   /// Fits a name to a fixed number of cells.
   ///
-  /// Upper case, then the spaces go from the right, then the vowels, then
-  /// what is left is cut. Never the first character, whatever it is: a name
-  /// that starts with a vowel still has to start with it.
-  ///
-  /// Spaces before vowels, because a space is a cell saying nothing and a
-  /// vowel is a cell saying something. It runs the words together, which is
-  /// the price: Tape Choir keeps every letter as TAPECHOIR where cutting
-  /// would have given TAPE CHOI. Y is not a vowel here, which is what keeps
-  /// SYNTH and NYLON and STYLOPOLY readable.
-  ///
-  /// Shorter than @p cells comes back padded, so the caller always has
-  /// exactly that many characters.
+  /// Upper case, then spaces go from the right, then vowels (not Y), then the
+  /// rest is cut. The first character is always kept. Shorter names come back
+  /// padded to exactly @p cells characters.
   static juce::String squeeze(const juce::String &, int cells);
 
-  /// How many of the reading's characters the last paint had room for.
-  ///
-  /// A name wider than the display is cut rather than squeezed, and a cell
-  /// count that is one short of the characters is what a dropped letter looks
-  /// like from here. Nothing else can see it: the cells are drawn, so the
-  /// only other way to ask is to count marks in a render, and a K has a wider
-  /// gap down its own middle than there is between one cell and the next.
+  /// How many of the reading's characters the last paint had room for, so
+  /// the tests can see a dropped letter.
   int cellsDrawn() const noexcept { return drawn; }
 
-  /// What it is showing, and whether it is showing it lit. Read back by the
-  /// tests, which is the only way to check a component that is otherwise
-  /// nothing but paint.
+  /// What it is showing, and whether it is lit. Read back by the tests.
   const juce::String &getReading() const noexcept { return reading; }
   bool isActive() const noexcept { return active; }
 
   /// Whether a display this wide has room to name its unit beside the digits.
   ///
-  /// Public because it is a layout rule rather than a painting detail: what
-  /// the bar hands its converter readouts decides whether they can say what
-  /// their numbers mean, and a test holds the bar to it.
   static bool hasRoomForUnit(int width);
 
-  /// Whether this character has a form to draw, either as a glyph or as one
-  /// of the narrow cells. Anything else comes out as an unlit digit, so the
-  /// tests hold every reading the panel can produce against this.
+  /// Whether this character has a form to draw. Anything else comes out as an
+  /// unlit digit.
   static bool canDraw(char, Bars = Bars::Seven);
 
   std::function<void()> onClick;
@@ -277,13 +217,8 @@ public:
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
 
-  /// Announces one that opens a menu as the button it is.
-  ///
-  /// A plain component has no role and no actions, so the two converter
-  /// settings were the one part of the panel a screen reader could neither
-  /// name nor reach, and their digits are drawn rather than written so there
-  /// was nothing to fall back on either. One that is only a readout is left
-  /// as it is, which is what it is.
+  /// Announces a display with an onClick as a button, so a screen reader can
+  /// name and press it. A plain readout gets no handler of its own.
   std::unique_ptr<juce::AccessibilityHandler>
   createAccessibilityHandler() override;
 
@@ -317,16 +252,8 @@ private:
 
 /// A slim output meter for one partial.
 ///
-/// Segmented rather than a continuous bar, which is the old spectrum-analyser
-/// look and is also what makes it cheap. A smooth bar has to be redrawn on
-/// every frame in which the level moves at all, which for a decaying note is
-/// every frame. A segmented one only changes when the level crosses a segment
-/// boundary, so a slow decay redraws a handful of times a second instead of
-/// thirty, and the frames in between cost nothing at all.
-///
-/// Unlit segments keep the channel colour at low alpha rather than going dark,
-/// so the meter reads as a column of lamps that are off rather than as a bar
-/// that has gone.
+/// Segmented, so it only repaints when the level crosses a segment boundary.
+/// Unlit segments keep the channel colour at low alpha.
 class LevelMeter : public juce::Component {
 public:
   explicit LevelMeter(juce::Colour barColour) : colour(barColour) {
@@ -335,19 +262,13 @@ public:
 
   /// The channel background behind this meter, at its top and bottom edges.
   ///
-  /// Given these, the meter paints its own backdrop and can declare itself
-  /// opaque, which stops the strip underneath being redrawn every time a lamp
-  /// changes. The colours have to come from the strip because the background
-  /// is a gradient down the whole channel, and the meter only covers a slice
-  /// of it.
+  /// Given these, the meter paints its own backdrop and declares itself
+  /// opaque, so the strip underneath is not redrawn when a lamp changes.
   void setBackdrop(juce::Colour top, juce::Colour bottom);
 
   /// @param level  linear amplitude from the audio thread, 0 to 1.
   /// @returns the region it asked to have repainted, empty when nothing moved.
   ///
-  /// Handing the region back rather than exposing the maths behind it keeps
-  /// the test honest: it checks the rectangle the component actually used, in
-  /// the units the component actually used, and cannot drift from it.
   juce::Rectangle<int> push(float level);
 
   void paint(juce::Graphics &) override;
@@ -366,17 +287,9 @@ private:
 
 /// A lamp mounted on one of the rules that divide a strip into groups.
 ///
-/// It says how hard the group below it is working on this partial right now:
-/// the envelope's position, the key-off stage that takes over from it, how far
-/// the tremolo has pulled the level down. The rule is already there, so the
-/// lamp costs no height at all and reads as something fitted to the divider
-/// rather than as another row of controls.
-///
-/// Brightness is quantised, for the same reason the level meter is segmented.
-/// A lamp that follows a value exactly is a lamp that repaints on every frame
-/// in which the value moves at all, which for anything modulated is every
-/// frame. In steps it repaints only when it has something new to show, and a
-/// slow envelope goes whole seconds without costing a frame.
+/// It shows how hard the group below is working on this partial, such as the
+/// envelope's position or how far the tremolo has pulled the level down.
+/// Brightness is quantised so it only repaints when it moves a step.
 class ActivityLamp : public juce::Component {
 public:
   explicit ActivityLamp(juce::Colour litColour) : colour(litColour) {
@@ -384,8 +297,7 @@ public:
   }
 
   /// The channel background behind the lamp, so it can paint its own backdrop
-  /// and declare itself opaque. See LevelMeter::setBackdrop, which is the same
-  /// bargain: an opaque child is one the strip underneath need not redraw.
+  /// and declare itself opaque. See LevelMeter::setBackdrop.
   void setBackdrop(juce::Colour);
 
   /// @param brightness  0 to 1, how hard the group is working.
@@ -406,36 +318,29 @@ private:
 /// A needle on a rule, showing where pitch modulation, drift and a glide still
 /// on its way have this partial.
 ///
-/// Reads like a tuner because that is the thing it is: centre is the note as
-/// written, right is sharp, left is flat, against a fixed scale that is the
-/// same on every strip. Full deflection is the widest displacement the two
-/// controls can produce together, so how far the needle swings says how deep
-/// the modulation is set and two channels can be compared by eye.
+/// Centre is the note as written, right is sharp, left is flat, on a fixed
+/// scale that is the same on every strip.
 class ActivityNeedle : public juce::Component {
 public:
   explicit ActivityNeedle(juce::Colour needleColour) : colour(needleColour) {
     setInterceptsMouseClicks(false, false);
   }
 
+  /// See LevelMeter::setBackdrop.
   void setBackdrop(juce::Colour);
 
   /// The margin the slot leaves itself inside the component, each side.
   ///
-  /// The lip of a recess is drawn around the opening rather than inside it,
-  /// so an opening taken out to the component's own edge has nowhere to put
-  /// its side walls and loses its rounded ends with them. One pixel is what
-  /// the lip needs and is all this has to give. The travel is measured off
-  /// the same number, so the needle still reaches both ends of the slot and
-  /// no further.
+  /// One pixel for the recess lip, which is drawn outside the opening. The
+  /// travel is measured off the same number.
   static constexpr int kSlotInset = 1;
 
   /// @param position  -1 to 1, flat to sharp, already scaled by the caller.
   /// @returns true when the needle moved a pixel and needs repainting.
   bool push(float position);
 
-  /// Whether the travel is marked at its middle. On by default, for a reading
-  /// that rests there. Off for one that rests at the left end and only rises,
-  /// where a mark halfway would say nothing.
+  /// Whether the travel is marked at its middle. Off for a reading that rests
+  /// at the left end.
   void showCentre(bool);
 
   /// Where the needle sits, in pixels from the left edge, or -1 for parked.
@@ -446,8 +351,7 @@ public:
 
 private:
   /// Where the needle sits, in pixels from the left edge, or -1 for parked.
-  /// Quantised to the pixel because a needle that has not moved a whole pixel
-  /// has not moved.
+  /// Quantised to the pixel, so it only repaints when it moves a pixel.
   int column = -1;
   bool centreMark = true;
 
@@ -466,12 +370,8 @@ public:
 
   /// The channel highlight, drawn over everything rather than behind it.
   ///
-  /// The row wash can sit behind the children because the things it crosses
-  /// are knobs, which have transparent corners for it to show through. A
-  /// column crosses the meter and the lamps, which paint their own backgrounds
-  /// so the strip underneath does not have to, and behind those it would
-  /// simply disappear, leaving the channel marked everywhere except the parts
-  /// with something in them.
+  /// Over the children because the meter and the lamps paint opaque
+  /// backgrounds that would hide it.
   void paintOverChildren(juce::Graphics &) override;
 
   void resized() override;
@@ -482,10 +382,8 @@ public:
 
   /// How far the parameters are scrolled, shared by every column.
   ///
-  /// The gutter, the 32 strips and the noise channel are handed the same
-  /// number by the editor, which is what keeps a caption pointing at the knob
-  /// beside it. Snapped to a row boundary inside layoutRows, so a row is never
-  /// half over the header.
+  /// The gutter and every strip get the same number, so captions line up with
+  /// their knobs. Snapped to a row boundary inside layoutRows.
   void setScroll(int);
 
   /// Asked for when a click lands on one of the rules between sections, which
@@ -495,10 +393,8 @@ public:
   /// Sets this channel's fader from a height, for a drag that is drawing
   /// across the mixer rather than moving one fader.
   ///
-  /// The height is in this strip's own coordinates. The strip does the reading
-  /// rather than the editor because the value is the slider's business: its
-  /// range is skewed to match the parameter's, and a proportion of the track
-  /// is the only honest way in.
+  /// @p y is in this strip's own coordinates. Read through the slider, whose
+  /// range is skewed to match the parameter's.
   void drawFaderAt(int y);
 
   /// The row the pointer is on, with the rules between sections counted as
@@ -509,31 +405,23 @@ public:
   void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
   void mouseDown(const juce::MouseEvent &) override;
+  void mouseDrag(const juce::MouseEvent &) override;
+  void mouseUp(const juce::MouseEvent &) override;
 
-  /// Keeps a wheel that landed on a control from scrolling the mixer as well.
-  ///
-  /// The strip listens to everything inside it, so that a pointer resting on a
-  /// knob is reported by the strip rather than swallowed by the control. JUCE
-  /// hands that listener every event, wheels included, and Component's own
-  /// handler passes whatever it is given up to the parent. So a scroll the
-  /// knob had already taken went on to the viewport and dragged the series
-  /// sideways under the hand that was turning the knob, whenever the window
-  /// was narrow enough for there to be anything to scroll.
-  ///
-  /// Only a wheel that actually landed on the strip is passed on, which leaves
-  /// the background scrolling the series and a control keeping its own.
   /// Asks the editor to scroll, and says whether it had anywhere to go.
   bool scrollParametersBy(const juce::MouseWheelDetails &);
 
+  /// Passes on only a wheel that landed on the strip itself, so a wheel a
+  /// control has taken does not scroll the mixer as well.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
-  /// Greys the strip out when another strip's solo is silencing it.
+  /// Turns the strip's lights and screens off when another strip's solo is
+  /// silencing it. Its mute and solo stay lit.
   void setSilencedByOthers(bool shouldDim);
 
   /// @returns the region of this strip that needs redrawing, empty if the
-  /// meter did not move. The editor collects these and invalidates once, so
-  /// the window sees one dirty rectangle a frame rather than thirty-three.
+  /// meter did not move. The editor merges these and invalidates once.
   juce::Rectangle<int> setMeterLevel(float level) {
     const auto band = meter.push(level);
     return band.isEmpty() ? band : band.translated(meter.getX(), meter.getY());
@@ -542,34 +430,20 @@ public:
   /// What the lamps on the section rules show.
   ///
   /// @param envelope  signed: positive while the key is down, negative once
-  ///                  the key-off stage has it. The two lamps split on that
-  ///                  sign, so one hands over to the other rather than both
-  ///                  being lit at once.
+  ///                  the key-off stage has it.
   /// @param tremolo   how far the tremolo has pulled the level down, 0 to 1.
   /// @param pitch     displacement in cents, or the parked value when the
   ///                  partial is silent.
   ///
   /// Appends the bounds of every lamp that moved, in this strip's own
-  /// coordinates, and leaves the frame with nothing appended when nothing
-  /// moved.
-  ///
-  /// They go back to the editor rather than each invalidating itself, so they
-  /// are merged along with the meter bands into the handful of rectangles the
-  /// window is given. A hundred and twenty-nine separate small invalidations
-  /// is the case the merging exists to avoid: past a handful the window gives
-  /// up and redraws their bounding box, which here is the whole mixer.
-  ///
-  /// They merge well, too. Every strip's lamps sit at the same height, so the
-  /// union of a row of them is a thin wide band with no wasted area in it,
-  /// which is the opposite of what the meter bands do.
+  /// coordinates, for the editor to merge with the meter bands. Too many
+  /// separate invalidations make the window redraw their whole bounding box.
   void setActivity(float envelope, float tremolo, float pitch, float velGain,
                    float pressure, juce::Array<juce::Rectangle<int>> &into);
 
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
-  /// Fixed scale, not the strip's own: full deflection is always
-  /// params::kPitchNeedleFullScaleCents, so a shallow setting stays near the
-  /// middle instead of using the whole width like a deep one.
+  /// Full deflection is always params::kPitchNeedleFullScaleCents.
   static float needlePosition(float cents);
 
   /// Whether the pointer is on this channel, which is what lights the column.
@@ -588,24 +462,21 @@ public:
   /// How much of a LINK drag this channel would take, 0 to 1, for the number
   /// at the head of the strip.
   ///
-  /// The knobs already glow by the same number, and this is the same answer
-  /// read at a glance rather than a second one: a glow on a 26 px knob is
-  /// easy to miss across thirty-two columns, and the number is the biggest,
-  /// highest contrast thing a channel owns. It is also already the channel's
-  /// name, which is exactly the question a scope raises.
   void setLinkReach(float amount);
+
+  /// Whether this channel is in the selection the Selected scope reaches.
+  /// Marked under the number, apart from the LINK reach, which lights the
+  /// number itself.
+  void setSelected(bool);
+  bool isSelected() const { return selected; }
 
   /// Which macro drives this row, as its colour, or transparent for none.
   ///
-  /// Carried beside the control's own colour rather than replacing it. The
-  /// pointer on a knob stays the channel's colour, which is what says which
-  /// partial you are looking at, and the ring beyond it goes to the macro's,
-  /// which is what says where the macro has taken the value.
+  /// The ring goes to the macro's colour while the pointer keeps the
+  /// channel's.
   ///
   /// @param result  where the row ends up once the macro has had its say, as
-  ///                a proportion of the control's travel. The same as the
-  ///                control's own position when no macro is driving it, which
-  ///                is what makes a macro at rest look like no macro at all.
+  ///                a proportion of the control's travel.
   void setMacroTint(Role, juce::Colour, float result);
 
 private:
@@ -652,13 +523,11 @@ private:
   LinkableSlider tune, glide, pmRate, pmDepth, drift, strike, delay, attack,
       decay, sustain, swell, offLevel, release, amRate, amDepth, velocity,
       aftertouch, pan, volume;
-  /// What each modulator traces. A glyph rather than a knob, since eight
-  /// named shapes are a list and not a range.
+  /// What each modulator traces.
   ShapeButton pmShape, amShape;
 
   MuteSoloButton muteButton, soloButton;
-  /// No unit on either: the gutter caption beside them already says cents and
-  /// dB, and twenty-one pixels of "ct" would leave the digits nothing.
+  /// No unit on either, since the gutter caption beside them says it.
   SegmentDisplay tuneReadout{{}}, levelReadout{{}};
   LevelMeter meter;
 
@@ -672,8 +541,8 @@ private:
 
   Row highlighted = kNoRow;
 
-  /// Folded groups. Nothing here decides it, the editor does, but every
-  /// layout and hit test in this strip has to agree with it.
+  /// Folded groups, set by the editor. Every layout and hit test here follows
+  /// it.
   SectionMask collapsed = 0;
   int scroll = 0;
 
@@ -699,10 +568,12 @@ private:
   /// under the pointer does not repaint thirty-two headers every frame.
   float linkReach = 0.0f;
 
-  /// Whether the glow is lit in the accent rather than in the channel's own
-  /// colour. LINK's preview is per channel, since it is saying how much each
-  /// one would take; the drawing's is one colour across the mixer, since every
-  /// fader is equally drawable and the band is one surface.
+  /// See setSelected, and whether a selection drag began on this strip.
+  bool selected = false;
+  bool selecting = false;
+
+  /// Whether the glow is lit in the accent, for drawing, rather than in the
+  /// channel's own colour, for LINK.
   bool glowAccent = false;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChannelStrip)

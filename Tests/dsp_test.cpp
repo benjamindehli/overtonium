@@ -3,11 +3,9 @@
 //   c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o
 //   dsp_test && ./dsp_test
 //
-// Every SynthEngine here is built on the heap and read through a reference, so
-// a test reads as though it held one. An engine is about 260 kB, and MSVC
-// gives the main thread a 1 MB stack where the other platforms give 8, so a
-// test holding a few of them overflows it on Windows alone, as a segfault
-// carrying no output at all.
+// Every SynthEngine here is built on the heap and read through a reference,
+// since a few of them on the stack overflow the 1 MB main thread stack MSVC
+// gives.
 
 #include <algorithm>
 #include <array>
@@ -17,6 +15,7 @@
 #include <complex>
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <random>
 #include <string>
@@ -53,6 +52,7 @@ namespace {
 int failures = 0;
 int checks = 0;
 
+/// Counts a check, and prints it when it fails.
 void check(bool ok, const std::string &what) {
   ++checks;
   if (!ok) {
@@ -63,12 +63,8 @@ void check(bool ok, const std::string &what) {
 
 void section(const char *name) { std::printf("\n== %s ==\n", name); }
 
-/// Single-bin DFT magnitude with a Hann window.
-///
-/// The window matters: with a rectangular window the sidelobes of a strong
-/// partial only fall off as 1/f, which smears a neighbouring partial across the
-/// whole spectrum at around -48 dB and drowns out exactly the low-level alias
-/// images we are looking for.
+/// Single-bin DFT magnitude with a Hann window, whose low sidelobes keep a
+/// strong partial from hiding the low-level alias images being looked for.
 double binMagnitude(const std::vector<float> &x, double freq,
                     double sampleRate) {
   double re = 0.0, im = 0.0, norm = 0.0;
@@ -87,11 +83,8 @@ double binMagnitude(const std::vector<float> &x, double freq,
   return std::sqrt(re * re + im * im) / norm;
 }
 
-/// Mean magnitude across a band.
-///
-/// A single bin of a noise signal is Rayleigh distributed, so one bin carries
-/// almost no information and the ratio of two of them is wildly variable.
-/// Averaging many bins is what makes a spectral claim about noise meaningful.
+/// Mean magnitude across a band. A single bin of noise varies wildly, so a
+/// spectral claim about noise needs many bins averaged.
 double bandMagnitude(const std::vector<float> &x, double lowHz, double highHz,
                      double sampleRate, int bins = 40) {
   double sum = 0.0;
@@ -104,6 +97,8 @@ double bandMagnitude(const std::vector<float> &x, double lowHz, double highHz,
   return sum / (double)bins;
 }
 
+/// A patch with every partial at the same fader, a short envelope, full level
+/// at any velocity and no modulation.
 SynthParams makeFlatParams(float volumePerPartial) {
   SynthParams p;
 
@@ -266,6 +261,8 @@ void testStretch() {
         "piano-sized stretch leaves the low partials alone");
 }
 
+/// Keyboard tracking thins a high note's upper partials without changing its
+/// fundamental, and leaves everything at or below the fundamental alone.
 void testTracking() {
   section("Keyboard tracking");
 
@@ -350,11 +347,10 @@ void testTracking() {
         "and the fundamental is left where it was at both pitches");
 }
 
-/// Where a partial starts its cycle. With phase reset on, the bottom of the
-/// ATTACK row chooses it: a rising zero crossing at the shortest attack, the
-/// softest onset there is, down to the partial's own peak, the hardest. A low
-/// note's onset is set by its period rather than by the envelope, which is
-/// what that stretch of the knob reaches.
+/// Where a partial starts its cycle with phase reset on. The bottom of the
+/// ATTACK row moves it from a rising zero crossing at the shortest attack, the
+/// softest onset, to the partial's own peak, the hardest. A low note's onset is
+/// set by its period rather than by the envelope.
 void testStartPhase() {
   section("Start phase");
 
@@ -414,9 +410,8 @@ void testStartPhase() {
 
     // How much has arrived one millisecond in, against everything it reaches,
     // counted from where the sound starts rather than from the first sample.
-    // Two stages are late and everything passes through both: the bus stage
-    // runs at twice the rate, and the output stage holds its lookahead back.
-    // See BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+    // The bus stage and the output stage lookahead both delay it, see
+    // BusDrive::kLatency and OutputStage::kLookaheadSeconds.
     const int late = BusDrive::kLatency + engine.outputLatency();
 
     double early = 0.0, whole = 0.0;
@@ -452,14 +447,13 @@ void testStartPhase() {
             ")");
 }
 
+/// Moving ATTACK while a note sounds changes the attack that note is running.
 void testAttackFollowsTheKnob() {
   section("ATTACK moved while a note sounds");
 
-  // The attack time is worked out once and kept, since turning the knob into
-  // a time takes logarithms. Moving the knob mid-note still has to land: a
-  // note started on a two-second attack and moved to five milliseconds a
-  // tenth of a second in should be all there shortly after, rather than
-  // creeping on at the slow rate it began with.
+  // Moving the attack knob mid-note has to take effect: a note started on a
+  // two-second attack and moved to five milliseconds a tenth of a second in
+  // should be all there shortly after.
   constexpr double sr = 48000.0;
   constexpr int first = 4800, second = 2400;
 
@@ -507,6 +501,9 @@ void testAttackFollowsTheKnob() {
         "and one left slow is still on its way, so the test can tell");
 }
 
+/// The fixed temperaments: their defining intervals, closed circles, A on the
+/// reference, the root rotating the pattern and the wolf where an organ builder
+/// puts it.
 void testTemperaments() {
   section("Temperaments");
 
@@ -664,8 +661,7 @@ void testTemperaments() {
   check(rotates, "meantone's pure third follows the root wherever it is put");
 
   // The wolf goes where an organ builder puts it: on C the chain runs from Eb
-  // to G#, so F and Bb major are in tune and G#-Eb is the wolf. The first
-  // version started the chain on the root and put the wolf on F-C.
+  // to G#, so F and Bb major are in tune and G#-Eb is the wolf.
   const auto cents = [](Temperament t, int root, int from, int semitones) {
     return 1200.0 *
            std::log2(noteFrequency(60 + from + semitones, t, root, 440.0) /
@@ -696,17 +692,18 @@ void testTemperaments() {
   }
 }
 
+/// Adaptive tuning: chords come out pure, the same keys tune the same however
+/// they are played, the comma pump stays bounded, held notes move only when
+/// they must, and the engine reports the tuning it played.
 void testAdaptiveTuning() {
   section("Adaptive tuning");
 
-  // The seventh temperament retunes the keyboard as it is played: every pitch
-  // class has three versions a comma apart around its just-major place on the
-  // root, on Groven's fifths, and a key takes whichever is purest against what
-  // is sounding. Those fifths are an eighth of a schisma narrow, so "pure"
-  // below means within a quarter of a cent. These play the cases the design was
-  // chosen on and measure the intervals the engine actually tuned, so the test
-  // holds the engine to the numbers the model produced rather than to its own
-  // arithmetic.
+  // Adaptive retunes the keyboard as it is played: every pitch class has three
+  // versions a comma apart around its just-major place on the root, on Groven's
+  // fifths, and a key takes whichever is purest against what is sounding. Those
+  // fifths are an eighth of a schisma narrow, so "pure" below means within a
+  // quarter of a cent. The checks measure the intervals the engine actually
+  // tuned.
   constexpr double sr = 48000.0;
   const auto engineOwner = std::make_unique<SynthEngine>();
   auto &engine = *engineOwner;
@@ -735,20 +732,17 @@ void testAdaptiveTuning() {
     engine.setPolyphony(16);
   };
 
-  // The same, cheaply, for the loops that start over hundreds of times: reset
-  // clears the voices and what each pitch class used last, which is all a
-  // fresh start needs, without building every effect again.
+  // A cheap restart for loops that start over hundreds of times: reset clears
+  // the voices and what each pitch class used last, without building every
+  // effect again.
   const auto restart = [&]() {
     engine.reset();
     engine.setPolyphony(16);
   };
 
-  // How far two keys are from pure, as the interval they spell: seven
-  // semitones is a fifth however it is tuned. Judging a pair by whichever
-  // consonance it lands near would pass a third tuned a comma wide as not a
-  // third at all, which is how a first version of this test passed chords
-  // the engine had got wrong. Seconds, sevenths and the tritone are not meant
-  // to be pure and count nothing, as in the engine.
+  // How far two keys are from pure, as the interval they spell: seven semitones
+  // is a fifth however it is tuned. Seconds, sevenths and the tritone are not
+  // meant to be pure and count nothing, as in the engine.
   const auto offPure = [](int keyA, double hzA, int keyB, double hzB) {
     const auto span = std::abs(keyA - keyB);
     const double fifth = tuning::kPureFifth - 700.0;
@@ -867,12 +861,10 @@ void testAdaptiveTuning() {
 
   // ---- the pump played legato, with and without Home ------------------------
   //
-  // Each chord keeps the notes it shares with the next held across the
-  // change, so nothing is ever struck into silence and there is nothing to
-  // pull it back: C to A minor keeps C and E, A minor to D minor keeps A, D
-  // minor to G keeps D, and G back to C keeps G. Every chord pure against the
-  // note it kept is a comma lower each time round. Left alone the keyboard
-  // goes with it, and with Home on a held note moves a comma instead and C
+  // Each chord keeps the notes it shares with the next held across the change:
+  // C to A minor keeps C and E, A minor to D minor keeps A, D minor to G keeps
+  // D, and G back to C keeps G. Left alone the keyboard drifts a comma lower
+  // each time round. With Home on, a held note moves a comma instead and C
   // comes back where it was.
   for (const bool home : {false, true}) {
     start();
@@ -1020,16 +1012,11 @@ void testAdaptiveTuning() {
 
   // ---- random chords, with and without tails --------------------------------
   //
-  // Seeded, so it plays the same every run. Triads and bare twelfths on random
-  // roots in a random order, each struck while the last may still be ringing,
-  // and after every chord every consonant pair of its keys has to be pure.
-  // This is what found two faults the cases above did not: a ringing tail
-  // outvoting the held key, which put a held fifth a comma out, and the
-  // schisma, two cents a chord far from the root could not escape with pure
-  // fifths, which memory then kept in place for every replay.
-  // Twice: struck as chords, a couple of milliseconds between keys, and as
-  // arpeggios, 60 to 120 between them, which is where three versions decided
-  // once at note-on left half of all arpeggiated progressions a comma out.
+  // Seeded triads and bare twelfths on random roots in a random order, each
+  // struck while the last may still be ringing. After every chord every
+  // consonant pair of its keys has to be pure. Played twice, as chords with a
+  // couple of milliseconds between keys and as arpeggios with 60 to 120 between
+  // them.
   for (const double apart : {0.002, 0.06})
     for (const float release : {0.01f, 1.0f}) {
       std::mt19937 rng(7);
@@ -1076,15 +1063,11 @@ void testAdaptiveTuning() {
                              std::to_string(release).substr(0, 4) + " s");
     }
 
-  // ---- a chord turning into the next a key at a time
-  // -------------------------
+  // ---- a chord turning into the next a key at a time ------------------------
   //
   // Common notes held and the rest changing one key at a time, sometimes the
-  // new key before the old one comes up. A key decided once when it went down
-  // was tuned to whatever it went down against: a G sharp struck while an F
-  // was still held is an A flat, and the E major it ends up in is two commas
-  // out. Settling the whole held chord on every key, up as well as down, is
-  // what keeps it pure as it changes.
+  // new key before the old one comes up. The whole held chord settles on every
+  // key, up as well as down, so it stays pure as it changes.
   {
     std::mt19937 rng(5);
     int failed = 0;
@@ -1154,14 +1137,13 @@ void testAdaptiveTuning() {
                        "pure all the way");
   }
 
-  // ---- a held note moves when it has to
-  // --------------------------------------
+  // ---- a held note moves when it has to -------------------------------------
   //
   // C and F sharp held, a tritone apart and so nothing to each other, then A
-  // under both: a minor third below the C and a major sixth below the F
-  // sharp, and the two cannot both be pure unless one of the held notes moves
-  // a comma. No root here has its minor seventh held, so every note is on the
-  // chain. The fewest notes move, and they slide at the chosen speed.
+  // under both: a minor third below the C and a major sixth below the F sharp,
+  // and the two cannot both be pure unless one of the held notes moves a comma.
+  // No root here has its minor seventh held, so every note is on the chain. The
+  // fewest notes move, and they slide at the chosen speed.
   {
     start();
     auto p = patch(Temperament::Adaptive, 0.01f);
@@ -1210,14 +1192,13 @@ void testAdaptiveTuning() {
           "a Smooth one is about a fifth of the way there");
   }
 
-  // ---- sevenths
-  // ----------------------------------------------------------------
+  // ---- sevenths -------------------------------------------------------------
   //
   // A minor seventh is the harmonic one, 7:4 above its root, alone, over the
   // fifth, over the major third, and in a dominant seventh or ninth, and the
-  // rest of the chord stays pure. Judged on its own rather than
-  // by the interval it spells, since against the fifth it is meant to be the
-  // narrow 7:6 of a 4:5:6:7 chord and not a minor third.
+  // rest of the chord stays pure. Judged on its own rather than by the interval
+  // it spells, since against the fifth it is meant to be the narrow 7:6 of a
+  // 4:5:6:7 chord and not a minor third.
   {
     const auto centsAbove = [&](int high, int low) {
       return 1200.0 * std::log2(engine.frequencyOfNote(high) /
@@ -1376,16 +1357,12 @@ void testAdaptiveTuning() {
     render(p, 0.1);
   }
 
-  // ---- the same keys, the same tuning
-  // ----------------------------------------
+  // ---- the same keys, the same tuning ---------------------------------------
   //
   // However a chord is played, all at once, a key at a time in any order, or
-  // turned into from another chord, the keys held decide how it is tuned.
-  // Only where the whole chord sits can differ, by whole commas, so it does
-  // not drift. Each chord here once came out differently depending on order:
-  // a seventh decided by which keys had arrived, a second with nothing else
-  // to hold it, and chords that cannot all be pure leaving out a different
-  // interval each time.
+  // turned into from another chord, the keys held decide how it is tuned. Only
+  // where the whole chord sits can differ, by whole commas, so it does not
+  // drift.
   {
     const auto shape = [&](const std::vector<int> &keys) {
       std::vector<double> out;
@@ -1464,13 +1441,12 @@ void testAdaptiveTuning() {
                         "played");
   }
 
-  // ---- as little out of tune as it can be
-  // ------------------------------------
+  // ---- as little out of tune as it can be -----------------------------------
   //
-  // Where a chord cannot all be pure, it gives up as little as it can. C E G
-  // A D keeps its thirds and sixths and gives up the fourth from A to D,
-  // rather than keeping that fourth and giving up three. And C E flat D keeps
-  // its minor third, the D being a ninth and not a root with C its seventh.
+  // Where a chord cannot all be pure, it gives up as little as it can. C E G A
+  // D keeps its thirds and sixths and gives up the fourth from A to D, rather
+  // than keeping that fourth and giving up three. And C E flat D keeps its
+  // minor third, the D being a ninth and not a root with C its seventh.
   {
     start();
     const auto p = patch(Temperament::Adaptive, 0.01f);
@@ -1492,12 +1468,11 @@ void testAdaptiveTuning() {
       engine.noteOff(k);
   }
 
-  // ---- what it tells the screen
-  // ------------------------------------------------------
+  // ---- what it tells the screen ---------------------------------------------
   //
   // After every settle the engine publishes the held chord: each key, where it
   // is tuned, its version and whether it is the harmonic seventh. The Tuning
-  // bar reads it, so it has to say what the voices are actually playing.
+  // bar reads it, so it has to match what the voices are playing.
   {
     start();
     const auto p = patch(Temperament::Adaptive, 0.01f);
@@ -1548,11 +1523,10 @@ void testAdaptiveTuning() {
           "letting go of every key publishes an empty chord");
   }
 
-  // The handover itself, with one thread publishing as fast as it can and
-  // another reading. Every copy read has to be one copy whole, never half of
-  // one and half of the next, and never older than the one before it. Run
-  // under the thread sanitizer too, which is what says the handover is sound
-  // rather than merely lucky here.
+  // The handover, with one thread publishing as fast as it can and another
+  // reading. Every copy read has to be one copy whole and never older than the
+  // one before it. Run under the thread sanitizer too, which is what shows the
+  // handover is sound.
   {
     struct Stamp {
       std::array<int, 64> value{};
@@ -1778,6 +1752,8 @@ void testAdaptiveChordTypes() {
           worseNames + ")");
 }
 
+/// The tuning blend lands on exact n:1 ratios at one end and exact 12-TET at
+/// the other, and is halfway in cents between them.
 void testBlendEndpoints() {
   section("Tuning blend endpoints");
 
@@ -1843,9 +1819,8 @@ void testCharacter() {
     return std::hypot((double)h.sine, (double)h.cosine);
   };
 
-  // Pure and Bulb read the one table every partial was reading before any of
-  // this existed. Not a copy of it: the same object, so the character costs
-  // nothing at all until one is chosen that changes the waveform.
+  // Pure and Bulb read the plain sine table itself, the same object, so the
+  // character costs nothing until one is chosen that changes the waveform.
   for (auto c : {Character::Pure, Character::Bulb})
     check(&tables.table(c, 220.0, kMaxCharacterHarmonic) ==
               &SineTable::instance(),
@@ -1938,14 +1913,12 @@ void testCharacter() {
   check(climbing, "and the higher a partial climbs the harder it is limited");
 
   // Every table, at every band, has to come back with no offset and no more
-  // headroom taken than the sine it replaces. 512 oscillators each carrying a
-  // small DC step is a level shift nobody asked for, and each carrying an
-  // overshoot is a clipper going off early.
+  // peak than the sine it replaces, or 512 oscillators add up to a level shift
+  // or an early clip.
   for (int c = 0; c < (int)Character::NumCharacters; ++c) {
     // Every shape a character has, which for the rate-limited one means every
-    // band
-    // of frequency it behaves differently in. Asked for by a frequency inside
-    // each band rather than by an index, which is how the voice asks.
+    // band of frequency it behaves differently in, asked for by a frequency
+    // inside each band as the voice asks.
     std::vector<double> pitches{220.0};
 
     if ((Character)c == Character::Opamp)
@@ -1988,12 +1961,10 @@ void testCharacter() {
       }
   }
 
-  // The bands are what keeps the harmonics under Nyquist, so each one has to
-  // actually stop where it says it does.
-  //
-  // Measured with a plain correlation over exactly one turn rather than with
-  // binMagnitude, whose window is there for a rendered note and would spread
-  // each harmonic into its neighbours here.
+  // The bands keep the harmonics under Nyquist, so each one has to stop where
+  // it says it does. Measured with a plain correlation over exactly one turn,
+  // since binMagnitude's window would spread each harmonic into its neighbours
+  // here.
   const auto harmonicOf = [](const Wave &w, int n) {
     constexpr int kPoints = 4096;
     double re = 0.0, im = 0.0;
@@ -2105,10 +2076,9 @@ void testCharacter() {
 
   // ---- the lamp ------------------------------------------------------------
   //
-  // Bulb adds no harmonics at all, so the only thing to measure is what it
-  // does to the level, and the only thing that makes it do anything is the
-  // pitch moving. How much level movement comes out of a held note, in dB
-  // between the quietest and loudest the partial gets once the attack is over.
+  // Bulb adds no harmonics, so what it changes is the level, and only when the
+  // pitch moves. Measured as the dB between the quietest and loudest the
+  // partial gets once the attack is over.
   const auto swingDb = [sr](Character c, float pmCents, float bendSemitones) {
     SynthParams p;
 
@@ -2137,8 +2107,7 @@ void testCharacter() {
     const int total = (int)(sr * 6.0);
     std::vector<float> l((size_t)total), r((size_t)total);
 
-    // In blocks, so a bend can arrive part way through the note rather than
-    // being there from the start, which is the gesture this answers to.
+    // In blocks, so a bend can arrive part way through the note.
     constexpr int chunk = 256;
     for (int n = 0; n < total; n += chunk) {
       if (bendSemitones != 0.0f)
@@ -2167,15 +2136,11 @@ void testCharacter() {
 
   // ---- crossing from one table to the next ---------------------------------
   //
-  // A partial whose pitch wanders across one of the lines the tables are
-  // divided by reads a different table on the far side of it, and two tables
-  // hold different numbers at the same phase. Swapped at the edge of a block
-  // that is a step in the wave, which is a click, and a vibrato sitting on
-  // such a line crosses it twice a cycle.
-  //
-  // Measured as the largest step from one sample to the next, against the same
-  // note played on the plain sine, where the only steps are the waveform's
-  // own.
+  // A partial whose pitch crosses one of the lines between tables reads a
+  // different table on the far side, and two tables hold different numbers at
+  // the same phase, so a plain swap is a click. Measured as the largest step
+  // from one sample to the next, against the same note played on the plain
+  // sine.
   const auto worstStep = [sr](Character c, double centreHz, float pmCents) {
     SynthParams p;
 
@@ -2219,7 +2184,7 @@ void testCharacter() {
 
   {
     // Right on the first slew line, with a vibrato wide enough to sit across
-    // it. This is the case that clicked.
+    // it.
     const double line = kSlewCornerHz * kSlewRatios.front();
 
     const float limited = worstStep(Character::Opamp, line, 60.0f);
@@ -2229,22 +2194,18 @@ void testCharacter() {
                 "pure\n",
                 limited, pure);
 
-    // A slewed wave is a harder shape than a sine and could legitimately step
-    // more between samples, so this is not asking for parity, only for nothing
-    // the ear would hear as a click on top of the waveform's own slope.
-    // Swapping the table rather than cross-fading it reads 0.145 here against
-    // the sine's 0.083, which is the click that was reported.
+    // A slewed wave may step more between samples than a sine, so this only
+    // asks for nothing the ear would hear as a click. Swapping the table
+    // without a cross-fade reads 0.145 here against the sine's 0.083.
     check(limited < pure * 1.25f + 1.0e-4f,
           "crossing a slew line does not put a step in the wave");
   }
 
   {
-    // The other kind of line, and the one every character has: where a
-    // harmonic passes Nyquist and the table gives that harmonic up. A partial
-    // sitting there swaps tables for the same reason, though it is the gentler
-    // of the two crossings by construction, since the harmonic being given up
-    // is the quietest one the recipe has. Held to the same bound anyway, so
-    // that a recipe with more in its top harmonic cannot quietly start
+    // The other kind of line, which every character has: where a harmonic
+    // passes Nyquist and the table gives it up. It is the gentler crossing,
+    // since that harmonic is the quietest in the recipe, but it is held to the
+    // same bound so a recipe with more in its top harmonic cannot start
     // clicking here.
     const double line = 0.49 * sr / (double)kMaxCharacterHarmonic;
 
@@ -2274,9 +2235,8 @@ void testCharacter() {
   check(swingDb(Character::Pure, 25.0f, 0.0f) < 0.01,
         "and Pure is left alone whatever the pitch does");
 
-  // The numbers that make it a character rather than a detail nobody can
-  // hear. They are calibrated to the movements this instrument makes, which
-  // are cents rather than the decade a bench oscillator is swept across.
+  // The numbers that make it audible, calibrated to the movements this
+  // instrument makes, which are cents rather than a decade of sweep.
   check(vibrato > 2.0, "a vibrato is heard in the level as well as the pitch");
   check(bent > 1.0, "and so is a bend");
   check(vibrato < 8.0 && bent < 8.0,
@@ -2286,11 +2246,8 @@ void testCharacter() {
 // -----------------------------------------------------------------------------
 // 3b. Thirty-two units built to one spec are not thirty-two identical units.
 // -----------------------------------------------------------------------------
-/// No two units distort by quite the same amount either.
-///
-/// Three drives per character rather than a figure per channel, because the
-/// drive is baked into a table: one per channel would be thirty-two tables per
-/// character and a note reading thirty-two of them per sample.
+/// No two units distort by quite the same amount either. Each character has
+/// three drives, each baked into its own table, rather than one per channel.
 void testDriveVariants() {
   section("Three drives per character");
 
@@ -2350,8 +2307,8 @@ void testDriveVariants() {
 
   // ---- and that the tables are indexed by it -------------------------------
   //
-  // Reading the wrong table is the whole risk here, and it would sound like a
-  // character rather than like a fault.
+  // Reading the wrong table would sound like a character rather than like a
+  // fault, so it is checked directly.
   for (const auto &probe : carries) {
     const Wave *seen[3] = {};
 
@@ -2393,12 +2350,10 @@ void testDriveVariants() {
         "and all three are used across the thirty-two");
 }
 
-/// The three recorded characters, read back from their tables and then played
-/// through the engine.
-///
-/// A recording is a set of numbers, so what can go wrong is the numbers not
-/// reaching the output: a band chosen for the wrong pitch, a recipe built into
-/// the wrong slot, or a shape so quiet that the builder skips its table.
+/// The recorded characters, read back from their tables and then played through
+/// the engine. What can go wrong is the numbers not reaching the output: a band
+/// chosen for the wrong pitch, a recipe built into the wrong slot, or a shape
+/// so quiet that the builder skips its table.
 void testMeasuredCharacters() {
   section("Recorded characters");
 
@@ -2446,14 +2401,29 @@ void testMeasuredCharacters() {
 
   check(stepping, "each edge is where one band hands over to the next");
 
+  // ---- which band of the combo organ a pitch is ----------------------------
+  check(comboBandFor(20.0) == 0 && comboBandFor(65.4) == 0,
+        "the combo organ's bottom octave reads its lowest band");
+
+  check(comboBandFor(20000.0) == (int)kComboRecipes.size() - 1,
+        "and anything above C7 holds the top band");
+
+  bool comboStepping = true;
+
+  for (size_t i = 0; i < kComboBandEdges.size(); ++i) {
+    comboStepping &= comboBandFor(kComboBandEdges[i] * 0.999) == (int)i;
+    comboStepping &= comboBandFor(kComboBandEdges[i] * 1.001) == (int)i + 1;
+  }
+
+  check(comboStepping,
+        "each of the combo organ's edges hands one band over to the next");
+
   // ---- what each table holds -----------------------------------------------
   //
-  // Read from the table itself and not from the recipe. A recipe built into
-  // the wrong slot would still match itself.
-  //
-  // The synthesizers' harmonics are played what kFmByEar and kPdByEar
-  // add stronger than
-  // they were measured, and the tonewheel's as measured.
+  // Read from the table itself and not from the recipe, since a recipe built
+  // into the wrong slot would still match itself. The synthesizers' harmonics
+  // are played stronger than measured by what kFmByEar and kPdByEar add, and
+  // the tonewheel's as measured.
   struct Probe {
     Character c;
     double freq;
@@ -2465,6 +2435,7 @@ void testMeasuredCharacters() {
   std::vector<Probe> probes{
       {Character::Fm, 440.0, &kFmRecipe, kFmByEar.harmonicsDb, "FM"},
       {Character::Pd, 440.0, &kPdRecipe, kPdByEar.harmonicsDb, "PD"},
+      {Character::Vco, 440.0, &kVcoRecipe, 0.0, "the VCO"},
   };
 
   const double wheelPitches[] = {65.4,  98.0,   174.6, 293.7,
@@ -2473,6 +2444,13 @@ void testMeasuredCharacters() {
   for (size_t band = 0; band < kWheelRecipes.size(); ++band)
     probes.push_back({Character::Wheel, wheelPitches[band],
                       &kWheelRecipes[band], 0.0, "a tonewheel"});
+
+  const double comboPitches[] = {65.4,  146.8, 261.6,  370.0,
+                                 523.3, 740.0, 1174.7, 2093.0};
+
+  for (size_t band = 0; band < kComboRecipes.size(); ++band)
+    probes.push_back({Character::Combo, comboPitches[band],
+                      &kComboRecipes[band], 0.0, "the combo organ"});
 
   for (const auto &probe : probes) {
     const auto &w = tables.table(probe.c, probe.freq, harmonicsFor(probe.c));
@@ -2526,11 +2504,10 @@ void testMeasuredCharacters() {
           "a synthesizer's sine has a quiet second harmonic (" +
               std::to_string(recipeDb(*r, 2)) + " dB)");
 
-  // ---- ten harmonics on the synthesizers
-  // -------------------------------------
+  // ---- ten harmonics on the synthesizers ------------------------------------
   //
   // Their upper harmonics stay around -70 dB instead of falling away, so they
-  // carry ten. Everything else carries five, as it always has.
+  // carry ten. Everything else carries five.
   check(harmonicsFor(Character::Fm) == 10 &&
             harmonicsFor(Character::Pd) == 10 &&
             harmonicsFor(Character::Wheel) == 5 &&
@@ -2611,12 +2588,114 @@ void testMeasuredCharacters() {
   check(kFmByEar.harmonicsDb >= 0.0 && kFmByEar.harmonicsDb <= 10.0 &&
             kPdByEar.harmonicsDb >= 0.0 && kPdByEar.harmonicsDb <= 10.0 &&
             std::abs(kFmByEar.noiseDb) <= 10.0 &&
-            std::abs(kPdByEar.noiseDb) <= 10.0,
-        "the synthesizers are lifted by a few decibels and no more");
+            std::abs(kPdByEar.noiseDb) <= 10.0 &&
+            std::abs(kComboByEar.noiseDb) <= 10.0,
+        "what was set by ear moves a few decibels and no more");
 
   check(octaveOf(Character::Fm, 69) > -62.0 &&
             octaveOf(Character::Pure, 69) < -90.0,
         "FM's second harmonic reaches the output, and Pure has none");
+
+  // The combo organ filters each key once for every lever, so partial 4 of a
+  // C3 note, which is the 2' lever's pitch on that key, has C3's shape and
+  // not the darker one the 8' has at C5, where the partial sounds.
+  {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[3].volume = 0.5f;
+    p.osc[3].tuneBlend = 1.0f;
+    p.osc[3].decay = 8.0f;
+    p.global.character = Character::Combo;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(48, 1.0f, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    const double key = 440.0 * std::exp2((48.0 - 69.0) / 12.0);
+    const double third =
+        20.0 * std::log10(std::max(1.0e-12, binMagnitude(l, 12.0 * key, sr)) /
+                          binMagnitude(l, 4.0 * key, sr));
+
+    const auto &keyed = kComboRecipes[(size_t)comboBandFor(key)];
+    const auto &own = kComboRecipes[(size_t)comboBandFor(4.0 * key)];
+
+    check(std::abs(third - recipeDb(keyed, 3)) < 1.0 &&
+              recipeDb(keyed, 3) - recipeDb(own, 3) > 6.0,
+          "a high partial on Combo has the shape of the key played (" +
+              std::to_string(third) + " dB against " +
+              std::to_string(recipeDb(keyed, 3)) + ")");
+  }
+}
+
+/// The VCO's wander: a held note's pitch moving about 0.2 cents rms, as the
+/// recorded oscillator's did, and not at all on Pure.
+///
+/// Read from the zero crossings of one partial, each cycle's length against
+/// the mean. Two seconds of A4 is 880 cycles, plenty to read an rms from.
+void testVcoWander() {
+  section("VCO wander");
+
+  constexpr double sr = 48000.0;
+  constexpr int kLength = 120000;
+
+  const auto spread = [sr, kLength](Character c) {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.25f;
+    p.osc[0].tuneBlend = 1.0f;
+    p.osc[0].decay = 8.0f;
+    p.global.character = c;
+
+    std::vector<float> l((size_t)kLength), r((size_t)kLength);
+    engine.noteOn(69, 1.0f, p);
+    engine.render(l.data(), r.data(), kLength, p);
+
+    std::vector<double> crossings;
+
+    for (int n = 24000; n < kLength; ++n)
+      if (l[(size_t)n - 1] < 0.0f && l[(size_t)n] >= 0.0f)
+        crossings.push_back(
+            (double)(n - 1) +
+            (double)(-l[(size_t)n - 1] / (l[(size_t)n] - l[(size_t)n - 1])));
+
+    std::vector<double> periods;
+
+    for (size_t i = 1; i < crossings.size(); ++i)
+      periods.push_back(crossings[i] - crossings[i - 1]);
+
+    double mean = 0.0;
+
+    for (double t : periods)
+      mean += t;
+
+    mean /= (double)periods.size();
+
+    double sum = 0.0;
+
+    for (double t : periods) {
+      const double cents = 1200.0 * std::log2(mean / t);
+      sum += cents * cents;
+    }
+
+    return std::sqrt(sum / (double)periods.size());
+  };
+
+  const double vco = spread(Character::Vco);
+  const double pure = spread(Character::Pure);
+
+  std::printf("  A4, cycle by cycle: %.3f cents rms on VCO, %.4f on Pure\n",
+              vco, pure);
+
+  check(vco > 0.12 && vco < 0.3,
+        "a held note on VCO wanders about as much as the recording did");
+  check(pure < 0.01, "and on Pure it holds still");
 }
 
 /// The tonewheel's wobble, measured the way the organ was: as the pair of
@@ -3502,6 +3581,9 @@ void testSid6581() {
   }
 }
 
+/// Each character's rack of thirty-two units is spread within its tolerance,
+/// starts with one unit exactly on spec, and comes out at the pitch and level
+/// the rack says through the engine.
 void testUnitSpread() {
   section("Unit tolerance");
 
@@ -3511,9 +3593,8 @@ void testUnitSpread() {
     return 20.0 * std::log10(std::max(1.0e-9, (double)gain));
   };
 
-  // Pure is not a circuit, so there is no rack of them to be out of step. This
-  // is also the check that every patch written before any of this existed
-  // still plays exactly as it did, since all of them are Pure.
+  // Pure is not a circuit, so there is no rack of them to be out of step, and
+  // every Pure patch plays exactly as it did.
   {
     bool flat = true;
 
@@ -3532,10 +3613,8 @@ void testUnitSpread() {
     const auto tolerance = unitToleranceFor(which);
     const std::string name = characterName(which);
 
-    // The first unit is the one the other thirty-one were tuned against.
-    // Without this a note would land off the key that asked for it and a patch
-    // would change level when the character changed, which is not unit
-    // tolerance but the whole rack being out.
+    // The first unit is exactly on spec, so a note lands on the key that asked
+    // for it and a patch keeps its level when the character changes.
     check(rack.cents[0] == 0.0f && rack.gain[0] == 1.0f,
           name + " leaves the unit the rest were tuned against alone");
 
@@ -3560,10 +3639,8 @@ void testUnitSpread() {
 
     // A spread rather than a huddle. Uniform over the tolerance puts the mean
     // at half of it, so these bounds are wide enough for a draw and narrow
-    // enough to catch one that collapsed.
-    //
-    // Each half is checked only when its tolerance is above zero. A zero
-    // tolerance has to give units that are exactly on spec.
+    // enough to catch one that collapsed. A zero tolerance has to give units
+    // exactly on spec.
     if (tolerance.cents > 0.0f) {
       check(widestCents > 0.7 * (double)tolerance.cents,
             name + " uses the range it is given");
@@ -3600,13 +3677,10 @@ void testUnitSpread() {
   constexpr double sr = 48000.0;
   constexpr int N = 24000;
 
-  /// Where a rendered partial actually came out, in cents from where it was
-  /// asked for.
-  ///
-  /// By how far its phase has slipped against a reference at the nominal
-  /// frequency, over a known distance. That resolves a fraction of a cent on
-  /// half a second of audio, where counting zero crossings over the same
-  /// buffer resolves about two, which is a third of what is being measured.
+  /// Where a rendered partial came out, in cents from where it was asked for,
+  /// by how far its phase slipped against a reference at the nominal frequency
+  /// over a known distance. That resolves a fraction of a cent on half a
+  /// second, where counting zero crossings resolves about two.
   const auto centsOff = [sr](const std::vector<float> &x, double nominalHz) {
     constexpr double kTwoPi = 6.283185307179586;
     constexpr size_t window = 4096;
@@ -3687,8 +3761,7 @@ void testUnitSpread() {
           "and is out by its own unit's " + std::to_string(wanted) +
               " ct under Valve (measured " + std::to_string(measured) + ")");
 
-    // At the frequency it actually came out at rather than the one it was
-    // asked for, since the two are no longer the same thing.
+    // At the frequency it actually came out at rather than the one asked for.
     const double level =
         binMagnitude(shifted, nominal * std::exp2(wanted / 1200.0), sr);
     const double reference = binMagnitude(pure, nominal, sr);
@@ -3774,7 +3847,7 @@ void testAliasing() {
     o.tuneBlend = 1.0f;
 
   engine.noteOn(96, 1.0f,
-                p); // C7 = 2093 Hz; the 32nd partial wants to sit at 67 kHz
+                p); // C7 = 2093 Hz, so the 32nd partial wants to sit at 67 kHz
   std::vector<float> l((size_t)N), r((size_t)N);
   engine.render(l.data(), r.data(), N, p);
 
@@ -3825,9 +3898,8 @@ void testEnvelopeAndMuteSolo() {
   for (int i = 0; i < 200; ++i)
     env.tick();
 
-  // "Decay time" means 99% of the distance covered, so two decay times in we
-  // are close but the stage does not formally latch to sustain until the
-  // remainder is negligible.
+  // "Decay time" means 99% of the distance covered, so two decay times in the
+  // level is close to sustain but not yet latched.
   check(std::abs(env.getLevel() - 0.5f) < 1.0e-2f, "decays to sustain");
 
   for (int i = 0; i < 300; ++i)
@@ -3851,8 +3923,7 @@ void testEnvelopeAndMuteSolo() {
 
   check(!perc.isActive(), "zero-sustain envelope frees itself");
 
-  // --- delay before the attack
-  // ------------------------------------------------
+  // --- delay before the attack ----------------------------------------------
   {
     Envelope d;
     d.setSampleRate(1000.0);
@@ -3903,8 +3974,7 @@ void testEnvelopeAndMuteSolo() {
           "the delay is latched at note-on, not re-read while waiting");
   }
 
-  // --- mute / solo
-  // ------------------------------------------------------------------
+  // --- mute / solo ----------------------------------------------------------
   constexpr double sr = 48000.0;
   constexpr int N = 4800;
 
@@ -3982,14 +4052,10 @@ void testNoClickOnMute() {
 // -----------------------------------------------------------------------------
 // 8. Voice allocation and stealing.
 // -----------------------------------------------------------------------------
-/// One key is one voice. Tapping a key with a long release used to leave every
-/// tap ringing and sum them, which no physical instrument does.
-/// Legato: one voice, and the envelope carries on while a key is still down.
-///
-/// The three things that make it legato rather than one voice: a second key
-/// moves the pitch without restarting the attack, letting a key go while
-/// another is held falls back to that one, and only the last key coming up
-/// releases the note.
+/// Legato: one voice, and the envelope carries on while a key is still down. A
+/// second key moves the pitch without restarting the attack, letting a key go
+/// while another is held falls back to that one, and only the last key coming
+/// up releases the note.
 void testLegato() {
   section("Legato");
 
@@ -4054,10 +4120,9 @@ void testLegato() {
 
   // ---- releasing the newer key falls back to the one still held ------------
   //
-  // Measured as a pitch rather than a level. Letting the note release instead
-  // would look almost the same for a moment, since a four second release has
-  // barely moved after twenty milliseconds, and the pitch says plainly which
-  // key the phrase is on.
+  // Measured as a pitch rather than a level, since a four second release has
+  // barely moved after twenty milliseconds and the pitch says plainly which key
+  // is sounding.
   const auto hz = [sr](const std::vector<float> &x) {
     int crossings = 0;
     size_t first = 0, last = 0;
@@ -4175,12 +4240,10 @@ void testGlide() {
     engine.render(l.data(), r.data(), (int)n, p);
   };
 
-  // Pitch from interpolated rising zero crossings over part of the last
-  // render, which resolves a fraction of a hertz in a few cycles.
-  //
-  // A window measuring a note's first moments starts 10 ms in. The output
-  // stage looks 2 ms ahead whatever it is set to, so the head of every render
-  // is still the note before, and a stolen voice takes 4 ms to fade.
+  // Pitch from interpolated rising zero crossings over part of the last render,
+  // which resolves a fraction of a hertz in a few cycles. A window measuring a
+  // note's first moments starts 10 ms in, past the output stage's 2 ms
+  // lookahead and the 4 ms fade of a stolen voice.
   const auto hz = [&](double t0, double t1) {
     const auto a = (size_t)(t0 * sr), b = std::min(l.size(), (size_t)(t1 * sr));
     double first = -1.0, last = -1.0;
@@ -4326,8 +4389,8 @@ void testGlide() {
     render(p, 0.2);
 
     // Joined: the second key goes down while the first is held, which is all
-    // Legato asks. The first then lets go at once, and its 20 ms release
-    // leaves the new voice to be heard alone.
+    // Legato asks. The first then lets go, and its 20 ms release leaves the new
+    // voice to be heard alone.
     engine.noteOn(60, 1.0f, p);
     engine.noteOff(48);
     render(p, 0.1);
@@ -4401,11 +4464,10 @@ void testGlide() {
 
   // ---- the needle: a partial still on its way reads off its note ----------
   //
-  // The pitch a partial reports for the PITCH MOD needle carries its glide,
-  // so a needle swings back to centre as the partial arrives. The reading is
-  // the loudest voice's, which with one voice is this one, and it is taken
-  // from the loudest moment of a render, which on a steady note is its start,
-  // so each reading is a short render of its own, as a host block is.
+  // The pitch a partial reports for the PITCH MOD needle carries its glide, so
+  // the needle swings back to centre as the partial arrives. The reading is the
+  // loudest voice's, taken from the loudest moment of a render, which on a
+  // steady note is its start, so each reading is a short render of its own.
   {
     auto p = base(0);
     p.osc[1].volume = 0.5f;
@@ -4684,6 +4746,9 @@ void testTopLineLegato() {
             std::to_string(mpeOff) + " st off D5)");
 }
 
+/// A key struck again while it rings retriggers its own voice rather than
+/// stacking a new one, without a click, under the pedal too, and only stacks
+/// when that rule is switched off.
 void testOneVoicePerKey() {
   section("One voice per key");
 
@@ -4773,14 +4838,9 @@ void testOneVoicePerKey() {
   check(biggestStep < 3.0 * perSample,
         "and the cut does not put a step in the output");
 
-  // The same again, but with the note held by the sustain pedal.
-  //
-  // This is the case the check above cannot reach. A key that has been let go
-  // is releasing, and a releasing voice gets the short fade. A pedalled note
-  // is not releasing, so it is retriggered where it stands, and where it
-  // stands is its sustain level. Restarting the envelope from silence there
-  // put a step in the output the size of the whole note, which is what a
-  // repeated key under the pedal sounded like.
+  // The same again, with the note held by the sustain pedal. A pedalled note is
+  // not releasing, so it is retriggered at its sustain level, and restarting
+  // the envelope from there must not put a step in the output.
   {
     const auto pedalOwner = std::make_unique<SynthEngine>();
     auto &pedal = *pedalOwner;
@@ -4844,11 +4904,9 @@ void testOneVoicePerKey() {
 
   // ---- and it stops tails eating the pool --------------------------------
   //
-  // The stacking was not only loud, it was expensive. Every tap held a voice
-  // for the whole of its release, so a repeatedly tapped key with a long tail
-  // could fill the pool on its own. Past that the allocator has nothing free
-  // and takes the oldest voice outright, with no fade and no regard for
-  // whether a key is still down on it.
+  // A repeatedly tapped key with a long tail must not fill the pool, since past
+  // that the allocator takes the oldest voice outright, with no fade and
+  // whether or not a key is still down on it.
   const auto poolOwner = std::make_unique<SynthEngine>();
   auto &pool = *poolOwner;
   pool.prepare(sr);
@@ -4884,10 +4942,9 @@ void testOneVoicePerKey() {
 
   // ---- and the same keyboard with the rule switched off --------------------
   //
-  // Off has to actually stack, because that is what it is for: a bell struck
-  // over and over builds up, and somebody who wants that should get it. The
-  // checks here are the ones above with their inequalities turned round, so
-  // the two settings cannot quietly become the same thing.
+  // Off has to stack, so a bell struck over and over builds up. The checks are
+  // the ones above with their inequalities turned round, so the two settings
+  // cannot become the same thing.
   auto stacking = p;
   stacking.global.oneVoicePerKey = false;
 
@@ -4934,14 +4991,10 @@ void testOneVoicePerKey() {
             std::to_string(loose.getActiveVoiceCount()) + ")");
 }
 
-/// A partial whose fader is down follows the note just played.
-///
-/// Every note is at zero on a partial with its fader down, so the lamps there
-/// are a tie between every voice still sounding. A note whose partials have
-/// finished is still sounding while its noise channel releases, 0.4 s by
-/// default and whatever its fader, so a tie that went to the first voice in
-/// the pool showed the old note's finished envelope on those lamps for most of
-/// the next note, and only on some notes, depending on which voice each got.
+/// A partial whose fader is down follows the note just played. Every note is at
+/// zero there, so its lamps are a tie between every voice still sounding, and
+/// the tie has to go to the newest note rather than to an old one whose noise
+/// channel is still releasing.
 void testLampsFollowNewestNote() {
   section("Lamps follow the newest note");
 
@@ -4995,13 +5048,9 @@ void testLampsFollowNewestNote() {
                         " readings showed an older one)");
 }
 
-/// What the lamps between the knob groups are told.
-///
-/// They are fed from the voice pool rather than from the parameters, so they
-/// show what is happening to a note rather than what the knobs are set to. The
-/// difference matters most at the ends: a lamp driven from the knobs would go
-/// on pulsing over silence, and would say nothing at all about which half of
-/// the envelope is running.
+/// What the lamps between the knob groups are told. They are fed from the voice
+/// pool rather than from the parameters, so they show what is happening to a
+/// note: nothing over silence, and which half of the envelope is running.
 void testActivity() {
   section("Strip activity");
 
@@ -5064,9 +5113,8 @@ void testActivity() {
   check(std::abs(letGo) > 0.1f,
         "and the level carries over rather than restarting");
 
-  // In blocks, the way a host calls it. One long call would end with whatever
-  // the envelope was doing on its last sample still published, which is not
-  // wrong but is not what a lamp sitting on screen afterwards would show.
+  // In blocks, the way a host calls it, so what is left published is what a
+  // lamp on screen would show.
   for (int i = 0; i < 8; ++i)
     render(0.25);
 
@@ -5175,14 +5223,10 @@ void testActivity() {
 
   // ---- the two lamps over OUTPUT, one for each row -----------------------
   //
-  // Each reads its own row and nothing else, which is the whole of the
-  // design: no summing, no sign, and each one the shape of the knob above it.
-  //
-  // The VELOCITY lamp shows the gain the row leaves, so full is a partial the
-  // blow has not cost anything and dark is one the row has taken entirely.
-  // That row can only subtract, which is why the lamp is full at rest rather
-  // than dark: a reading that lit as the row did more would be showing the
-  // gap rather than the thing.
+  // Each reads its own row and nothing else, with no summing and no sign. The
+  // VELOCITY lamp shows the gain the row leaves, so full is a partial the blow
+  // has cost nothing and dark is one the row has taken entirely. That row can
+  // only subtract, so the lamp is full at rest.
   {
     engine.allSoundOff();
     p.osc[0].velAmount = 0.0f;
@@ -5204,12 +5248,9 @@ void testActivity() {
                 "velocity there is");
 
     // Full one way: the softest blow costs the partial everything and the
-    // hardest costs it nothing.
-    //
-    // The softest blow is 1 of 127 rather than 0, because 0 is a note-off and
-    // starts nothing at all. Checked at 0 this reads dark for the wrong
-    // reason, since a lamp with no note under it is dark whatever its row is
-    // set to, so the envelope is asserted alongside it.
+    // hardest costs it nothing. The softest blow is 1 of 127, since 0 is a
+    // note-off and a lamp with no note under it reads dark whatever its row, so
+    // the envelope is asserted alongside.
     constexpr float kSoftest = 1.0f / 127.0f;
 
     engine.allSoundOff();
@@ -5239,8 +5280,7 @@ void testActivity() {
           "and a blow at full velocity takes none of it (" +
               std::to_string(positiveHard) + ")");
 
-    // Full the other way is the exact mirror, which is what the row itself
-    // promises and the one thing worth holding a test against.
+    // Full the other way is the exact mirror.
     engine.allSoundOff();
     p.osc[0].velAmount = -1.0f;
 
@@ -5263,10 +5303,9 @@ void testActivity() {
           "and a blow at full velocity takes the whole partial (" +
               std::to_string(negativeHard) + ")");
 
-    // The two halves of the row are exact mirrors, which is the property the
-    // row itself promises: what +100 does at one velocity is what -100 does at
-    // the opposite one. Walked rather than taken at the ends, since the ends
-    // are the two readings above and a mirror is a claim about the middle.
+    // The two halves of the row are exact mirrors: what +100 does at one
+    // velocity is what -100 does at the opposite one. Walked across the range,
+    // since the ends are the readings above.
     bool mirrors = true;
 
     for (int i = 1; i <= 126; ++i) {
@@ -5291,8 +5330,7 @@ void testActivity() {
           "and the two halves of the row mirror each other at every velocity "
           "between");
 
-    // What it reads is what the row actually leaves of the fader, which is
-    // the claim that makes the lamp worth looking at.
+    // What it reads is what the row actually leaves of the fader.
     engine.allSoundOff();
     p.osc[0].velAmount = 0.6f;
     p.osc[0].volume = 1.0f;
@@ -5391,16 +5429,11 @@ void testActivity() {
 
     // ---- a partial silenced by its own rows still reports ---------------
     //
-    // A negative AFTERTOUCH amount takes the level down, and at enough
-    // pressure it reaches the bottom of the clamp and the partial falls
-    // silent while the note is still held. Everything on that strip has to go
-    // on reporting through that, and the velocity lamp in particular, which
-    // has nothing to do with the row that silenced it.
-    //
-    // This is what the lamps are gathered through rather than what they are:
-    // the pool picks the loudest voice per partial, and read as a threshold
-    // rather than as a comparison that test drops a partial sitting at
-    // exactly zero, which is every lamp on the channel at once.
+    // A negative AFTERTOUCH amount at enough pressure takes the partial to the
+    // bottom of the clamp while the note is held. Everything on that strip has
+    // to go on reporting through that, the velocity lamp in particular. The
+    // pool picks the loudest voice per partial, and a partial at exactly zero
+    // must not be dropped from that pick.
     {
       engine.allSoundOff();
       p.osc[0].volume = 0.5f;
@@ -5441,9 +5474,8 @@ void testActivity() {
       p.osc[0].velAmount = 0.0f;
     }
 
-    // Nothing to say once the note has gone, the same as every other lamp.
-    // Both read zero rather than the velocity lamp reading full, because the
-    // strip gates them on the envelope and zero is what says nothing.
+    // Nothing to say once the note has gone: both read zero, since the strip
+    // gates them on the envelope.
     engine.allSoundOff();
     for (int i = 0; i < 8; ++i)
       render(0.25);
@@ -5893,8 +5925,7 @@ void testSympatheticStrings() {
     engine.allSoundOff();
   }
 
-  // ---- what they do to the sound
-  // ---------------------------------------------
+  // ---- what they do to the sound --------------------------------------------
   const auto ringAfter = [&](ResonatorMode mode, bool holdC3, bool pedal,
                              bool pedalUpAfter) {
     const auto owner = std::make_unique<SynthEngine>();
@@ -5958,8 +5989,7 @@ void testSympatheticStrings() {
         "Open rings every string with no pedal down (" + std::to_string(open) +
             " against " + std::to_string(alone) + " for Piano)");
 
-  // ---- bounded at the extremes
-  // --------------------------------------------------
+  // ---- bounded at the extremes ----------------------------------------------
   {
     // The loudest the strings can be asked to ring, against the same chord
     // with none: they may add to it, but they must not run away.
@@ -6476,13 +6506,9 @@ void testHeldExpression() {
             std::to_string(released.pressure) + ")");
 }
 
-/// Notes that own a channel each, which is what an MPE controller sends.
-///
-/// The rule for an ordinary keyboard is one voice per key. That rule is wrong
-/// for a controller giving every finger its own channel, where the same key
-/// being down twice on two channels is two notes bent in two directions rather
-/// than one note retriggering itself. Both rules have to hold at once, because
-/// both kinds of controller can be playing.
+/// Notes that own a channel each, as an MPE controller sends. The same key down
+/// on two channels is two notes bent their own ways, while within one channel a
+/// key keeps one voice, and both rules hold at once.
 void testPerNoteChannels() {
   section("Per-note channels");
 
@@ -6495,9 +6521,8 @@ void testPerNoteChannels() {
   p.osc[0].decay = 8.0f;
   p.osc[0].sustain = 1.0f;
   p.osc[0].release = 0.05f;
-  // The noise channel is silent here but its envelope still runs, and its
-  // default release is long enough to hold a voice open for a second after the
-  // key is up. Shortened so the checks below do not have to sit through it.
+  // The noise channel's default release would hold a voice open for a second
+  // after the key is up, so it is shortened.
   p.noise.release = 0.02f;
   p.global.masterGain = 1.0f;
   p.global.safetyClip = false;
@@ -6516,9 +6541,8 @@ void testPerNoteChannels() {
     engine.render(l.data(), r.data(), (int)n, p);
   };
 
-  // Pitch from interpolated zero crossings. Whole crossings only resolve about
-  // ten cents, which is not enough to tell a bend of a semitone from one of a
-  // semitone and a bit.
+  // Pitch from interpolated zero crossings, since whole crossings only resolve
+  // about ten cents.
   const auto measureHz = [&]() {
     std::vector<double> crossings;
     for (size_t i = 1; i < l.size(); ++i)
@@ -6572,9 +6596,8 @@ void testPerNoteChannels() {
 
   // ---- an ordinary note and a per-note note do not find each other ---------
   //
-  // The case that breaks if the channel is not part of the identity: a note
-  // arriving on the master channel would take over the per-note voice, or its
-  // key-up would silence it.
+  // If the channel were not part of a note's identity, a note on the master
+  // channel would take over the per-note voice, or its key-up would silence it.
   {
     engine.allSoundOff();
 
@@ -6710,13 +6733,9 @@ void testPerNoteChannels() {
   }
 }
 
-/// What happens when the pool genuinely runs out.
-///
-/// Under the polyphony limit a voice is stolen with a fade and keeps rendering
-/// out of the surplus. Past that surplus there is nothing left to fade into: a
-/// voice has to go this instant, which is a step in the output whichever one it
-/// is. The size of that step is the voice's current level, so the only lever is
-/// which voice gets taken.
+/// What happens when the pool runs out. Past the polyphony surplus a voice has
+/// to go at once with no fade, so the step it leaves is its current level, and
+/// which voice is taken decides how big that step is.
 void testPoolExhaustion() {
   section("Pool exhaustion");
 
@@ -6789,10 +6808,8 @@ void testPoolExhaustion() {
 
   // ---- and when the oldest voice is the one you least want taken ---------
   //
-  // Above, the oldest voices were also the quietest, so either rule picks the
-  // same one. This is the case that separates them: one loud note held down
-  // since before everything else, with the rest of the pool full of quiet
-  // tails. The oldest is exactly the wrong voice to take.
+  // One loud note held since before everything else, with the rest of the pool
+  // full of quiet tails. Oldest-first would take exactly the wrong voice.
   auto q = makeFlatParams(0.0f);
   for (auto &o : q.osc) {
     o.attack = 0.002f;
@@ -6848,6 +6865,9 @@ void testPoolExhaustion() {
                               std::to_string(heldAfter) + ")");
 }
 
+/// Voice allocation: the pool is never over-subscribed, the polyphony limit
+/// holds after fades, all-sound-off silences the pool, a repeated note reuses
+/// its voice, and the sustain pedal holds released notes.
 void testVoiceAllocation() {
   section("Voice allocation");
 
@@ -7198,8 +7218,8 @@ void testPanning() {
     check(spreadDb < 0.1, "panning holds the level as it crosses the field");
   }
 
-  // The shape the old spread control used to make, now something a preset
-  // writes into the pans: mirrored pairs, widening up the series.
+  // Mirrored pairs, widening up the series, written into the pans as a preset
+  // would.
   const auto fan = [](int i) {
     constexpr int lastPair = kNumHarmonics / 2 - 1;
 
@@ -7230,8 +7250,8 @@ void testPanning() {
   std::printf("  channel imbalance: %+.2f dB flat", flatDb);
   check(std::abs(flatDb) < 0.2, "a flat spectrum stays centred");
 
-  // The reason the pairing exists: a rolled-off spectrum must stay centred too,
-  // and must still be placed where its energy actually lives.
+  // A rolled-off spectrum must stay centred too, and must still be placed where
+  // its energy actually lives.
   const auto rolled = render(fan, true);
   const double rolledDb = imbalanceDb(rolled);
   std::printf(", %+.2f dB rolled off\n", rolledDb);
@@ -7347,13 +7367,10 @@ void testAftertouch() {
 
   // ---- a key struck under held pressure starts where the controller is ----
   //
-  // The other half of that smoothing, and the half it is easy to get wrong.
-  // Pressure already standing at full when the key goes down is a controller
-  // the player has not moved, so the note begins there. Ramping up to meet it
-  // instead spends the first 15 ms at a level nobody asked for: with a
-  // negative amount that is a note at full level falling to silence, a thump
-  // on every key struck under held pressure, and with a positive one an
-  // audible fade in.
+  // Pressure already standing when the key goes down is a controller the player
+  // has not moved, so the note begins there. Ramping up to it instead spends
+  // the first 15 ms at the wrong level: a thump with a negative amount, a fade
+  // in with a positive one.
   {
     auto p = makeFlatParams(0.0f);
     for (auto &o : p.osc) {
@@ -7442,8 +7459,7 @@ void testAftertouch() {
 void testDrift() {
   section("Pitch drift");
 
-  // --- the generator on its own
-  // -----------------------------------------------
+  // --- the generator on its own ---------------------------------------------
   {
     Xorshift rng(12345u);
     SmoothRandom sr;
@@ -7475,11 +7491,11 @@ void testDrift() {
     check(sum / 20000.0 > 0.1, "the contour keeps moving");
   }
 
-  // --- two streams must not correlate
-  // ----------------------------------------- Correlation is only meaningful
-  // over many independent draws. A slow contour yields very few points per run,
-  // so the raw generator is checked directly and the contour is run long enough
-  // to gather thousands of points.
+  // --- two streams must not correlate ---------------------------------------
+  //
+  // Correlation is only meaningful over many independent draws, so the raw
+  // generator is checked directly and the contour is run long enough to gather
+  // thousands of points.
   {
     Xorshift a(1u), b(2u); // adjacent seeds are the hard case for xorshift
     double dot = 0.0, ea = 0.0, eb = 0.0;
@@ -7518,8 +7534,7 @@ void testDrift() {
     check(std::abs(correlation) < 0.08, "separate contours are uncorrelated");
   }
 
-  // --- in the synth
-  // -------------------------------------------------------------
+  // --- in the synth ---------------------------------------------------------
   constexpr double sr = 48000.0;
   constexpr int N = 48000;
 
@@ -7799,6 +7814,8 @@ std::vector<float> envelopeTrace(double sr, float sustain, float swell,
   return out;
 }
 
+/// The key-off stage: a swell to its own level when the key comes up, then the
+/// release, with a level of zero leaving a plain release.
 void testKeyOffEnvelope() {
   section("Key-off envelope");
 
@@ -7820,7 +7837,7 @@ void testKeyOffEnvelope() {
     return m;
   };
 
-  // ---- a key-off level of zero leaves the old behaviour exactly as it was ---
+  // ---- a key-off level of zero is a plain release ---------------------------
   {
     const auto trace = envelopeTrace(sr, 0.5f, 0.2f, 0.0f, 0.4f, hold, 2.0);
 
@@ -7932,10 +7949,8 @@ void testKeyOffEnvelope() {
 
   // ---- a decay that lands on silence still has a key-off to come ------------
   //
-  // The music box case, and the one that was broken: with no sustain, the
-  // decay reaches zero while the key is still down. Reaching zero is not the
-  // same as being finished, because the key-off level is what the patch is
-  // actually about.
+  // The music box case: with no sustain, the decay reaches zero while the key
+  // is still down, and the key-off level is still to come.
   {
     Envelope env;
     env.setSampleRate(sr);
@@ -7994,7 +8009,7 @@ void testKeyOffEnvelope() {
 void testSlideDisplacement() {
   section("Slide displacement");
 
-  // A controller resting at the centre, which is the shape this always had.
+  // A controller resting at the centre.
   check(std::abs(slideDisplacement(0.0f, 1.0f) - 1.0f) < 1.0e-6f &&
             std::abs(slideDisplacement(0.0f, -1.0f) + 1.0f) < 1.0e-6f &&
             std::abs(slideDisplacement(0.0f, 0.0f)) < 1.0e-6f,
@@ -8018,11 +8033,9 @@ void testSlideDisplacement() {
 
   // ---- the short side keeps the long side's sensitivity -------------------
   //
-  // The part that took two goes. Scaling each direction to fill the slide on
-  // its own leaves a rest near the bottom with a sliver of travel underneath
-  // it, and dividing by the sliver makes that sliver the whole slide. On an
-  // Osmose that is ten codes of lift between untouched and fully dark, which
-  // reads as a snap when the key comes back out of the zone.
+  // Scaling each direction on its own would turn the sliver of travel under a
+  // rest near the bottom into the whole slide. On an Osmose that is ten codes
+  // of lift between untouched and fully dark.
   const auto nearBottom = 10.0f / 127.0f * 2.0f - 1.0f;
 
   const auto lifted = slideDisplacement(nearBottom, -1.0f);
@@ -8068,7 +8081,7 @@ void testStrikeVelocity() {
   section("Strike velocity");
 
   // The two mappings first. The timings below only say the ordering came out
-  // right; these say by how much.
+  // right, and these say by how much.
   check(std::abs(strikeAttackScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
             std::abs(strikeAttackScale(0.0f, 1.0f) - 1.0f) < 1.0e-6f &&
             std::abs(strikeDelayScale(0.0f, 0.0f) - 1.0f) < 1.0e-6f &&
@@ -8190,10 +8203,9 @@ void testStrikeVelocity() {
             std::to_string(ignoredSoft) + " s against " +
             std::to_string(ignoredHard) + " s)");
 
-  // Turned up, the soft note is the slow one. The setting is the one a player
-  // actually reaches for and the one four octaves could not serve: a 5 ms
-  // attack, snappy at the top of the travel, with the softest notes expected to
-  // swell rather than merely lag.
+  // Turned up, the soft note is the slow one. A 5 ms attack, snappy at the top
+  // of the travel, with the softest notes expected to swell rather than merely
+  // lag.
   const auto soft = riseTimeFor(1.0f, 0.2f);
   const auto hard = riseTimeFor(1.0f, 1.0f);
 
@@ -8243,10 +8255,9 @@ void testStrikeVelocity() {
     std::vector<float> l((size_t)(1.0 * sr)), r(l.size());
     engine.render(l.data(), r.data(), (int)l.size(), p);
 
-    // A low bar on purpose. The partial is silent to the sample until the
-    // delay runs out, so anything above nothing is the moment it ends, and a
-    // higher bar would be measuring the stretched attack that follows rather
-    // than the wait in front of it.
+    // A low bar on purpose: the partial is silent to the sample until the delay
+    // runs out, and a higher bar would measure the stretched attack that
+    // follows.
     for (size_t n = 0; n < l.size(); ++n)
       if (std::abs((double)l[n]) > 0.001)
         return (double)n / sr;
@@ -8279,14 +8290,9 @@ void testStrikeVelocity() {
         "and it is off in a fresh patch, so nothing already made changes");
 }
 
-/// The same fault from the outside, where it was heard: a whole voice going
-/// quiet before it could make its key-off sound.
-/// What the speed of the key coming up does to the tail, which is the one
-/// thing in here that a keyboard has to be able to sense before it exists.
-///
-/// There is no knob for it and no parameter, so the whole of it has to be
-/// harmless on a keyboard that cannot play it. That is what the first half of
-/// this checks, sample for sample, and it matters more than the rest.
+/// What the speed of the key coming up does to the tail. There is no knob for
+/// it, so on a keyboard that cannot sense it the instrument has to be exactly
+/// as before, sample for sample, which the first half checks.
 void testLift() {
   section("Lift");
 
@@ -8317,8 +8323,7 @@ void testLift() {
 
   // ---- a neutral lift is the instrument exactly as it was -------------------
   //
-  // Not "near enough": the same samples. A release that cannot be sensed has
-  // to leave nothing behind at all, since nothing on the panel says this is
+  // The same samples, not near enough, since nothing on the panel says this is
   // here and no patch can switch it off.
   for (const auto offLevel : {0.0f, 0.4f, 0.9f}) {
     const auto plain =
@@ -8337,11 +8342,9 @@ void testLift() {
 
   // ---- and a sensed one moves the level the tail starts from ---------------
   //
-  // Read at the moment the release begins rather than out of the tail's
-  // energy, because a scaled lift reaches its level through the swell while a
-  // neutral one with no key-off level of its own goes straight into the
-  // release. Five milliseconds of difference, inaudible and real, and enough
-  // to put six percent on any sum over the whole tail.
+  // Read at the moment the release begins rather than from the tail's energy,
+  // since a scaled lift reaches its level through the swell and a neutral one
+  // does not, which alone puts six percent on a sum over the tail.
   const auto releasesFrom = [sr](const std::vector<float> &v, double when) {
     const auto i = (size_t)(when * sr);
     return i < v.size() ? (double)v[i] : 0.0;
@@ -8386,9 +8389,8 @@ void testLift() {
 
   // ---- with nothing above it, a hard lift has nowhere to go ----------------
   //
-  // The envelope runs to one. A partial already sounding at full cannot leave
-  // a tail louder than the note it came from, so the hard end simply stops
-  // there rather than clipping or being scaled to fit.
+  // A partial already at full cannot leave a tail louder than the note, so the
+  // hard end stops there rather than clipping or being scaled to fit.
   {
     const auto hard = envelopeTrace(sr, 1.0f, swell, 0.0f, 0.4f, hold, 2.0,
                                     liftFromVelocity(127));
@@ -8423,6 +8425,8 @@ void testLift() {
   }
 }
 
+/// A note whose decay lands on silence under a held key still makes its key-off
+/// sound when the key comes up, and then frees its voice.
 void testKeyOffAfterSilentDecay() {
   section("Key-off after a silent decay");
 
@@ -8485,6 +8489,8 @@ void testKeyOffAfterSilentDecay() {
   check(engine.getActiveVoiceCount() == 0, "then the voice frees itself");
 }
 
+/// The noise channel: silent at zero, broadband, tilted by colour, following
+/// velocity and mute like a strip, and different in every voice.
 void testNoiseChannel() {
   section("Noise channel");
 
@@ -8560,8 +8566,8 @@ void testNoiseChannel() {
   check(darkTilt < 0.5 * flatTilt, "colour at zero rolls the top off");
   check(brightTilt > 2.0 * flatTilt, "colour at full rolls the bottom off");
 
-  // The centre is genuinely flat, not merely filtered less. The complementary
-  // pair has to reconstruct the original white noise there.
+  // The centre is genuinely flat: the complementary pair has to reconstruct the
+  // original white noise there.
   check(flatTilt > 0.7 && flatTilt < 1.4,
         "the centre of the colour knob is flat (" + std::to_string(flatTilt) +
             ")");
@@ -8663,13 +8669,10 @@ void testNoiseChannel() {
   }
 }
 
-/// Every shape a modulator can be set to, checked against its own definition.
-///
-/// The values are the shape, not an approximation of it, so they are asserted
-/// exactly where they are exact. What matters most here is the last block: the
-/// amplitude reads a quarter turn ahead, which is what keeps Sine the cosine
-/// the tremolo has always been. Get that wrong and every preset with a tremolo
-/// on it starts in a different place.
+/// Every shape a modulator can be set to, checked against its own definition,
+/// exactly where the values are exact. The amplitude reads a quarter turn
+/// ahead, which keeps Sine the cosine the tremolo has always been, so presets
+/// with a tremolo start in the same place.
 void testLfoShapes() {
   section("LFO shapes");
 
@@ -8729,7 +8732,7 @@ void testLfoShapes() {
               std::to_string(lo) + " to " + std::to_string(hi) + ")");
   }
 
-  // What every preset written before shapes existed depends on.
+  // Sine starts at the top, which existing presets depend on.
   check(near(at(LfoShape::Sine, 0.0, 0.25), 1.0f),
         "read a quarter turn ahead, sine is the cosine the tremolo has always "
         "used, so a note still begins at full level and dips");
@@ -8765,13 +8768,9 @@ void testLfoShapes() {
   }
 }
 
-/// No shape puts a step in the output, the square ones included.
-///
-/// This is the thing worth checking about square and stepped modulators, and
-/// the reason they are affordable here at all: the gain already ramps across a
-/// control block, so an edge arrives as a slew of two thirds of a millisecond
-/// rather than as a jump. Measured against the slope of the tone itself, which
-/// is what a continuous waveform is allowed to move by in one sample.
+/// No shape puts a step in the output, the square ones included, since the gain
+/// ramps across a control block and an edge arrives as a slew of two thirds of
+/// a millisecond. Measured against the slope of the tone itself.
 void testEveryAmpShapeIsClickFree() {
   section("Every tremolo shape is click free");
 
@@ -8841,6 +8840,8 @@ void testEveryAmpShapeIsClickFree() {
             std::to_string(aboveFader) + ")");
 }
 
+/// Tremolo puts sidebands either side of the carrier, vibrato spreads energy
+/// out of the carrier bin, and the modulated output stays finite.
 void testModulation() {
   section("Pitch and amplitude modulation");
 
@@ -8888,16 +8889,11 @@ void testModulation() {
   check(finite, "modulated output is finite");
 }
 
-/// A modulator the whole keyboard shares, rather than one per note.
-///
-/// The thing to prove is that a note arriving late joins what is already
-/// running instead of starting its own, and the cleanest way to see that is to
-/// let the shared modulator run through silence for a known part of a turn and
-/// then play one note. On, the note opens wherever the circuit had got to. Off,
-/// it opens at the start of its own.
-///
-/// A quarter turn, because that is where the two answers are furthest apart: a
-/// sine reads nothing at the start of its turn and everything a quarter in.
+/// A modulator the whole keyboard shares rather than one per note: a note
+/// arriving late joins it wherever it has got to. On, the note opens where the
+/// circuit had got to, and off, at the start of its own. The shared one runs
+/// through silence for a quarter turn first, where a sine's two answers are
+/// furthest apart.
 void testModulatorsInPhase() {
   section("Modulators in phase across the keyboard");
 
@@ -9064,6 +9060,7 @@ void runBlocks(Fx &fx, Stereo &s, const P &p, int block = 256) {
   }
 }
 
+/// RMS of a span of a signal.
 double rms(const std::vector<float> &x, size_t from, size_t to) {
   to = std::min(to, x.size());
   if (to <= from)
@@ -9076,6 +9073,7 @@ double rms(const std::vector<float> &x, size_t from, size_t to) {
   return std::sqrt(sum / (double)(to - from));
 }
 
+/// Peak magnitude of a span of a signal.
 double peak(const std::vector<float> &x, size_t from, size_t to) {
   to = std::min(to, x.size());
   double m = 0.0;
@@ -9086,6 +9084,7 @@ double peak(const std::vector<float> &x, size_t from, size_t to) {
   return m;
 }
 
+/// Whether every sample of both channels is finite.
 bool allFinite(const Stereo &s) {
   for (size_t n = 0; n < s.size(); ++n)
     if (!std::isfinite(s.l[n]) || !std::isfinite(s.r[n]))
@@ -9094,8 +9093,8 @@ bool allFinite(const Stereo &s) {
   return true;
 }
 
-/// Frequency from zero crossings. Coarse, but a delay line wandering by a
-/// percent is a big effect and this measures it without any windowing games.
+/// Frequency from zero crossings. Coarse, but enough for a delay line wandering
+/// by a percent.
 double crossingFrequency(const std::vector<float> &x, size_t from, size_t to,
                          double sampleRate) {
   to = std::min(to, x.size());
@@ -9118,7 +9117,8 @@ double crossingFrequency(const std::vector<float> &x, size_t from, size_t to,
   return (double)(crossings - 1) * sampleRate / (double)(last - first);
 }
 
-/// A slice of copies-of-the-input, for feeding an effect.
+/// A single click at the start of an otherwise silent signal, for feeding an
+/// effect.
 Stereo impulse(size_t length, float amplitude = 1.0f) {
   Stereo s(length);
   s.l[0] = amplitude;
@@ -9142,14 +9142,10 @@ Stereo tone(size_t length, double freq, double sampleRate,
 
 } // namespace
 
-/// The digital delay, which is the plain one.
-///
-/// No tape and no buckets: what goes in comes back later and quieter and
-/// otherwise unchanged, which is what a digital delay is for and is the reason
-/// it is worth having beside two machines that cannot help colouring things.
-/// Its two differences from them are the topology, which crosses every repeat
-/// to the other side, and AGE, which is the converter on the bar pointed at
-/// the loop.
+/// The digital delay: what goes in comes back later and quieter and otherwise
+/// unchanged. It differs from the other two machines in its topology, which
+/// crosses every repeat to the other side, and in AGE, which is the converter
+/// on the bar pointed at the loop.
 void testDigitalEcho() {
   section("Digital echo");
 
@@ -9207,17 +9203,15 @@ void testDigitalEcho() {
 
   // ---- a repeat is a copy --------------------------------------------------
   //
-  // At no wear at all, which is the setting that separates this from the
-  // other two: what comes back is the samples that went in, quieter by the
+  // At no wear, what comes back is the samples that went in, quieter by the
   // feedback and not otherwise touched.
   {
     const auto s = through(0.0f, 0.3f, 0.5f);
     const auto delay = (size_t)(0.3 * sr);
 
-    // The whole of it, not half: the input is summed to the middle on the way
-    // in and the feedback only applies to what crosses afterwards, so the
-    // first repeat is as loud as what was played, the same as on the other
-    // two machines.
+    // The whole of it: the input is summed to the middle on the way in and the
+    // feedback only applies to what crosses afterwards, so the first repeat is
+    // as loud as what was played.
     double worst = 0.0;
     for (size_t n = 0; n < (size_t)(0.15 * sr); ++n) {
       const auto on = (size_t)(0.15 * sr);
@@ -9239,8 +9233,7 @@ void testDigitalEcho() {
   // ---- and it crosses ------------------------------------------------------
   //
   // The input arrives in the middle and every repeat lands on the other side
-  // from the one before it, which is a different machine from two paths run
-  // slightly differently rather than a setting of one.
+  // from the one before it.
   {
     const auto s = through(0.0f, 0.3f, 0.7f);
 
@@ -9267,11 +9260,9 @@ void testDigitalEcho() {
   // ---- and a tail has to reach silence -------------------------------------
   //
   // A quantiser inside a feedback loop has a fixed point: one step times a
-  // feedback of a half rounds straight back up to one step, so the tail
-  // arrives at the bottom bit and stays there. It was audible as a low sound
-  // that never went away, at every feedback from a half upwards, and it was
-  // still there twenty-five seconds later. The wear is on the way out rather
-  // than on the way round for that reason.
+  // feedback of a half rounds back up to one step, so the tail would sit at the
+  // bottom bit. The wear is on the way out rather than on the way round for
+  // that reason.
   {
     for (const auto feedback : {0.5f, 0.6f, 0.75f}) {
       DigitalEcho echo;
@@ -9430,10 +9421,8 @@ void testBucketEcho() {
 
   // ---- the clock: further is darker ---------------------------------------
   //
-  // The line holds what it holds, so a longer delay can only be had by
-  // clocking it more slowly, and the filter has to come down with the clock.
-  // No other type does this, and it is what makes a long setting on one of
-  // these turn to mud.
+  // The line holds what it holds, so a longer delay needs a slower clock, and
+  // the filter has to come down with the clock.
   {
     const auto shortSet = through(0.0f, 0.12f, 2500.0);
     const auto longSet = through(0.0f, 0.9f, 2500.0);
@@ -9491,11 +9480,9 @@ void testBucketEcho() {
 
   // ---- and no step between the first repeat and the rest -------------------
   //
-  // What comes out has to be what the line made of it rather than what was
-  // handed to it. Colouring only the feedback path leaves the first repeat
-  // untouched and every later one driven, which is heard as one clean repeat
-  // followed by a dirty tail rather than as a machine. It measured as 68 dB
-  // between the first two and is the reason this check exists.
+  // What comes out has to be what the line made of it, so the first repeat is
+  // coloured like the rest rather than one clean repeat followed by a dirty
+  // tail.
   {
     const auto old = through(0.85f, 0.4f, 400.0);
 
@@ -9542,8 +9529,8 @@ void testBucketEcho() {
           "the hiss goes when the repeats do (" +
               std::to_string(after / std::max(under, 1.0e-12)) + " of it)");
 
-    // And nothing at all on a patch nobody is playing, which is the whole
-    // reason it is keyed to the signal rather than left running.
+    // And nothing at all on an idle patch, since the hiss is keyed to the
+    // signal.
     BucketEcho idle;
     idle.prepare(sr);
 
@@ -9562,10 +9549,8 @@ void testBucketEcho() {
 
   // ---- and the clock drifts, which is the pitch of the repeats breathing ---
   //
-  // Most of the movement is shared between the sides rather than differential,
-  // because a delay that moves the same way on both is a vibrato and a mono
-  // sum keeps all of it, where two sides moving apart comb and lose some. So
-  // this is looked for in the pitch rather than in the width.
+  // Most of the movement is shared between the sides, a vibrato a mono sum
+  // keeps all of, so it is looked for in the pitch rather than in the width.
   {
     BucketEcho bbd;
     bbd.prepare(sr);
@@ -9643,6 +9628,9 @@ void testBucketEcho() {
   }
 }
 
+/// The tape echo: where the repeats land, a loop that never runs away, what AGE
+/// does to the top end, the motor and the saturation, and two tape paths that
+/// each keep to their own side.
 void testTapeEcho() {
   section("Tape echo");
 
@@ -9868,9 +9856,9 @@ void testTapeEcho() {
               std::to_string(difference / std::max(1.0e-9, loudest)) + ")");
 
     // How far apart the two sides have come, on a sustained tone where the
-    // repeats overlap. An impulse cannot measure this: any timing difference
-    // at all makes two sharp repeats miss each other completely, so it reads
-    // the same at two percent of wear as at a hundred.
+    // repeats overlap. With an impulse any timing difference makes two sharp
+    // repeats miss each other completely, so it would read the same at every
+    // wear.
     const auto correlationAt = [&](float wear) {
       echo.reset();
 
@@ -9893,9 +9881,9 @@ void testTapeEcho() {
       return lr / std::max(1.0e-12, std::sqrt(ll * rr));
     };
 
-    // Zero wear means a transport that holds speed exactly, so the two paths
-    // wander by the same nothing and the repeat is mono. That is the DSP's
-    // contract, and it is why the panel is not allowed to ask for it.
+    // Zero wear holds speed exactly, so the two paths wander by the same
+    // nothing and the repeat is mono. The panel's floor keeps it from asking
+    // for that.
     check(std::abs(correlationAt(0.0f) - 1.0) < 1.0e-6,
           "a perfect transport would put the repeat back in mono");
 
@@ -9953,18 +9941,85 @@ void testTapeEcho() {
   }
 }
 
-/// The warped record under the whole instrument.
-
-/// The 6581's bow runs out of room past what the chip was measured over.
+/// The VCO's mixer, which clips its negative half 2.44 times sooner than its
+/// positive half.
 ///
-/// The bow on its mix is a parabola, measured on at most three voices. Left
-/// to itself it turns back past its top, so a chord pushed harder came out
-/// quieter on the positive half, and the negative half bent further without
-/// limit. A 50 Hz swing far past both edges, read against the same swing at
-/// the edges themselves: the crest must not fall back from where the top was
-/// reached, and the trough must stop where the rail is. Read within a cycle
-/// rather than as levels, because the bus is AC-coupled and an uneven curve
-/// moves the whole wave by what it rectifies.
+/// Read through the bus at a level far past both rails, where the swing from
+/// top to bottom has to be the two rails together. The bus is AC-coupled, so a
+/// lopsided clip moves the whole wave by what it rectifies, but not its swing.
+/// Then at a level between the two rails, where the negative half is clipped
+/// and the positive half is not, so the wave has to come out taller than it is
+/// deep, and with an octave on it that an even clip would not give.
+void testVcoMixer() {
+  section("VCO mixer");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0, f = 200.0;
+  constexpr int n = 48000;
+
+  const auto amount = (float)BusDrive::amountFor(Character::Vco);
+  const double drive = (double)amount * 2.0;
+  const double up = (2.0 / 3.0) / drive;
+  const double down = up / kVcoMixerMismatch;
+
+  const auto through = [&](double amplitude) {
+    std::vector<float> l((size_t)n), r((size_t)n);
+
+    for (int i = 0; i < n; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(amplitude * std::sin(kTwoPi * f * (double)i / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+    bus.process(l.data(), r.data(), n, Character::Vco, amount);
+
+    // The second half, once the coupling has settled.
+    return std::vector<float>(l.begin() + n / 2, l.end());
+  };
+
+  const auto far = through(20.0 * up);
+  const auto [lo, hi] = std::minmax_element(far.begin(), far.end());
+  const double swing = (double)*hi - (double)*lo;
+
+  std::printf("  far past both rails: swing %.4f, the rails %.4f and %.4f add "
+              "to %.4f\n",
+              swing, up, down, up + down);
+
+  // The half-band filters ring a little on the corners of a wave clipped this
+  // hard, which comes to about 3% on top of the rails.
+  check(std::abs(swing / (up + down) - 1.0) < 0.05,
+        "driven far past both rails, the swing is the two rails together");
+
+  const auto between = through(0.5 * (up + down));
+  const auto [low, high] = std::minmax_element(between.begin(), between.end());
+
+  double re1 = 0.0, im1 = 0.0, re2 = 0.0, im2 = 0.0;
+
+  for (size_t i = 0; i < between.size(); ++i) {
+    const double t = (double)(i + n / 2) / sr;
+    re1 += (double)between[i] * std::cos(kTwoPi * f * t);
+    im1 += (double)between[i] * std::sin(kTwoPi * f * t);
+    re2 += (double)between[i] * std::cos(2.0 * kTwoPi * f * t);
+    im2 += (double)between[i] * std::sin(2.0 * kTwoPi * f * t);
+  }
+
+  const double octave =
+      20.0 * std::log10(std::hypot(re2, im2) / std::hypot(re1, im1));
+
+  std::printf("  between the rails: %.4f up, %.4f down, octave %.1f dB\n",
+              (double)*high, -(double)*low, octave);
+
+  check(*high > -*low,
+        "between the rails, the negative half is the one that clips");
+  check(octave > -30.0, "and the lopsided clip puts an octave on the note");
+}
+
+/// The 6581's bus bow runs out of room rather than turning back past what the
+/// chip was measured over. A 50 Hz swing far past both edges is read against
+/// the same swing at the edges: the crest must not fall back from where the top
+/// was reached, and the trough must stop at the rail. Read within a cycle,
+/// since the AC-coupled bus moves the whole wave by what an uneven curve
+/// rectifies.
 void testSidBusRunsOutOfRoom() {
   section("6581 bus, out of room past the measured range");
 
@@ -10022,10 +10077,9 @@ void testSidBusRunsOutOfRoom() {
               "goes on by %.3f, against a top of %.3f\n",
               crestDrop, troughDrop, 0.5 / d);
 
-  // A held top still sags a little over the 4 ms it is held, by about half a
-  // unit, because the bus is AC-coupled and a flat stretch is what a coupling
-  // lets drift. The parabola left to itself fell back by 27 here and ran on
-  // by 45, so a third of the top tells the two apart with room to spare.
+  // A held top still sags about half a unit over the 4 ms it is held, since the
+  // AC coupling lets a flat stretch drift. A parabola left to itself falls back
+  // by 27 here and runs on by 45, so the bounds tell the two apart.
   check(crestDrop < 1.0,
         "pushed past the top of the bow, the positive half holds instead "
         "of turning back");
@@ -10033,14 +10087,10 @@ void testSidBusRunsOutOfRoom() {
         "and past the rail the negative half holds instead of bending on");
 }
 
-/// The bus does not dull what passes through it.
-///
-/// The curve's antialiasing reads it as its average over the step from the
-/// last sample, which on anything quiet is the mean of two neighbouring
-/// samples at the doubled rate, a low pass of its own. The filter that brings
-/// it back down lifts the top to undo it. Read as rms over whole seconds,
-/// because a sine's sample peaks at a few samples a cycle can miss its real
-/// peak by 3 dB and look like a loss that is not there.
+/// The bus does not dull what passes through it. The curve's antialiasing is a
+/// low pass of its own, and the filter that brings the rate back down lifts the
+/// top to undo it. Read as rms over whole seconds, since a sine's sample peaks
+/// can miss its real peak by 3 dB.
 void testBusDriveIsFlat() {
   section("Bus drive, flat to the top");
 
@@ -10130,24 +10180,10 @@ void testBusDriveIsFlat() {
   }
 }
 
-/// The bus the whole series is summed onto, which is the one place two
-/// partials meet.
-///
-/// Everything else here treats a partial on its own, so two of them sounding
-/// together produce exactly the sum of what each produces alone. What this
-/// stage is for is the part that cannot: sum and difference tones between
-/// pairs, which is why a loud chord through a real desk fuses rather than
-/// stacking. The difference tone below exists at no setting of any other
-/// control in this instrument.
-/// No sample on its own off the wave the bus is shaping.
-///
-/// The antialiasing divides a change in the curve's antiderivative by the
-/// change in the input, so any jump in the antiderivative turns into a spike
-/// on the one sample that crosses it. Near the top of a wave the input barely
-/// moves, so the spike is large: a jump of 1e-5 where two formulas meet came
-/// out as a dip of a tenth of full scale, twice a cycle, on every note loud
-/// enough to reach it. It sounded like a buzz that came and went as two
-/// partials beat, which is why it had to be heard before it was found.
+/// No sample on its own off the wave the bus is shaping. The antialiasing
+/// divides a change in the curve's antiderivative by the change in the input,
+/// so any jump in the antiderivative becomes a spike on the sample that crosses
+/// it, largest near the top of a wave.
 ///
 /// Each sample is checked against the one its four neighbours predict, which
 /// for a smooth wave is close to exact and for a one-sample dip is the depth of
@@ -10168,8 +10204,8 @@ void testBusDriveIsSmooth() {
         Character::Wheel, Character::Pd, Character::Sid}) {
     double worst = 0.0, worstLevel = 0.0;
 
-    // In fine steps, because the fault was at one level and every level
-    // either side of it was clean.
+    // In fine steps, since a fault can sit at one level with every level either
+    // side of it clean.
     for (double level = 0.25; level <= 6.0; level += 0.05) {
       std::vector<float> l(kLength), r(kLength);
 
@@ -10200,14 +10236,17 @@ void testBusDriveIsSmooth() {
     worstOverall = std::max(worstOverall, worst);
   }
 
-  // Not nothing, because Op-amp's curve meets its rail with a bend rather
-  // than a smooth turn, and a bend is what this check measures. That comes to
-  // about 3e-5. The fault this is here for was a thousand times that.
+  // Not nothing, since Op-amp's curve meets its rail with a bend rather than a
+  // smooth turn, which comes to about 3e-5.
   check(worstOverall < 1.0e-4,
         "no sample stands off the wave at any level the bus is driven to (" +
             std::to_string(worstOverall) + " at the worst)");
 }
 
+/// The bus the whole series is summed onto, the one place two partials meet.
+/// Off means off, it costs the same latency either way, a quiet signal passes
+/// straight, a loud one bends in each circuit's own way, and two partials make
+/// sum and difference tones that nothing else in the instrument makes.
 void testBusDrive() {
   section("Bus drive");
 
@@ -10216,9 +10255,8 @@ void testBusDrive() {
   constexpr size_t kSettle = 24000; ///< past the DC blocker's own transient
   constexpr size_t kWindow = 16384;
 
-  /// Amplitude at one frequency, windowed, which is all that is wanted here:
-  /// the question is always "is this partial present and how loud", never what
-  /// the whole spectrum looks like.
+  /// Amplitude at one frequency, windowed, since the question is always whether
+  /// a partial is present and how loud.
   const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, double hz) {
     double re = 0.0, im = 0.0, norm = 0.0;
 
@@ -10261,10 +10299,9 @@ void testBusDrive() {
 
   // ---- the bottom of the knob ----------------------------------------------
   //
-  // The curve is normalised by dividing by the drive, so the less drive there
-  // is the more of the arithmetic is the difference of two nearly equal
-  // numbers. In single precision the bottom of this range came through 1.4 dB
-  // quiet, which is a gain error dressed as a straight line.
+  // The curve is normalised by dividing by the drive, so at little drive the
+  // arithmetic is the difference of two nearly equal numbers. It still has to
+  // come through at unity.
   {
     for (const auto amount : {0.001f, 0.01f, 0.1f}) {
       const auto x = through({1000.0}, 0.8, Character::Valve, amount);
@@ -10279,12 +10316,10 @@ void testBusDrive() {
 
   // ---- and turning it while it is playing ----------------------------------
   //
-  // The antiderivative belongs to a curve. Carrying one across a block
-  // boundary while the drive is moving divides the difference of two
-  // different functions by the step between two samples, which is unbounded
-  // as that step goes to nothing: one spike per block for as long as the knob
-  // moves, and an echo with feedback on it does the rest. Heard before it was
-  // measured, on a knob being dragged towards zero.
+  // The antiderivative belongs to a curve. Carried across a block boundary
+  // while the drive moves, it would divide the difference of two different
+  // functions by the step between two samples, one spike per block for as long
+  // as the knob moves.
   {
     constexpr int kBlock = 64;
     constexpr int kBlocks = 300;
@@ -10302,11 +10337,10 @@ void testBusDrive() {
     BusDrive bus;
     bus.prepare(sr);
 
-    // A drag from a third of the way up down to almost nothing, which is what
-    // found this, with the lane jumping between two distant values every few
-    // blocks on the way. A host sends both: a lane being written is smooth and
-    // a lane being read back is steps, and the steps are what make the
-    // difference between two curves large enough to see.
+    // A drag from a third of the way up down to almost nothing, with the lane
+    // jumping between two distant values every few blocks on the way. A host
+    // sends both: a lane being written is smooth and a lane being read back is
+    // steps.
     for (int b = 0; b < kBlocks; ++b) {
       auto amount = 0.3f - 0.299f * ((float)b / (float)(kBlocks - 1));
 
@@ -10373,12 +10407,9 @@ void testBusDrive() {
 
   // ---- and it is late by exactly as much either way ------------------------
   //
-  // The stage runs at twice the rate, so a signal passes through a half-band
-  // filter on the way up and another on the way down, and those cost what
-  // they cost. What matters is that a bypassed stage costs the same, through
-  // a plain delay rather than through the filters: a character that changed
-  // the plugin's latency would put a step in the middle of a held note every
-  // time a preset chose one.
+  // The stage runs at twice the rate, through a half-band filter on the way up
+  // and another on the way down. A bypassed stage costs the same through a
+  // plain delay, so choosing a character never changes the plugin's latency.
   {
     constexpr size_t kN = 2048;
 
@@ -10486,10 +10517,9 @@ void testBusDrive() {
 
   // ---- and each circuit bends it its own way -------------------------------
   //
-  // A limit that treats both halves of the wave alike cannot tell them apart,
-  // so it has no octave to give. One that does not treat them alike has both.
-  // That is the whole difference between a rail and the other two, and it is
-  // audible as the difference between hard and warm.
+  // A limit that treats both halves of the wave alike has no octave to give,
+  // and one that does not has both. That is the difference between a rail and
+  // the other two.
   {
     struct Reading {
       const char *name;
@@ -10547,16 +10577,11 @@ void testBusDrive() {
 
   // ---- and the op-amp gives way at a corner --------------------------------
   //
-  // The other three bend. An amplifier with feedback around it does not: it
-  // holds a straight line until it reaches the rail and then stops, so it has
-  // a harder knee than any of them and a spectrum that reaches further up.
-  //
-  // It is a curve rather than the rate limit it was first written as. That
-  // machine is right per partial, where each oscillator is limited against its
-  // own frequency, and wrong on a bus, where it cannot tell the top of a low
-  // note's series from a high note's fundamental. The figures are in
-  // BusDrive.cpp. What matters here is that this one, like the other three,
-  // does the same thing wherever on the keyboard you are.
+  // An amplifier with feedback around it holds a straight line until it reaches
+  // the rail and then stops, so it has a harder knee than the others and a
+  // spectrum that reaches further up. Like the other three it is a curve, so it
+  // does the same thing wherever on the keyboard it is played. The figures are
+  // in BusDrive.cpp.
   {
     const auto readingOf = [&](Character c, double hz, float amount) {
       const auto x = through({hz}, 0.8, c, amount);
@@ -10584,8 +10609,8 @@ void testBusDrive() {
               std::to_string(opamp[2] - opamp[1]) + " against " +
               std::to_string(rail[2] - rail[1]) + " dB below the twelfth)");
 
-    // The whole reason it is a curve: a hand moving up the keyboard finds the
-    // same circuit rather than a threshold it crosses.
+    // A hand moving up the keyboard finds the same circuit rather than a
+    // threshold it crosses.
     const auto low = readingOf(Character::Opamp, 500.0, 0.3f);
     const auto high = readingOf(Character::Opamp, 6000.0, 0.3f);
 
@@ -10601,11 +10626,9 @@ void testBusDrive() {
 
   // ---- and the lamp, which is none of the above ----------------------------
   //
-  // Every other character answers playing harder by adding something. A Wien
-  // bridge answers by taking something away: the lamp in its feedback divider
-  // warms, its resistance rises, and the gain comes down with it. So this one
-  // puts nothing on the waveform at all, which is both its character and the
-  // reason it needs none of the machinery the others are built around.
+  // A Wien bridge answers playing harder by taking something away: the lamp in
+  // its feedback divider warms, its resistance rises, and the gain comes down.
+  // It puts nothing on the waveform itself.
   {
     constexpr double kSeconds = 3.0;
     const auto n = (size_t)(kSeconds * sr);
@@ -10653,10 +10676,8 @@ void testBusDrive() {
                                        std::to_string(dB(settled, 0.8)) +
                                        " dB)");
 
-    // How long the filament takes, which is the part rather than a choice.
-    // Read a cycle at a time, since a sine passes below any level you name
-    // twice a cycle and says nothing by doing so. What is wanted is the top
-    // of the wave coming down, which is the envelope.
+    // How long the filament takes, read a cycle at a time as the top of the
+    // wave coming down, since a sine passes below any level twice a cycle.
     const auto target = struck + 0.63 * (settled - struck);
     constexpr size_t cycle = 48;
     double crossed = kSeconds;
@@ -10681,9 +10702,7 @@ void testBusDrive() {
           "over about half a second, which is a filament and not a choice (" +
               std::to_string(crossed) + " s)");
 
-    // The property that separates it from the other four, and the reason it
-    // wants none of the antialiasing: a gain that moves this slowly cannot
-    // put anything on a waveform.
+    // A gain that moves this slowly cannot put anything on a waveform.
     const std::vector<float> tail(loud.begin() + (long)(2.0 * sr), loud.end());
     const auto ref = levelAt(tail, 1000.0);
 
@@ -10696,13 +10715,9 @@ void testBusDrive() {
           "say (" +
               std::to_string(dB(levelAt(tail, 2000.0), ref)) + " dB)");
 
-    // Not quite nothing, and the something is the part rather than the model.
-    // A filament is heated by power, and the power of a sine carries a ripple
-    // at twice its pitch. Half a second of thermal lag leaves almost none of
-    // that, and what survives modulates the gain, which puts a twelfth on the
-    // partial at ninety decibels down. Wien bridge designers spend their time
-    // on exactly this: a bigger lamp has less ripple and takes longer to
-    // settle, and there is no way to have both.
+    // Not quite nothing: a filament is heated by power, whose ripple at twice
+    // the pitch survives the half second of thermal lag faintly and puts a
+    // twelfth on the partial about ninety decibels down.
     check(dB(levelAt(tail, 3000.0), ref) < -80.0,
           "leaving only what the filament's own ripple puts there (" +
               std::to_string(dB(levelAt(tail, 3000.0), ref)) + " dB)");
@@ -10715,7 +10730,7 @@ void testBusDrive() {
               std::to_string(dB(levelAround(soft, 2.5), 0.02)) + " dB)");
   }
 
-  // ---- the point of the exercise -------------------------------------------
+  // ---- sum and difference tones --------------------------------------------
   //
   // Two partials that are not harmonically related, so nothing either of them
   // can produce on its own lands on the difference between them.
@@ -10789,13 +10804,9 @@ void testBusDrive() {
   }
 }
 
-/// That the first repeat has already been through the machine.
-///
-/// A tape echo colours on the way in and out as well as on the way round: by
-/// the time the first repeat is heard the signal has crossed the record head,
-/// the tape and the playback head. Colouring only the feedback path hands the
-/// first repeat back exactly as it arrived and wears every later one, which is
-/// heard as one bright repeat and then a dull tail.
+/// The first repeat has already been through the machine: record head, tape and
+/// playback head. Colouring only the feedback path would hand it back exactly
+/// as it arrived and wear every later one.
 void testFirstRepeatIsAlreadyWorn() {
   section("The first repeat");
 
@@ -10880,6 +10891,9 @@ void testFirstRepeatIsAlreadyWorn() {
                             ")");
 }
 
+/// The warped record under the whole instrument: untouched at zero, bending
+/// further as it is turned up, slips at the top much larger than the wander,
+/// both channels bending together, and no step when it comes up from zero.
 void testWobble() {
   section("Wobble");
 
@@ -11033,13 +11047,9 @@ void testWobble() {
   }
 }
 
-/// The spring, which is not a plate either.
-///
-/// A helix carries the top of the band faster than the bottom, so a hit comes
-/// back as a chirp that starts high and falls. That dispersion is the whole of
-/// what a spring is, and it is what these checks are for: the other two
-/// machines have nothing like it, and a spring without it would just be a very
-/// narrow plate.
+/// The spring: a helix carries the top of the band faster than the bottom, so a
+/// hit comes back as a chirp that starts high and falls. That dispersion is
+/// what these checks look for, since neither of the other machines has it.
 void testSpringReverb() {
   section("Spring reverb");
 
@@ -11133,15 +11143,11 @@ void testSpringReverb() {
 
   // ---- the boing -----------------------------------------------------------
   //
-  // The top of a click's band should come back before the bottom of it does,
-  // by enough to hear.
-  //
-  // Asked of the plate as well, but only as something to print: the plate
-  // answers this at minus nine milliseconds, so anything at all clears a bar
-  // set relative to it. Flattening every allpass coefficient to nothing takes
-  // the spring from 7.3 ms to 0.1, and only an absolute figure notices. The
-  // band-splitting filters bias the measurement by a fraction of that 0.1, so
-  // four milliseconds is a bar the dispersion has to clear on its own.
+  // The top of a click's band should come back before the bottom of it does, by
+  // enough to hear. The plate is asked as well, but only printed, since it
+  // answers at minus nine milliseconds. The spring reads 7.3 ms and 0.1 with
+  // every allpass coefficient flattened, so four milliseconds is a bar the
+  // dispersion has to clear on its own.
   {
     SpringReverb spring;
     spring.prepare(sr);
@@ -11237,12 +11243,10 @@ void testSpringReverb() {
 
   // ---- and it keeps its top end when the damping is off --------------------
   //
-  // The spring's own loss is inside the loop and the pickup is outside it, and
-  // the whole of why that matters is here. With both in the loop a tail that
-  // had crossed the tray thirty times had met the filter sixty times, so six
-  // kilohertz sat ten decibels under a thousand with DAMP at nothing and there
-  // was no setting that sounded open. Split, it sits six and a half under, and
-  // DAMP still has somewhere to go.
+  // The spring's own loss is inside the loop and the pickup is outside it, so a
+  // long tail meets the filter once per crossing rather than twice. With DAMP
+  // at nothing six kilohertz sits about six and a half decibels under a
+  // thousand, which leaves DAMP somewhere to go.
   {
     SpringReverb spring;
     spring.prepare(sr);
@@ -11316,13 +11320,10 @@ void testSpringReverb() {
   }
 }
 
-/// The plate, which is not a small room.
-///
-/// A sheet of steel has no geometry to hear, so a hit spreads across the whole
-/// of it almost at once: the tail is dense from its first instant, where a
-/// feedback delay network arrives in stages because its lines are lengths. The
-/// two are asked the same questions here, with the same decay, and they answer
-/// differently.
+/// The plate, which is not a small room. A sheet of steel has no geometry to
+/// hear, so the tail is dense from its first instant, where a feedback delay
+/// network arrives in stages. The two are asked the same questions here, with
+/// the same decay, and they answer differently.
 void testPlateReverb() {
   section("Plate reverb");
 
@@ -11372,8 +11373,8 @@ void testPlateReverb() {
   // ---- dense from the first instant ----------------------------------------
   //
   // How much of a click has arrived in the first fiftieth of a second, against
-  // how much arrives over the whole tail. A plate is already there; a network
-  // of eight lines is still filling up.
+  // how much arrives over the whole tail. A plate is already there, and a
+  // network of eight lines is still filling up.
   {
     PlateReverb plate;
     plate.prepare(sr);
@@ -11466,18 +11467,12 @@ void testPlateReverb() {
 
   // ---- and the tail is a wash rather than a pattern ------------------------
   //
-  // The tank's circuit is nearly three quarters of a second long, so whatever
-  // comes out of it comes out again a circuit later in the same shape. At a
-  // short decay nothing goes round often enough to notice. At a long one it is
-  // heard as a delay with some reverb on it, which is what this asks about:
-  // the tail's envelope, flattened so only its shape is left, held against
-  // itself at every lag from fifty milliseconds to a second and a half.
-  //
-  // Two things brought it down and both were found here. Reading all four of a
-  // channel's taps from one line gives four echoes of one circulating signal,
-  // and scored 0.35. Reading Dattorro's seven across the whole tank gave 0.23,
-  // and opening the modulation from his eight samples to a millisecond gave
-  // 0.10. The bar is set at 0.18, between the last two.
+  // The tank's circuit is nearly three quarters of a second long, so at a long
+  // decay whatever comes out of it comes out again a circuit later in the same
+  // shape, heard as a delay. The tail's envelope, flattened so only its shape
+  // is left, is held against itself at every lag from fifty milliseconds to a
+  // second and a half. The tank reads 0.10 here, and with Dattorro's
+  // eight-sample modulation 0.23, so the bar is set at 0.18.
   {
     PlateReverb plate;
     plate.prepare(sr);
@@ -11547,10 +11542,8 @@ void testPlateReverb() {
   // ---- and it agrees with the room about what DECAY means ------------------
   //
   // One knob serves all three machines, so switching between them at the same
-  // setting has to give a comparable tail. What should differ is the character
-  // of it, not the length. This is also what caught the tank's gain being
-  // sized for one branch of the figure of eight rather than a whole circuit of
-  // it, which made a two-and-a-half second setting last half of one.
+  // setting has to give a comparable tail. What should differ is its character,
+  // not its length.
   {
     const auto rt60Of = [&](auto &fx, ReverbType type) {
       ReverbParams q = p;
@@ -11612,8 +11605,7 @@ void testReverb() {
     check(identical, "switched off, the reverb passes the signal untouched");
   }
 
-  // ---- decay time
-  // ------------------------------------------------------------
+  // ---- decay time -----------------------------------------------------------
   const auto measureDecay = [&](float decaySeconds) {
     reverb.reset();
 
@@ -11690,8 +11682,7 @@ void testReverb() {
     check(ratio < 6.0, "the tail is broadband rather than a ringing pitch");
   }
 
-  // ---- pre-delay
-  // -------------------------------------------------------------
+  // ---- pre-delay ------------------------------------------------------------
   {
     reverb.reset();
 
@@ -11711,8 +11702,7 @@ void testReverb() {
           "the tail arrives after it");
   }
 
-  // ---- damping and low cut
-  // ---------------------------------------------------
+  // ---- damping and low cut --------------------------------------------------
   {
     const auto tailBand = [&](float damping, double lo, double hi) {
       reverb.reset();
@@ -11737,8 +11727,8 @@ void testReverb() {
                 damped);
     check(damped < open * 0.5, "damping takes the top off the tail");
 
-    // The low cut is fixed at 175 Hz now, so what reaches the tail below it
-    // has to be well down on what reaches it above.
+    // The low cut is fixed at 175 Hz, so what reaches the tail below it has to
+    // be well down on what reaches it above.
     const auto below = tailBand(0.3f, 60.0, 110.0);
     const auto above = tailBand(0.3f, 400.0, 800.0);
 
@@ -11747,14 +11737,12 @@ void testReverb() {
           "the fixed low cut keeps the fundamental out of the tail");
   }
 
-  // ---- spread
-  // -----------------------------------------------------------------
+  // ---- spread ---------------------------------------------------------------
   //
-  // There is no control over this. The two sides are drawn from different
-  // lines in different polarities, so the tail is wide because of how it is
-  // built, and the only thing worth checking is that it still is. A mono input
-  // is the hard case: if the network were symmetric this would come back
-  // perfectly correlated.
+  // There is no control over this. The two sides are drawn from different lines
+  // in different polarities, so the tail is wide by construction. A mono input
+  // is the hard case: a symmetric network would give it back perfectly
+  // correlated.
   {
     reverb.reset();
 
@@ -11782,8 +11770,7 @@ void testReverb() {
                              "independent from a mono input");
   }
 
-  // ---- level
-  // -----------------------------------------------------------------
+  // ---- level ----------------------------------------------------------------
   {
     reverb.reset();
 
@@ -11813,9 +11800,9 @@ void testReverb() {
   }
 
   // ---- stability -----------------------------------------------------------
-  // A 30 s reverb fed a continuous tone builds up, and should: that is what a
-  // long tail does. What must not happen is that it keeps building, so the
-  // test is not a peak but a direction. Feed it, stop, and watch it fall.
+  // A 30 s reverb fed a continuous tone builds up, as a long tail should, but
+  // must not keep building. So the test is a direction rather than a peak: feed
+  // it, stop, and watch it fall.
   {
     reverb.reset();
 
@@ -11855,7 +11842,7 @@ void testReverb() {
 }
 
 // -----------------------------------------------------------------------------
-// 11. CPU: the whole point of the exercise.
+// 11. CPU.
 // -----------------------------------------------------------------------------
 void benchmark() {
   section("CPU benchmark");
@@ -11948,10 +11935,9 @@ void benchmark() {
                 withEffects ? "on " : "off", 100.0 * elapsed / secs);
   }
 
-  // What a character costs, which is the question it was designed around. The
-  // inner loop reads a different table and is otherwise the same instructions,
-  // so anything here beyond the noise of the machine would mean the tables are
-  // fighting over the cache rather than that the oscillator got dearer.
+  // What a character costs. The inner loop reads a different table and is
+  // otherwise the same instructions, so anything beyond the noise of the
+  // machine would mean the tables are fighting over the cache.
   double pureLoad = 0.0;
 
   for (int c = 0; c < (int)Character::NumCharacters; ++c) {
@@ -12047,10 +12033,8 @@ void testLofi() {
   constexpr double sr = 48000.0;
   constexpr int N = 12000;
 
-  // sr is captured rather than left to the constexpr rule. Using a constexpr
-  // as a plain value does not odr-use it, so no capture is needed and GCC and
-  // Clang both accept it, but MSVC asks for one regardless and the build only
-  // finds out on Windows.
+  // sr is captured explicitly, since MSVC asks for a capture of a constexpr
+  // used as a plain value where GCC and Clang do not.
   const auto renderNote = [sr](const SynthParams &p, int samples,
                                std::vector<float> &l, std::vector<float> &r) {
     const auto engineOwner = std::make_unique<SynthEngine>();
@@ -12104,11 +12088,10 @@ void testLofi() {
         "8 kHz into a 48 kHz host holds five samples in six (" +
             std::to_string(heldFraction) + ")");
 
-  // Runs must be the same length throughout rather than drifting, which is
-  // what a resampler phase that restarts every block would produce.
-  // Past the engine's own latency, whose leading samples are one long run of
-  // silence and would count as the longest hold of all. Both stages that are
-  // late contribute to it. See BusDrive and OutputStage.
+  // Runs must be the same length throughout rather than drifting, as a
+  // resampler phase that restarted every block would give. Counted past the
+  // latency of the bus and output stages, whose leading silence would count as
+  // the longest hold of all.
   const int late = BusDrive::kLatency + OutputStage::lookaheadSamples(sr);
 
   int longest = 1, run = 1;
@@ -12253,7 +12236,7 @@ void testLofi() {
         "a rate above the host's reads as off rather than as an upsample");
 }
 
-/// The point of doing the reduction at the source rather than over the top.
+/// What doing the reduction at the source rather than over the top saves.
 void benchmarkLofi() {
   section("Lo-fi cost");
 
@@ -12307,12 +12290,522 @@ void benchmarkLofi() {
   }
 }
 
-/// The output stage: five ways to run out of room, all of them bounded.
-///
-/// The bound is the point of the stage rather than a property of the shapes
-/// that happen to be in it. A type that could be driven past unity would make
-/// the clipper's own promise false, and the plugin hands its output to a host
-/// that was told what to expect.
+/// The Cassette output machine against the measured recorder: unity and the
+/// lows at a quiet tone, Dolby's mistracking, the tape speed, hiss that follows
+/// the notes, a fade when it is chosen mid-note, and a NaN that stays a NaN.
+void testCassette() {
+  section("Cassette");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+
+  // A tone through the recorder, read over its last second with a taper.
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi](double f, double db) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+    const int from = kN - 48000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double t = (double)(i - from) / 48000.0;
+      const double w = 0.5 - 0.5 * std::cos(kTwoPi * t);
+      norm += w;
+
+      // Each stage starts its transport from the same place, so two tones
+      // read here flutter alike and compare fairly, and over a second the
+      // flutter moves a tone by less than the window can see.
+      const double ph = kTwoPi * f * (double)i / sr;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  // ---- unity, and the lows first -------------------------------------------
+  const auto quiet = steady(1000.0, -40.0);
+  std::printf("  1 kHz at -40 dBFS: %+.2f dB\n", quiet.gainDb);
+  check(std::abs(quiet.gainDb) < 0.8,
+        "a quiet 1 kHz tone comes through at unity, give or take the tape's "
+        "slow wobble (" +
+            std::to_string(quiet.gainDb) + " dB)");
+
+  const auto low = steady(30.0, -3.0);
+  const auto mid = steady(1000.0, -3.0);
+  std::printf("  third harmonic at -3 dBFS: 30 Hz %.1f dB, 1 kHz %.1f dB\n",
+              low.thirdDb, mid.thirdDb);
+  check(low.thirdDb > -24.0 && low.thirdDb < -16.0 && mid.thirdDb < -38.0,
+        "the tape saturates the lows first, as measured: a third harmonic "
+        "near -18 dB at 30 Hz and under -38 at 1 kHz");
+
+  // ---- Dolby's mistracking --------------------------------------------------
+  const auto quietTop = steady(10000.0, -36.0);
+  const auto loudTop = steady(10000.0, -8.0);
+  std::printf("  10 kHz: %+.2f dB at -36 dBFS, %+.2f dB at -8\n",
+              quietTop.gainDb, loudTop.gainDb);
+  check(loudTop.gainDb - quietTop.gainDb > 2.0,
+        "quiet highs come back duller than loud ones, as the machine's Dolby "
+        "does");
+
+  // ---- the speed -----------------------------------------------------------
+  {
+    // A 3150 Hz tone's period over 16 cycles at a time, which is the speed the
+    // tape played it back at. Sixteen rather than one, since a single cycle's
+    // two crossings move with the hiss as much as with the speed. That keeps
+    // what flutters below about 100 Hz, which is most of it.
+    constexpr int kN = 480000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+    const double a = std::pow(10.0, -18.0 / 20.0);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * 3150.0 * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+    std::vector<double> crossings;
+
+    for (int i = (int)sr; i < kN; ++i) {
+      const double y0 = (double)l[(size_t)i - 1], y1 = (double)l[(size_t)i];
+
+      if (y0 < 0.0 && y1 >= 0.0)
+        crossings.push_back((double)(i - 1) + y0 / (y0 - y1));
+    }
+
+    constexpr size_t kSpan = 16;
+    const size_t spans = crossings.size() - kSpan;
+
+    double mean = 0.0;
+    for (size_t k = 0; k < spans; ++k)
+      mean += crossings[k + kSpan] - crossings[k];
+    mean /= (double)spans;
+
+    double spread = 0.0;
+    for (size_t k = 0; k < spans; ++k) {
+      const double d = (crossings[k + kSpan] - crossings[k]) / mean - 1.0;
+      spread += d * d;
+    }
+
+    const double rms = 100.0 * std::sqrt(spread / (double)spans);
+
+    std::printf("  wow and flutter: %.3f%% rms\n", rms);
+    check(rms > 0.06 && rms < 0.16,
+          "the speed wanders by about a tenth of a percent, as the "
+          "machine's did (" +
+              std::to_string(rms) + "%)");
+  }
+
+  // ---- the hiss follows the notes -------------------------------------------
+  {
+    constexpr int kN = 96000;
+
+    const auto noiseAbove = [sr, kN, kTwoPi](double toneDb) {
+      OutputStage stage;
+      stage.prepare(sr);
+
+      std::vector<float> l((size_t)kN), r((size_t)kN);
+      const double a = toneDb < -200.0 ? 0.0 : std::pow(10.0, toneDb / 20.0);
+
+      for (int i = 0; i < kN; ++i)
+        l[(size_t)i] = r[(size_t)i] =
+            (float)(a * std::sin(kTwoPi * 125.0 * (double)i / sr));
+
+      stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
+
+      // What is left once the tone and its harmonics are taken out: the
+      // difference between neighbouring cycles, which a steady 125 Hz tone
+      // repeats every 384 samples and hiss does not.
+      double power = 0.0;
+      int count = 0;
+
+      for (int i = kN / 2; i < kN; ++i) {
+        const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
+        power += d * d;
+        ++count;
+      }
+
+      return 10.0 * std::log10(std::max(1.0e-30, power / (2.0 * count)));
+    };
+
+    const double silent = noiseAbove(-400.0);
+    const double playing = noiseAbove(-20.0);
+
+    std::printf("  hiss: %.1f dBFS with nothing playing, %.1f under a note\n",
+                silent, playing);
+    check(silent < -140.0, "there is no hiss with nothing playing");
+    check(playing > -90.0 && playing < -50.0,
+          "and there is while something plays, at about the tape's level");
+  }
+
+  // ---- chosen part way through a note ---------------------------------------
+  //
+  // It runs only while chosen, so choosing it mid-note starts it from rest,
+  // with its delay empty, and the output fades to it over 30 ms. Without the
+  // fade the first millisecond would be silence with a step on each side.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    constexpr int kBlock = 256, kBlocks = 40;
+    std::vector<float> l((size_t)(kBlock * kBlocks)), r(l.size());
+
+    for (size_t i = 0; i < l.size(); ++i)
+      l[i] = r[i] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)i / sr));
+
+    // The largest step from one sample to the next a 220 Hz sine at half
+    // scale takes, with room for the tape's own colouring.
+    const double allowed = 2.0 * 0.5 * kTwoPi * 220.0 / sr;
+    double worst = 0.0;
+
+    for (int b = 0; b < kBlocks; ++b) {
+      const auto type = b < kBlocks / 2 ? ClipType::Soft : ClipType::Cassette;
+      stage.process(l.data() + b * kBlock, r.data() + b * kBlock, kBlock, type,
+                    true, false);
+    }
+
+    for (size_t i = 1; i < l.size(); ++i)
+      worst = std::max(worst, std::abs((double)l[i] - (double)l[i - 1]));
+
+    std::printf("  switched to mid-note: largest step %.4f against %.4f\n",
+                worst, allowed);
+    check(worst < allowed, "chosen part way through a note, it fades in "
+                           "without a click");
+  }
+
+  // ---- a NaN, which must not become a table index ---------------------------
+  //
+  // The recorder runs on every sample whatever machine is chosen, and its limit
+  // is read from a table, so a NaN arriving there must come out as a NaN and
+  // not as an index into the table. A build with -fsanitize=float-cast-overflow
+  // reports the conversion if it happens.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l(64, 0.1f), r(64, 0.1f);
+    l[10] = r[10] = std::numeric_limits<float>::quiet_NaN();
+
+    stage.process(l.data(), r.data(), 64, ClipType::Soft, true, false);
+    check(true, "a NaN through the output stage reads nothing it should not");
+  }
+}
+
+/// The Console output machine against the model it was ported from: the model's
+/// figures on steady tones at 48 kHz, with its gain at unity on a quiet 1 kHz
+/// tone, and the compressor the recordings showed, linked, its sidechain
+/// filtered at 120 Hz, with a release that lets go fast after a short hit and
+
+/// The Print output machine, the console printed to the cassette recorder:
+/// unity at a quiet tone, the console's third harmonic at a moderate level
+/// where the deck alone is clean, tape hiss 6 dB under the deck's alone, and
+/// the deck's low end at full scale.
+void testPrint() {
+  section("Print");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi](ClipType type, double f, double db) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, type, true, false);
+
+    const int from = kN - 48000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double w =
+          0.5 - 0.5 * std::cos(kTwoPi * (double)(i - from) / 48000.0);
+      const double ph = kTwoPi * f * (double)i / sr;
+      norm += w;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  const auto quiet = steady(ClipType::Print, 1000.0, -40.0);
+  check(std::abs(quiet.gainDb) < 0.8,
+        "a quiet 1 kHz tone comes through Print at unity (" +
+            std::to_string(quiet.gainDb) + " dB)");
+
+  const auto printed = steady(ClipType::Print, 1000.0, -9.0);
+  const auto taped = steady(ClipType::Cassette, 1000.0, -9.0);
+  std::printf("  1 kHz at -9 dBFS: third harmonic %.1f dB printed, %.1f on "
+              "the deck alone\n",
+              printed.thirdDb, taped.thirdDb);
+  check(printed.thirdDb > -45.0 && taped.thirdDb < -50.0,
+        "at a moderate level it carries the console's third harmonic, where "
+        "the deck alone is clean");
+
+  // The hiss under a quiet note, what is left once the note is taken out:
+  // the difference between neighbouring cycles of a 125 Hz tone, which
+  // repeats every 384 samples where hiss does not. At -38 dBFS, quiet enough
+  // that the flutter's own difference between cycles stays under the hiss,
+  // and loud enough to hold the hiss gate open.
+  const auto hissUnder = [sr, kTwoPi](ClipType type) {
+    constexpr int kN = 96000;
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(0.012 * std::sin(kTwoPi * 125.0 * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, type, true, false);
+
+    double power = 0.0;
+
+    for (int i = kN / 2; i < kN; ++i) {
+      const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
+      power += d * d;
+    }
+
+    return 10.0 * std::log10(power / (double)(kN / 2));
+  };
+
+  const double quieter =
+      hissUnder(ClipType::Print) - hissUnder(ClipType::Cassette);
+  std::printf("  hiss under a quiet note: %+.1f dB against the deck alone\n",
+              quieter);
+  check(quieter < -4.5 && quieter > -7.5,
+        "its tape hiss sits about 6 dB under the deck's on its own");
+
+  const auto low = steady(ClipType::Print, 60.0, 0.0);
+  std::printf("  60 Hz at full scale: third harmonic %.1f dB\n", low.thirdDb);
+  check(low.thirdDb > -25.0,
+        "and at full scale the deck still saturates the lows first");
+}
+
+/// slowly after a long one.
+void testConsole() {
+  section("Console");
+
+  constexpr double kTwoPi = 6.283185307179586;
+  constexpr double sr = 48000.0;
+  constexpr int kN = 144000;
+
+  struct Read {
+    double gainDb, thirdDb;
+  };
+
+  const auto steady = [sr, kTwoPi, kN](double f, double db) {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    const double a = std::pow(10.0, db / 20.0);
+    std::vector<float> l((size_t)kN), r((size_t)kN);
+
+    for (int i = 0; i < kN; ++i)
+      l[(size_t)i] = r[(size_t)i] =
+          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
+
+    stage.process(l.data(), r.data(), kN, ClipType::Console, true, true);
+
+    const int from = kN - 24000;
+    std::complex<double> h1{}, h3{};
+    double norm = 0.0;
+
+    for (int i = from; i < kN; ++i) {
+      const double t = (double)(i - from) / 24000.0;
+      const double w =
+          0.42 - 0.5 * std::cos(kTwoPi * t) + 0.08 * std::cos(2.0 * kTwoPi * t);
+      const double ph = kTwoPi * f * (double)i / sr;
+      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
+      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
+      norm += w;
+    }
+
+    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
+                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
+  };
+
+  struct Expect {
+    double f, db, gainDb, thirdDb;
+  };
+
+  // The third harmonic is only held where the model has one to speak of.
+  const Expect expect[] = {
+      {1000.0, -40.0, 0.0, -999.0},  {1000.0, -6.0, -0.69, -37.88},
+      {1000.0, -1.0, -2.23, -39.72}, {60.0, -40.0, 0.19, -999.0},
+      {60.0, -1.0, -0.94, -40.49},   {250.0, -1.0, -2.13, -37.77}};
+
+  double worstGain = 0.0, worstThird = 0.0;
+
+  for (const auto &e : expect) {
+    const auto got = steady(e.f, e.db);
+
+    std::printf("  %4.0f Hz at %3.0f dBFS: gain %+6.2f dB (model %+6.2f), "
+                "third %7.2f dB (model %7.2f)\n",
+                e.f, e.db, got.gainDb, e.gainDb, got.thirdDb, e.thirdDb);
+
+    worstGain = std::max(worstGain, std::abs(got.gainDb - e.gainDb));
+
+    if (e.thirdDb > -100.0)
+      worstThird = std::max(worstThird, std::abs(got.thirdDb - e.thirdDb));
+  }
+
+  check(worstGain < 0.15, "the console's gain matches the model it was "
+                          "fitted as, within 0.15 dB (" +
+                              std::to_string(worstGain) + ")");
+  check(worstThird < 1.5, "and its third harmonic within 1.5 dB (" +
+                              std::to_string(worstThird) + ")");
+
+  // ---- the compressor, as recorded ----------------------------------------
+  //
+  // The reduction it applies to a quiet 1 kHz tone, read as the tone's level
+  // in 5 ms windows against where it stood before anything loud arrived.
+  const auto reduction = [sr, kTwoPi](const std::vector<float> &x, int at) {
+    const int n = 240;
+    std::complex<double> h{};
+
+    for (int i = at; i < at + n; ++i)
+      h += (double)x[(size_t)i] *
+           std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
+
+    return 20.0 * std::log10(2.0 * std::abs(h) / (double)n);
+  };
+
+  // A -30 dBFS bed of 1 kHz on both sides, with something loud added to one
+  // or both from one second in, for `seconds`.
+  const auto withBurst = [sr, kTwoPi](double burstHz, double seconds,
+                                      bool leftOnly, int length) {
+    std::vector<float> l((size_t)length), r((size_t)length);
+    const double bed = std::pow(10.0, -30.0 / 20.0);
+    const double loud = std::pow(10.0, -1.0 / 20.0);
+    const int start = (int)sr, stop = start + (int)(seconds * sr);
+
+    for (int i = 0; i < length; ++i) {
+      const double t = (double)i / sr;
+      const double b = bed * std::sin(kTwoPi * 1000.0 * t);
+      const double hit =
+          i >= start && i < stop ? loud * std::sin(kTwoPi * burstHz * t) : 0.0;
+      l[(size_t)i] = (float)(b + hit);
+      r[(size_t)i] = (float)(b + (leftOnly ? 0.0 : hit));
+    }
+
+    OutputStage stage;
+    stage.prepare(sr);
+    stage.process(l.data(), r.data(), length, ClipType::Console, true, true);
+
+    return std::make_pair(l, r);
+  };
+
+  {
+    // The burst at 400 Hz on the left alone, read on the right's 1 kHz bed.
+    const auto [l, r] = withBurst(400.0, 1.0, true, (int)(3.0 * sr));
+    const double before = reduction(r, (int)(0.8 * sr));
+    const double during = reduction(r, (int)(1.9 * sr));
+
+    std::printf("  a loud burst on the left alone: the right moves %+.2f dB\n",
+                during - before);
+    check(during - before < -1.0,
+          "the two sides are linked: a burst on one side turns both down");
+  }
+
+  {
+    // The same burst at 60 Hz and at 400 Hz on both sides, read on the bed.
+    // Over 100 ms with a taper, which keeps a loud 60 Hz out of the reading
+    // of the bed's 1 kHz, where 5 ms with none lets it straight in.
+    const auto bedAt = [sr, kTwoPi](const std::vector<float> &x, int at) {
+      const int n = 4800;
+      std::complex<double> h{};
+      double norm = 0.0;
+
+      for (int i = at; i < at + n; ++i) {
+        const double t = (double)(i - at) / (double)n;
+        const double w = 0.42 - 0.5 * std::cos(kTwoPi * t) +
+                         0.08 * std::cos(2.0 * kTwoPi * t);
+        h += w * (double)x[(size_t)i] *
+             std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
+        norm += w;
+      }
+
+      return 20.0 * std::log10(2.0 * std::abs(h) / norm);
+    };
+
+    const auto [l60, r60] = withBurst(60.0, 1.0, false, (int)(3.0 * sr));
+    const auto [l4, r4] = withBurst(400.0, 1.0, false, (int)(3.0 * sr));
+    const double low =
+        bedAt(l60, (int)(1.8 * sr)) - bedAt(l60, (int)(0.8 * sr));
+    const double mid = bedAt(l4, (int)(1.8 * sr)) - bedAt(l4, (int)(0.8 * sr));
+
+    std::printf("  a loud burst at 60 Hz takes %.2f dB, at 400 Hz %.2f dB\n",
+                -low, -mid);
+    check(mid < -1.0 && low > mid + 1.5,
+          "the sidechain's filter keeps a 60 Hz burst from taking what a "
+          "400 Hz one takes");
+  }
+
+  {
+    // Release after a 20 ms hit and after a 3 s one, as the share of the
+    // reduction still there 300 ms after each ends.
+    const auto left = [&](double seconds) {
+      const auto [l, r] =
+          withBurst(400.0, seconds, false, (int)((2.0 + seconds) * sr));
+      const int end = (int)((1.0 + seconds) * sr);
+      const double before = reduction(l, (int)(0.8 * sr));
+      double deepest = 0.0;
+
+      for (int at = (int)sr; at < end; at += 240)
+        deepest = std::min(deepest, reduction(l, at) - before);
+
+      return (reduction(l, end + (int)(0.3 * sr)) - before) / deepest;
+    };
+
+    const double shortHit = left(0.02), longHit = left(3.0);
+
+    std::printf("  300 ms after a 20 ms hit %.0f%% of the reduction is left, "
+                "after a 3 s hit %.0f%%\n",
+                100.0 * shortHit, 100.0 * longHit);
+    check(shortHit < 0.2 && longHit > 0.5,
+          "the release lets go fast after a short hit and slowly after a "
+          "long one");
+  }
+}
+
+/// The output stage: five ways to run out of room, all of them bounded, since
+/// the host was told what to expect. Soft is bit for bit what it was, each type
+/// differs in the way it claims to, and the limiter holds the ceiling itself,
+/// with or without its lookahead.
 void testOutputStage() {
   section("The output stage");
 
@@ -12320,9 +12813,8 @@ void testOutputStage() {
   constexpr int kN = 4096;
 
   // The stage is late by its lookahead, so everything below renders that much
-  // extra and drops it. Without that every comparison against the input is
-  // off by ninety-six samples, which on a 220 Hz sine is most of a quarter
-  // cycle and would read as the shapes having changed.
+  // extra and drops it, or every comparison against the input would be most of
+  // a quarter cycle out on a 220 Hz sine.
   const auto run = [&](ClipType type, float drive) {
     OutputStage stage;
     stage.prepare(sr);
@@ -12369,8 +12861,8 @@ void testOutputStage() {
 
   // ---- Soft is exactly what it always was --------------------------------
   //
-  // Every patch in the set was dialled in against this curve, so it has to
-  // come through the change bit for bit rather than merely close.
+  // Every preset was dialled in against this curve, so it has to stay the same
+  // bit for bit.
   {
     OutputStage stage;
     stage.prepare(sr);
@@ -12429,16 +12921,9 @@ void testOutputStage() {
         "Asymmetric puts a second harmonic where Soft puts none");
 
   // A limiter turns the signal down rather than bending it, so what comes out
-  // is still a sine where a clipper's is not.
-  //
-  // The bound is tight on purpose. A quarter of what Hard makes is satisfied
-  // by any limiter at all, including one whose gain jumps to where it is
-  // needed the instant it is needed: that one holds the ceiling perfectly and
-  // puts 0.00185 into the third harmonic doing it, because a gain that steps
-  // is itself a distortion. Looking ahead and easing the gain into place with
-  // the two box filters is what takes that to 0.00012, and it is the whole
-  // reason this stage carries two milliseconds of latency. A threshold at a
-  // quarter would let that improvement be deleted silently.
+  // is still a sine where a clipper's is not. The bound is tight on purpose: a
+  // gain that jumps into place holds the ceiling but puts 0.00185 into the
+  // third harmonic, where the lookahead and the two box filters give 0.00012.
   const auto hard3 = harmonic(ClipType::Hard, 2.0f, 3.0);
   const auto limit3 = harmonic(ClipType::Limiter, 2.0f, 3.0);
 
@@ -12447,7 +12932,7 @@ void testOutputStage() {
         "the Limiter holds the ceiling without distorting to do it (" +
             std::to_string(limit3) + ")");
 
-  // And the folder makes more of everything than the shaper it replaces.
+  // And the folder makes more of everything than Soft.
   const auto soft5 = harmonic(ClipType::Soft, 2.0f, 5.0);
   const auto fold5 = harmonic(ClipType::Fold, 2.0f, 5.0);
 
@@ -12456,9 +12941,8 @@ void testOutputStage() {
 
   // ---- below the knee nothing touches it ---------------------------------
   //
-  // The input is built once and kept rather than worked out twice, because
-  // 0.4f and 0.4 are not the same number and comparing a run against a freshly
-  // written expression failed on that alone.
+  // The input is built once and kept, since 0.4f and 0.4 are not the same
+  // number.
   {
     std::vector<float> in((size_t)kN);
     for (int n = 0; n < kN; ++n)
@@ -12489,16 +12973,10 @@ void testOutputStage() {
 
   // ---- the limiter limits, rather than leaving it to the backstop ---------
   //
-  // The point of the lookahead. Without it the gain is always arriving after
-  // the peak it was meant for, so what actually holds the signal down is the
-  // hard clip behind it: on the presets that drive it, 1741 samples in two
-  // seconds were being clipped and the signal reached 1.294 on its way there.
-  // With it the gain is in place before the peak lands and the clip has
-  // nothing to do, which is audible as the difference between a limiter and a
-  // clipper.
-  //
-  // Asserted as a ceiling rather than as a count of clipped samples, because
-  // the ceiling is the claim: anything at unity got there by being cut off.
+  // With the lookahead the gain is in place before the peak lands, so the hard
+  // clip behind it has nothing to do. Asserted as a ceiling below unity rather
+  // than as a count of clipped samples, since anything at unity got there by
+  // being cut off.
   {
     OutputStage stage;
     stage.prepare(sr);
@@ -12517,11 +12995,9 @@ void testOutputStage() {
 
     stage.process(l.data(), r.data(), kN, ClipType::Limiter, true, true);
 
-    // Four milliseconds from the onset, which is twice the lookahead and so
-    // covers the whole of the stage getting its gain into place. Fixed in
-    // milliseconds rather than taken from latency(), because a window derived
-    // from the thing under test is empty when that thing is zero and the
-    // check then passes by having nothing to look at.
+    // Four milliseconds from the onset, twice the lookahead. Fixed in
+    // milliseconds rather than taken from latency(), so a zero latency cannot
+    // leave an empty window that passes.
     const int onsetSamples = (int)(0.004 * sr);
 
     float onset = 0.0f;
@@ -12538,11 +13014,9 @@ void testOutputStage() {
 
   // ---- and without its window it is rougher, not broken -------------------
   //
-  // What the Settings switch buys back. With no lookahead the detector sees
-  // one sample rather than a window, so the gain it applies is exact and
-  // immediate: the ceiling still holds with nothing for the clip behind it to
-  // do. What is lost is the smoothing, and a gain that steps is itself a
-  // distortion, which is the whole of the trade.
+  // The Settings switch with no lookahead: the detector sees one sample, so the
+  // gain is exact and immediate and the ceiling still holds. What is lost is
+  // the smoothing, since a gain that steps is itself a distortion.
   {
     const auto run = [&](bool ahead) {
       OutputStage stage;
@@ -12617,10 +13091,8 @@ void testOutputStage() {
 
 int main() {
   // Unbuffered, so a crash leaves behind everything printed up to it. ctest
-  // captures the output through a pipe, which buffers it by default, and a
-  // suite that dies with its last few sections still in that buffer says only
-  // that it died. Not _IOLBF: the Windows CRT treats line buffering as full
-  // buffering, and Windows is where the crash that cost a round trip was.
+  // reads the output through a pipe, which buffers it. Not _IOLBF, which the
+  // Windows CRT treats as full buffering.
   std::setvbuf(stdout, nullptr, _IONBF, 0);
 
   testTuningTable();
@@ -12683,12 +13155,17 @@ int main() {
   testBusDriveIsSmooth();
   testBusDriveIsFlat();
   testSidBusRunsOutOfRoom();
+  testVcoMixer();
+  testVcoWander();
   testWobble();
   testReverb();
   testPlateReverb();
   testSpringReverb();
   testLofi();
   testOutputStage();
+  testConsole();
+  testCassette();
+  testPrint();
   benchmark();
   benchmarkLofi();
 

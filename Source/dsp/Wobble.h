@@ -9,36 +9,24 @@ namespace ovt {
 /// A warped record under the whole instrument.
 ///
 /// Pitch is bent by reading the output back through a delay line whose length
-/// keeps moving, which is the same thing that happens when a platter runs
-/// eccentric or a capstan slips: the medium arrives early or late and the
-/// pitch goes with it. Three things move it at once.
+/// keeps moving. Three things move it at once: a slow warp, the
+/// once-round-the-record wander, a faster wobble on top, and now and then a
+/// random slip that bends hard and settles back. Slips grow in rate and size
+/// faster than the wander as the amount comes up.
 ///
-/// A slow warp, the once-round-the-record wander that a dished or off-centre
-/// disc gives. A faster wobble on top, too quick to follow and too slow to be
-/// vibrato. And now and then a nudge, a sharp slip that bends hard and settles
-/// back, which is the glitch: it arrives at random and its rate and size climb
-/// faster than the wander does, so a low setting is a tired turntable and a
-/// high one is a broken transport.
+/// Both channels share the same modulation, so a centred source stays centred.
 ///
-/// Both channels are driven from the same modulation. It is one platter, so a
-/// centred source stays centred, which is also what keeps this distinct from
-/// the echo further down the chain, where the whole point is that the two
-/// sides disagree.
-///
-/// The delay it introduces grows with the amount rather than being switched
-/// in, so at zero there is no delay at all and turning the control up cannot
-/// step. Bypassed entirely at zero, with the line cleared on the way out.
+/// The delay grows with the amount, so at zero there is no delay and turning
+/// the control up cannot step. At zero it is bypassed and the line cleared.
 class Wobble {
 public:
-  /// How far the read point can be pushed either side of centre. Full travel
-  /// at the slow rate works out at a couple of semitones, which is a record
-  /// nobody would keep.
+  /// How far the read point can be pushed either side of centre.
   static constexpr float kMaxDepthSeconds = 0.030f;
 
   void prepare(double sampleRate) noexcept;
   void reset() noexcept;
 
-  /// Processes in place.
+  /// Processes in place. Does not allocate.
   ///
   /// @param amount  0 to 1. Zero passes the signal through untouched.
   void process(float *left, float *right, int numSamples,

@@ -1,6 +1,6 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-24
+Last changed: 2026-10-31
 
 # Overtonium controls
 
@@ -48,7 +48,7 @@ The square and stepped shapes do not click. A partial's gain changes smoothly ac
 
 LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once.
 
-**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) ships with its tremolo shared and StyloPoly with its vibrato.
+**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) and Tape Pluck ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
 Each channel keeps its own rate and shape either way. Sharing gives one modulator per channel, not one for the whole instrument, so a patch built on thirty-two rates that never line up still sounds the same with the switch on. The switch is part of the patch, so a preset saves it. Both switches are off unless a patch turns them on.
 
@@ -108,6 +108,9 @@ While drawing is armed, every fader lights in the same accent colour as the butt
 | Same interval  | only the strips sharing the interval class of the one you grab, so you can move just the fifths, or just the octaves |
 | Odd harmonics  | 1, 3, 5 and so on, the half of the series that sounds hollow                                                         |
 | Even harmonics | 2, 4, 6 and so on                                                                                                    |
+| Selected       | the channels you picked by their numbers, whichever they are                                                         |
+
+To move a set of channels no rule describes, pick them. Cmd-click a channel's number on a Mac, or Ctrl-click on Windows and Linux, to pick it or put it back, and drag across the numbers to do the same to every channel you cross. A drag that starts on a picked channel takes channels away instead. Picked channels show a short bar under their number, and picking one switches to Link with the Selected scope, so the next drag moves only those channels. The selection is kept with your session, and Clear selection in the Link menu empties it.
 
 | Curve               | How the drag is shared out                                                                                                   |
 | ------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -161,7 +164,7 @@ Channels are coloured by interval class, in chromatic order along a narrow range
 
 ### Silenced channels
 
-A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings, both readouts and the macro columns beside its fader go dark, and its waveform drawings turn grey. The pointer on each knob and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
+A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings, both readouts and the macro columns beside its fader go dark, and its waveform screens switch off. The pointer on each knob and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
 
 ### Folding the mixer down
 

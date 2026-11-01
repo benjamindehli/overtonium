@@ -6,18 +6,11 @@
 
 namespace ovt::ui {
 
-/// A question put to whoever is at the window, as a card over the dimmed
-/// mixer the way MACROS is, with two answers.
+/// A question with two answers, as a card over the dimmed mixer.
 ///
-/// Drawn in the window rather than opened as a window of its own. A plugin
-/// cannot run a modal loop, and a host scanning its plugin folder opens an
-/// editor with nobody there to answer, so a dialog that waited would stop the
-/// scan. This waits for nothing: until it is answered it sits over the mixer
-/// and the rest of the instrument carries on.
-///
-/// Answered only by one of its buttons. A click on the dim beside the card
-/// does nothing, since a question put away by accident would count as one
-/// somebody never meant to answer.
+/// Drawn in the window rather than as a modal dialog, which a plugin cannot
+/// run and which would stall a host scanning plugins. Answered only by its
+/// buttons, not by a click beside the card.
 class Notice final : public juce::Component {
 public:
   Notice();
@@ -29,6 +22,7 @@ public:
 
   bool isShowing() const noexcept { return isVisible(); }
 
+  /// The message showing, for the tests.
   const juce::String &getMessage() const noexcept { return message; }
 
   /// The two answers, for the tests, which press them.
@@ -44,6 +38,7 @@ private:
   std::function<void()> primaryAction, secondaryAction;
   juce::Rectangle<int> card;
 
+  /// Puts the card away and runs the chosen answer.
   void answer(const std::function<void()> &action);
 };
 

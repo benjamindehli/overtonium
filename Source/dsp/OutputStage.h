@@ -5,51 +5,52 @@
 #include <cstdint>
 #include <vector>
 
+#include "Cassette.h"
+#include "Console.h"
+
 namespace ovt {
 
 /// What the mixer runs into on its way out.
 ///
-/// It began as one soft clipper with a switch, there to stop the instrument
-/// handing a host something louder than it asked for. Five of them now, which
-/// makes it part of the sound rather than only a guard: the master fader sits
-/// in front of this, so how hard you drive it is a thing a patch decides.
-///
-/// Every one of them is bounded by one. That is not a coincidence of the
-/// shapes chosen but the point of the stage, and there is a test on it: a
-/// safety clipper that could be driven past unity would not be one.
+/// Seven types, each bounded by one, so the stage is also a safety clipper.
+/// The master fader sits in front of it, so how hard it is driven is part of
+/// the patch.
 enum class ClipType {
-  /// Linear to seven tenths, then a tanh knee. Gradual, symmetric, odd
-  /// harmonics arriving as you lean on it. What every patch had before there
-  /// was a choice, so it is first and it is the default.
+  /// Linear to seven tenths, then a tanh knee. Symmetric, odd harmonics. The
+  /// default.
   Soft,
 
-  /// A brick wall at unity. Nothing happens until it does, which is the sound
-  /// of a converter with no headroom left: abrupt, bright, and the same odd
-  /// harmonics as Soft but all at once.
+  /// A brick wall at unity. Abrupt and bright, the same odd harmonics as Soft
+  /// but all at once.
   Hard,
 
-  /// One half of the wave leans over before the other, the way a single-ended
-  /// stage does. The asymmetry is the whole of it: where Soft and Hard fold
-  /// the two halves alike and give odd harmonics, this gives even ones, which
-  /// is a different kind of loud rather than more of it.
-  ///
-  /// Named for what it does to the wave rather than for the bias that makes
-  /// it do that, which is the word BusDrive and Character already use, there
-  /// for a property several circuits have rather than for a machine of its
-  /// own.
+  /// One half of the wave bends over before the other, like a single-ended
+  /// stage, which gives even harmonics where Soft and Hard give odd ones.
   Asymmetric,
 
-  /// Gain reduction rather than waveshaping. It does not distort at all: it
-  /// turns the whole signal down as it approaches the ceiling and lets it back
-  /// up afterwards, so what you hear is the level moving rather than the
-  /// shape. The only one here that a mastering engineer would recognise.
+  /// Gain reduction rather than waveshaping. It turns the whole signal down
+  /// as it approaches the ceiling and lets it back up afterwards.
   Limiter,
 
-  /// Past the threshold the wave turns back on itself instead of flattening.
-  /// Not protection that happens to colour, but an effect that happens to be
-  /// bounded: it generates far more harmonics than the others and they move
-  /// with the level, so it sings rather than crunches.
+  /// Past the threshold the wave turns back on itself instead of flattening,
+  /// which gives many more harmonics that move with the level.
   Fold,
+
+  /// A console's mix bus, measured from a real chain: transformer, bus
+  /// compressor and tape stage, into the limiter with its ceiling at
+  /// -0.1 dBFS. Unity for a quiet 1 kHz tone. See Console.
+  Console,
+
+  /// A four-track cassette recorder at 9.5 cm/s with Dolby B, measured from a
+  /// real one, into the limiter with its ceiling at -0.1 dBFS. Unity for a
+  /// quiet 1 kHz tone. See Cassette.
+  Cassette,
+
+  /// The console's chain printed to the cassette recorder: Console, a limiter
+  /// at -0.1 dBFS, then Cassette, into the limiter at the end. The order the
+  /// outboard chain and the deck were patched in. Unity for a quiet 1 kHz
+  /// tone.
+  Print,
 
   NumTypes
 };
@@ -66,6 +67,12 @@ inline const char *clipTypeName(ClipType t) {
     return "Limiter";
   case ClipType::Fold:
     return "Fold";
+  case ClipType::Console:
+    return "Console";
+  case ClipType::Cassette:
+    return "Cassette";
+  case ClipType::Print:
+    return "Print";
 
   // Listed rather than left to a default, so adding one is a compiler error
   // here until it has a name.
@@ -76,26 +83,22 @@ inline const char *clipTypeName(ClipType t) {
   return "Soft";
 }
 
-/// What the bar's button says, which is the name itself for three of the five.
-///
-/// Asymmetric has to be shortened. The button is 62 px wide and gives a label
-/// 46 of them, and in that button's own font ASYMMETRIC is 54.3. The ten
-/// pixels it would take have an owner: the converter's two readouts share the
-/// row and are already at the 66 px they need to name their units, so the
-/// button growing is those readouts shrinking. ASYM is 23.
-///
-/// Limiter is shortened because the other four are short. It fits at 32.6 and
-/// could stay, but SOFT, HARD, ASYM, LIMIT and FOLD read as one set of
-/// choices where a single long word among them reads as the odd one.
-///
-/// Only the button abbreviates. The menu it opens, the name the host shows on
-/// the automation lane and the documentation all have room for the word.
+/// What the bar's button says. Some names are shortened to fit the 62 px
+/// button and to read as one set: SOFT, HARD, ASYM, LIMIT, FOLD, CNSL, CASS,
+/// PRNT.
+/// The menu, the host and the documentation use the full names.
 inline const char *clipTypeShortName(ClipType t) {
   switch (t) {
   case ClipType::Asymmetric:
     return "Asym";
   case ClipType::Limiter:
     return "Limit";
+  case ClipType::Console:
+    return "Cnsl";
+  case ClipType::Cassette:
+    return "Cass";
+  case ClipType::Print:
+    return "Prnt";
 
   case ClipType::Soft:
   case ClipType::Hard:
@@ -107,45 +110,25 @@ inline const char *clipTypeShortName(ClipType t) {
   return clipTypeName(t);
 }
 
-/// The output stage, which is stateful because one of the five is.
+/// The output stage. Stateful because the limiter, Console and Cassette
+/// are.
 ///
-/// The four shapers are memoryless and could be free functions. The limiter
-/// carries a gain that walks towards what the signal needs, and that gain is
-/// shared between the two channels rather than kept per channel: a limiter
-/// that ducked one side on its own would pull the stereo image towards the
-/// quieter one every time something loud happened on the other.
+/// The limiter's gain is shared between the two channels, so ducking one
+/// side does not pull the stereo image towards the other.
 ///
-/// The whole stage is late by kLookaheadSeconds, every type and no type
-/// alike. That is the limiter's doing and the rest pay it, for the reason
-/// BusDrive::kLatency gives: a stage whose latency depended on the patch would
-/// have the host re-plan its graph every time a preset was chosen. So the
-/// delay is unconditional and the four memoryless shapers run behind it,
-/// which costs them nothing since delaying a memoryless curve and curving a
-/// delayed signal are the same thing.
-///
-/// Unconditional on the patch, that is. A session setting can refuse the
-/// lookahead, and then the stage is not late at all: the detector sees one
-/// sample instead of a window, which still holds the ceiling exactly and with
-/// no overshoot, and distorts about fifteen times more doing it. Switching is
-/// free of allocation, since the buffers are sized for the window whether or
-/// not it is in use.
+/// The whole stage is late by kLookaheadSeconds for every type, so that the
+/// latency the host sees does not depend on the patch (see
+/// BusDrive::kLatency). A session setting can turn the lookahead off, and
+/// then the stage has no latency at all. Switching does not allocate.
 class OutputStage {
 public:
-  /// How far ahead the limiter is allowed to look, and therefore how late
-  /// everything leaving here is.
-  ///
-  /// Two milliseconds. Measured against the presets that drive the limiter
-  /// hardest, where the stage without it reached 1.294 and handed 1741 samples
-  /// in two seconds to the hard clip behind it. One millisecond already takes
-  /// that to none, and the rest of the choice is how gently the gain moves:
-  /// 0.0041 per sample as it was, 0.0040 at one millisecond, 0.0020 at two and
-  /// 0.0007 at five. Two is where the clipping is gone and the gain has
-  /// visibly settled, and five would cost three more milliseconds of latency
-  /// to improve something already below where it can be heard.
+  /// How far ahead the limiter looks, and so how late everything leaving here
+  /// is. Two milliseconds is enough for the hardest presets to stop reaching
+  /// the hard clip behind it and lets the gain move gently.
   static constexpr double kLookaheadSeconds = 0.002;
 
-  /// The delay in samples at a given rate, which the processor has to be able
-  /// to ask for before anything has been prepared.
+  /// The delay in samples at a given rate. The processor has to be able to
+  /// ask for it before anything has been prepared.
   static int lookaheadSamples(double sampleRate) noexcept {
     return (int)(kLookaheadSeconds * std::max(1.0, sampleRate) + 0.5);
   }
@@ -158,27 +141,22 @@ public:
 
   /// Shapes both channels in place, and delays them whether or not it shapes.
   ///
-  /// @param type     which of the five.
-  /// @param shaping  false to pass the audio through at the same delay and
-  ///                 otherwise leave it alone, which is the stage switched
-  ///                 off rather than a sixth type.
+  /// @param type     which of the eight.
+  /// @param shaping  false to pass the audio through at the same delay.
   /// @param ahead    false to give up the window and the delay with it. The
   ///                 processor reports the matching latency from the message
-  ///                 thread, so this and what the host has been told change
-  ///                 within a timer tick of each other.
+  ///                 thread.
   void process(float *left, float *right, int numSamples, ClipType type,
                bool shaping, bool ahead) noexcept;
 
 private:
-  /// Takes the window away or gives it back, without allocating: the buffers
-  /// are sized for it either way. The state goes with it, since a delay line
-  /// whose length has just changed holds samples that would be replayed at
-  /// the wrong moment, and a couple of milliseconds of silence on a setting
-  /// nobody flips mid-phrase is better than that.
+  /// Takes the window away or gives it back, without allocating. The state is
+  /// cleared, since a delay line whose length has just changed would replay
+  /// samples at the wrong moment.
   void applyLookahead(bool ahead) noexcept;
   /// The gain the limiter wants for the sample about to arrive, from the
-  /// loudest of the window still sitting in the delay line.
-  float gainFor(float peak) noexcept;
+  /// loudest sample in the window, against the type's ceiling.
+  float gainFor(float peak, float ceiling) noexcept;
 
   float delayed(std::vector<float> &line, float in) noexcept;
 
@@ -192,8 +170,8 @@ private:
   int window = 1;
   int box = 1;
 
-  /// What those are when the lookahead is allowed, which is what the buffers
-  /// are sized for however they are currently set.
+  /// The same values with the lookahead allowed, which is what the buffers
+  /// are sized for.
   int fullDelay = 0;
   int fullWindow = 1;
   int fullBox = 1;
@@ -203,13 +181,13 @@ private:
   int writeIndex = 0;
 
   /// A monotonic wedge over the window: values decreasing from the front, so
-  /// the front is the loudest sample still to be heard. Kept as a ring rather
-  /// than a deque so that nothing allocates once this is running.
+  /// the front is the loudest sample still to be heard. A ring rather than a
+  /// deque so nothing allocates on the audio thread.
   std::vector<float> wedgeValue;
 
   /// Counted rather than wrapped, so a sample's place in the window is one
-  /// comparison. Sixty-four bits because thirty-two of them is twelve hours
-  /// at forty-eight kilohertz, and long is thirty-two bits on Windows.
+  /// comparison. 64 bits because 32 overflow in twelve hours at 48 kHz, and
+  /// long is 32 bits on Windows.
   std::vector<std::int64_t> wedgeIndex;
   int wedgeHead = 0, wedgeTail = 0;
   std::int64_t seen = 0;
@@ -225,6 +203,43 @@ private:
   /// coefficient it recovers by.
   float held = 1.0f;
   float release = 0.0f;
+
+  /// A limiter with no lookahead: the gain falls at once to what the sample
+  /// needs and recovers over 100 ms. The one between the console and the deck
+  /// in Print, where the outboard chain's limiter sits.
+  struct InstantLimiter {
+    float held = 1.0f, release = 0.0f;
+
+    void process(float &left, float &right, float ceiling) noexcept;
+  };
+
+  /// The machines with memory. Each runs only while it is chosen, to save
+  /// CPU. Print has its own console and deck, so switching between it and
+  /// Console or Cassette can fade with both running.
+  Console console;
+  Cassette cassette;
+  Console printConsole;
+  Cassette printCassette;
+  InstantLimiter printLimiter;
+
+  /// How much lower Print's tape hiss sits than the deck's on its own. Run
+  /// through the outboard chain first, the music goes onto the tape at a
+  /// better level against the hiss. Set by ear.
+  static constexpr double kPrintHissDb = -6.0;
+
+  /// Which of them is running, if any.
+  enum class Running { None, Console, Cassette, Print };
+
+  /// Runs one of them on a sample, or passes it through for None.
+  void run(Running which, float &left, float &right) noexcept;
+
+  /// Choosing one part way through starts it from rest and crossfades to it
+  /// over this time while both run. A machine chosen from the start runs from
+  /// the start, so a render that never switches stays bit-exact.
+  static constexpr double kFadeSeconds = 0.030;
+  Running running = Running::None, leaving = Running::None;
+  bool started = false;
+  int fadeLength = 1, fadeAt = 0;
 };
 
 } // namespace ovt
