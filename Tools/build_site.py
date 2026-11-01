@@ -11,7 +11,9 @@ section list and the page's own contents rail, the trail above the title, the
 onward links, the footer, the two card lists and the questions on the front
 page. Each of those is a whole element in the page, found by its tag or its
 class and replaced outright, so an edit made inside one by hand is undone by
-the next build and caught by --check in CI before that.
+the next build and caught by --check in CI before that. Each preset in a
+preset list also gets an id, its clip's file name, and one edited by hand is
+put back.
 
 It also writes three files whole: sitemap.xml, llms.txt, and llms-full.txt,
 which is every page's content as Markdown for a language model to read in one
@@ -258,6 +260,10 @@ CLIPS = {}
 # The clips on each page, by the page's path, in the order the page plays them.
 PAGE_CLIPS = {}
 
+# The clips that have a place of their own on a page, by file name, each with
+# the address of that place. A preset's entry in the list is one.
+CLIP_PLACES = {}
+
 
 def flac_seconds(path):
     """How long a FLAC file plays, from the STREAMINFO block every one starts
@@ -324,6 +330,8 @@ def audio(page):
         }
         if clip["description"]:
             block["description"] = clip["description"]
+        if slug in CLIP_PLACES:
+            block["url"] = CLIP_PLACES[slug]
         objects.append(block)
     return {"@context": "https://schema.org", "@graph": objects}
 
@@ -692,6 +700,24 @@ def main_of(text):
     return text[text.index("<main"):text.index("</main>")]
 
 
+def preset_anchors(page, text):
+    """Gives each entry in a preset list an id, its clip's file name, so a link,
+    a search result or an answer engine can point at one preset rather than the
+    whole page. Taken from the clip so that a new preset gets one without being
+    asked, and a renamed one moves with its file."""
+
+    def anchor(m):
+        slug = m.group(2)
+        CLIP_PLACES[slug] = data.BASE + page["path"] + "#" + slug
+        return f'<div id="{slug}">' + m.group(1)
+
+    entry = r'<div(?:\s+id="[^"]*")?>(\s*<dt>\s*[^<]*<audio\b[^>]*>\s*<source src="(?:\.\./)?audio/([^"]+)\.ogg")'
+    lists = re.findall(r'<dl class="presets">.*?</dl>', text, flags=re.S)
+    for found in lists:
+        text = text.replace(found, re.sub(entry, anchor, found))
+    return text
+
+
 def build(page, text, path, dates, changed):
     not_found = page is data.NOT_FOUND
 
@@ -708,6 +734,8 @@ def build(page, text, path, dates, changed):
     elif page["path"] == "":
         text = replace(text, r'<ul class="cards">', "</ul>", cards(page, "card"), path)
         text = replace(text, r'<dl class="qa">', "</dl>", questions(), path)
+    if not not_found:
+        text = preset_anchors(page, text)
     text = replace(text, r'<section class="parameter-list">', "</section>", "" if not_found else parameter_list(page), path, required=False)
 
     # Last, because the head carries the day the words in <main> last changed,

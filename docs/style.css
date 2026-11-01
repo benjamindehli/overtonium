@@ -943,7 +943,7 @@ footer a:hover {
 
 /* So an anchored jump does not leave the heading jammed against the top edge
    with no sign of what it belongs to. */
-:is(section, h3)[id] {
+:is(section, h3, .presets > div)[id] {
     scroll-margin-top: 18px;
 }
 
@@ -1733,7 +1733,7 @@ main h1 {
     }
 
     /* An anchored jump lands below the bar rather than under it. */
-    html[data-menu] :is(section, h3)[id] {
+    html[data-menu] :is(section, h3, .presets > div)[id] {
         scroll-margin-top: 80px;
     }
 }
