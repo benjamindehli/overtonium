@@ -18,7 +18,7 @@ out, in UTC, and the release workflow rewrites the line on the tag. Nothing
 else here changes with a release.
 """
 
-RELEASED = "2026-10-25"
+RELEASED = "2026-11-01"
 
 BASE = "https://benjamindehli.github.io/overtonium/"
 
