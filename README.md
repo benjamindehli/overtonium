@@ -41,7 +41,7 @@ The Adaptive temperament follows the Norwegian composer Eivind Groven, who from 
 
 ## What is in it
 
-Each channel is a strip. The 32 harmonic strips have the same twenty-three controls, and the noise strip puts a colour knob and its string's four knobs where the tuning and pitch modulation rows are. The captions are listed once down the left instead of repeated across all thirty-three, and each channel is coloured by its interval against the fundamental.
+Each channel is a strip. The 32 harmonic strips have the same twenty-four controls, and the noise strip puts a colour knob and its string's four knobs where the tuning and pitch modulation rows are. The captions are listed once down the left instead of repeated across all thirty-three, and each channel is coloured by its interval against the fundamental.
 
 <img src="docs/overtonium-strips.webp" alt="A close view of the first six channels, with the row captions in the gutter and each channel in its interval colour." width="306" />
 

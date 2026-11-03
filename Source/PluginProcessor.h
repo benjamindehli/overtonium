@@ -137,6 +137,12 @@ public:
   float getNoiseVelocity() const noexcept { return engine.getNoiseVelocity(); }
   float getNoisePressure() const noexcept { return engine.getNoisePressure(); }
 
+  float getPartialKeyboard(int index0) const noexcept {
+    return engine.getPartialKeyboard(index0);
+  }
+
+  float getNoiseKeyboard() const noexcept { return engine.getNoiseKeyboard(); }
+
   /// Polled by the editor to drive the output meter.
   float getOutputLevelLeft() const noexcept {
     return engine.getOutputLevelLeft();

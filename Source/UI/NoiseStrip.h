@@ -77,8 +77,8 @@ public:
 
   /// The lamps on the section rules, with none on the pitch rule. See
   /// ChannelStrip::setActivity.
-  void setActivity(float envelope, float tremolo, float velGain, float pressure,
-                   juce::Array<juce::Rectangle<int>> &into);
+  void setActivity(float envelope, float tremolo, float velGain, float keyGain,
+                   float pressure, juce::Array<juce::Rectangle<int>> &into);
 
   /// Whether the pointer is on this channel, which is what lights the column.
   bool isHovered() const noexcept { return hovered; }
@@ -109,7 +109,8 @@ private:
   const juce::Colour colour;
 
   juce::Slider colourKnob, strike, delay, attack, decay, sustain, swell,
-      offLevel, release, amRate, amDepth, velocity, aftertouch, pan, volume;
+      offLevel, release, amRate, amDepth, velocity, keyboard, aftertouch, pan,
+      volume;
 
   /// The string the noise strikes, in the rows a partial's pitch modulation
   /// takes. Each has its own caption, since the gutter names those rows for
@@ -124,7 +125,8 @@ private:
   juce::Label colourReadout;
   SegmentDisplay levelReadout{{}};
   LevelMeter meter;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  SplitLamp outputLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;

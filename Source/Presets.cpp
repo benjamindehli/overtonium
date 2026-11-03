@@ -92,6 +92,7 @@ struct Applier {
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
     allOsc(params::velSuffix, [](int) { return 0.7; });
     allOsc(params::atSuffix, [](int) { return 0.0; });
+    allOsc(params::keySuffix, [](int) { return 0.0; });
     allOsc(params::muteSuffix, [](int) { return 0.0; });
     allOsc(params::soloSuffix, [](int) { return 0.0; });
     allOsc(params::volumeSuffix, [](int) { return 0.0; });
@@ -114,6 +115,7 @@ struct Applier {
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
     set(params::noiseParamId(params::velSuffix), 0.7f);
     set(params::noiseParamId(params::atSuffix), 0.0f);
+    set(params::noiseParamId(params::keySuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
     set(params::noiseParamId(params::soloSuffix), 0.0f);
     set(params::noiseParamId(params::panSuffix), 0.0f);
@@ -579,6 +581,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
       {params::amDepthSuffix, "amDepthSuffix"},
       {params::velSuffix, "velSuffix"},
       {params::atSuffix, "atSuffix"},
+      {params::keySuffix, "keySuffix"},
       {params::muteSuffix, "muteSuffix"},
       {params::soloSuffix, "soloSuffix"},
       {params::volumeSuffix, "volumeSuffix"},

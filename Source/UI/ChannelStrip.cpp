@@ -807,6 +807,106 @@ void SegmentDisplay::paintReading(juce::Graphics &g) {
 
 // =============================================================================
 
+void SplitLamp::setBackdrop(juce::Colour behind) {
+  backdrop = behind;
+  setOpaque(true);
+  repaint();
+}
+
+bool SplitLamp::push(const std::array<float, kParts> &brightness) {
+  bool moved = false;
+
+  for (size_t i = 0; i < steps.size(); ++i) {
+    const auto exact =
+        juce::jlimit(0.0f, 1.0f, brightness[i]) * (float)ActivityLamp::kSteps;
+    const auto next =
+        juce::jlimit(0, ActivityLamp::kSteps, (int)std::lround(exact));
+
+    moved |= next != steps[i];
+    steps[i] = next;
+  }
+
+  return moved;
+}
+
+void SplitLamp::paint(juce::Graphics &g) {
+  const auto bounds = getLocalBounds().toFloat();
+
+  if (isOpaque()) {
+    g.setColour(backdrop);
+    g.fillRect(bounds);
+  }
+
+  // The same slot as the needle's, the same height as a round lamp, and
+  // standing in for the rule in the same way.
+  const auto midY = std::floor(bounds.getCentreY());
+  const auto height = juce::jmin(bounds.getHeight() - 2.0f, 7.0f);
+  const auto corner = height * 0.35f;
+  const auto slot =
+      juce::Rectangle<float>(bounds.getWidth() - 2.0f * kSlotInset, height)
+          .withCentre({bounds.getCentreX(), midY + 0.5f});
+
+  // Where each part starts and ends, whole pixels so the gaps stay sharp. A
+  // pixel between parts, and the odd pixels to the middle one.
+  constexpr float kGap = 1.0f;
+  const auto inner = slot.getWidth() - kGap * (float)(kParts - 1);
+  const auto side = std::floor(inner / (float)kParts);
+  const float widths[kParts] = {side, inner - 2.0f * side, side};
+
+  std::array<juce::Rectangle<float>, kParts> parts;
+  {
+    auto x = slot.getX();
+    for (size_t i = 0; i < parts.size(); ++i) {
+      parts[i] = {x, slot.getY(), widths[i], slot.getHeight()};
+      x += widths[i] + kGap;
+    }
+  }
+
+  // The glow under every lit part, all of it inside this component, so it is
+  // never cut off where one lamp's bounds would end.
+  for (size_t i = 0; i < parts.size(); ++i) {
+    const auto lit = (float)steps[i] / (float)ActivityLamp::kSteps;
+
+    if (lit <= 0.02f)
+      continue;
+
+    g.setColour(colour.withAlpha(0.10f * lit));
+    g.fillRoundedRectangle(parts[i].expanded(height * 0.30f), corner * 2.0f);
+
+    g.setColour(colour.withAlpha(0.12f * lit));
+    g.fillRoundedRectangle(parts[i].expanded(height * 0.14f), corner * 1.5f);
+  }
+
+  paintRecess(g, slot, corner);
+
+  // The parts, clipped to the slot so the outer two take its rounded ends.
+  juce::Path opening;
+  opening.addRoundedRectangle(slot, corner);
+
+  juce::Graphics::ScopedSaveState keep(g);
+  g.reduceClipRegion(opening);
+
+  std::array<juce::Colour, kParts> fills;
+
+  for (size_t i = 0; i < parts.size(); ++i) {
+    const auto lit = (float)steps[i] / (float)ActivityLamp::kSteps;
+
+    fills[i] = isOpaque()
+                   ? backdrop.interpolatedWith(colour, 0.16f + 0.84f * lit)
+                   : colour.withAlpha(0.16f + 0.84f * lit);
+    g.setColour(fills[i]);
+    g.fillRect(parts[i]);
+  }
+
+  // Each gap is the two parts beside it mixed and taken a little darker, so
+  // it reads as a seam in one lamp rather than a black bar, between two lit
+  // parts as well as two dark ones.
+  for (size_t i = 0; i + 1 < parts.size(); ++i) {
+    g.setColour(fills[i].interpolatedWith(fills[i + 1], 0.5f).darker(0.6f));
+    g.fillRect(parts[i].getRight(), slot.getY(), kGap, slot.getHeight());
+  }
+}
+
 void ActivityLamp::setBackdrop(juce::Colour behind) {
   backdrop = behind;
   setOpaque(true);
@@ -1118,7 +1218,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
       soloButton(state, "S", params::oscParamId(params::soloSuffix, index0),
                  params::soloSuffix),
       meter(colour), pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
-      tremoloLamp(colour), velocityLamp(colour), pressureLamp(colour) {
+      tremoloLamp(colour), outputLamp(colour) {
   // The background fills the whole strip, so nothing behind it needs
   // painting.
   setOpaque(true);
@@ -1130,7 +1230,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   for (juce::Component *lamp :
        {(juce::Component *)&pitchLamp, (juce::Component *)&envLamp,
         (juce::Component *)&keyOffLamp, (juce::Component *)&tremoloLamp,
-        (juce::Component *)&velocityLamp, (juce::Component *)&pressureLamp})
+        (juce::Component *)&outputLamp})
     addAndMakeVisible(*lamp);
 
   // The strip decides the pointer for everything on it, which is how the LINK
@@ -1170,6 +1270,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amRate, Role::AmRate, colour);
   setUpKnob(amDepth, Role::AmDepth, colour);
   setUpKnob(velocity, Role::Velocity, colour);
+  setUpKnob(keyboard, Role::Keyboard, colour);
   setUpKnob(aftertouch, Role::Aftertouch, colour);
 
   setUpKnob(pan, Role::Pan, colour);
@@ -1178,6 +1279,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // o'clock rather than filling from the left.
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
+  keyboard.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
   pan.getProperties().set("bipolar", true);
   setUpFader(volume, Role::Volume, colour);
@@ -1624,6 +1726,8 @@ LinkableSlider *ChannelStrip::sliderForRole(Role role) {
     return &pan;
   case Role::Volume:
     return &volume;
+  case Role::Keyboard:
+    return &keyboard;
 
   case Role::NumRoles:
   default:
@@ -1807,6 +1911,7 @@ void ChannelStrip::resized() {
   placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
+  placeRow(keyboard, Row::Keyboard, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
   // Meter and fader share the same rectangle. The meter draws the track and
@@ -1871,17 +1976,8 @@ void ChannelStrip::resized() {
     envLamp.setBackdrop(place(envLamp, Row::EnvHeading));
     keyOffLamp.setBackdrop(place(keyOffLamp, Row::KeyOffHeading));
     tremoloLamp.setBackdrop(place(tremoloLamp, Row::AmpModHeading));
-    // Two lamps on the one rule, one for each row beneath it, each taking half.
-    {
-      auto row = rows[rowIndex(Row::OutputHeading)];
-      const auto half = row.removeFromLeft(row.getWidth() / 2);
-
-      velocityLamp.setBounds(half);
-      velocityLamp.setBackdrop(at(half.getCentreY()));
-
-      pressureLamp.setBounds(row);
-      pressureLamp.setBackdrop(at(row.getCentreY()));
-    }
+    // One slot for the three rows under it.
+    outputLamp.setBackdrop(place(outputLamp, Row::OutputHeading));
   }
 }
 
@@ -1896,7 +1992,7 @@ float ChannelStrip::needlePosition(float cents) {
 }
 
 void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
-                               float velGain, float pressure,
+                               float velGain, float keyGain, float pressure,
                                juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -1921,11 +2017,14 @@ void ChannelStrip::setActivity(float envelope, float tremolo, float pitch,
   refresh(pitchLamp,
           pitchLamp.push(level <= 0.0f ? kParked : needlePosition(pitch)));
 
-  // One lamp for each of the two rows under this heading. The velocity lamp
-  // shows the level the row leaves, so it is full at rest. The pressure lamp
-  // rests dark and rises with aftertouch. Both are gated on the envelope.
-  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
-  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
+  // One part of the output lamp for each of the three rows under this
+  // heading. The velocity and keyboard parts show the level their rows leave,
+  // so they are full at rest. The pressure part rests dark and rises with
+  // aftertouch. All are gated on the envelope.
+  const auto on = level > 0.0f;
+
+  refresh(outputLamp, outputLamp.push({on ? velGain : 0.0f, on ? keyGain : 0.0f,
+                                       on ? pressure : 0.0f}));
 }
 
 void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,

@@ -6,6 +6,7 @@
 
 #include "Character.h"
 #include "Harmonics.h"
+#include "Keyboard.h"
 #include "Lfo.h"
 #include "Temperament.h"
 #include "Velocity.h"
@@ -82,6 +83,10 @@ struct OscParams {
   /// -1 to 1. It adds to the fader rather than scaling it, so a strip at zero
   /// can be faded in by pressure.
   float atAmount = 0.0f;
+  /// How much the key number turns this partial down, -2 to 2. Positive
+  /// fades the keys below the centre, negative the keys above it. See
+  /// Keyboard.h.
+  float keyAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
   /// Where this partial sits in the field, -1 hard left to +1 hard right.
@@ -109,6 +114,7 @@ struct NoiseParams {
   float amDepth = 0.0f;
   float velAmount = 0.0f;
   float atAmount = 0.0f;
+  float keyAmount = 0.0f;
   float volume = 0.0f;
   float pan = 0.0f;
 

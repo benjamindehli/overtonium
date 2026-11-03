@@ -7042,6 +7042,174 @@ void testVelocityCurve() {
             std::to_string(classicLamp) + ", " + std::to_string(dbLamp) + ")");
 }
 
+void testKeyboardRow() {
+  section("The keyboard row");
+
+  // Middle C is never changed while the tilt turns around it.
+  bool middleKept = true;
+  for (int i = -20; i <= 20; ++i)
+    middleKept &=
+        std::abs(keyboardGain((float)i / 20.0f, 60.0) - 1.0f) < 1.0e-6f;
+
+  check(middleKept, "middle C keeps its level at every amount up to 100% "
+                    "either way");
+
+  // The slope at full amount, and the side it turns down.
+  check(std::abs(keyboardDecibels(1.0f, 48.0) + 24.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(1.0f, 36.0) + 48.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(1.0f, 84.0)) < 1.0e-6f,
+        "at 100% the keys below middle C fall 24 dB an octave and the keys "
+        "above are left alone");
+
+  check(std::abs(keyboardDecibels(-1.0f, 72.0) + 24.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(-1.0f, 36.0)) < 1.0e-6f,
+        "and at -100% it is the keys above");
+
+  // Shaped so the gentle slopes get most of the travel.
+  check(std::abs(keyboardTilt(0.5f).dbPerOctave - 6.0f) < 1.0e-4f &&
+            std::abs(keyboardTilt(0.25f).dbPerOctave - 1.5f) < 1.0e-4f &&
+            std::abs(keyboardTilt(-0.5f).dbPerOctave - 6.0f) < 1.0e-4f,
+        "50% is 6 dB an octave and 25% is 1.5");
+
+  // Past 100% the slope holds and the centre moves an octave for every 20%.
+  const auto at = [](float amount) { return keyboardTilt(amount); };
+
+  check(std::abs(at(1.2f).centre - 72.0f) < 1.0e-3f &&
+            std::abs(at(1.2f).dbPerOctave - 24.0f) < 1.0e-6f &&
+            std::abs(at(-1.2f).centre - 48.0f) < 1.0e-3f &&
+            std::abs(at(2.0f).centre - 120.0f) < 1.0e-3f &&
+            std::abs(at(-2.0f).centre) < 1.0e-3f && at(2.0f).below &&
+            !at(-2.0f).below,
+        "past 100% the slope stays at 24 and the centre moves an octave for "
+        "every 20%, to key 120 at 200% and key 0 at -200%");
+
+  check(std::abs(keyboardDecibels(1.2f, 72.0)) < 1.0e-6f &&
+            std::abs(keyboardDecibels(1.2f, 60.0) + 24.0f) < 1.0e-3f,
+        "and the fade starts at the moved centre");
+
+  check(std::abs(at(1.0001f).centre - at(1.0f).centre) < 0.01f &&
+            std::abs(at(0.9999f).dbPerOctave - at(1.0f).dbPerOctave) < 0.01f,
+        "the two halves meet at 100% without a jump");
+
+  // Every step away from zero turns more of the keyboard down, on every key.
+  bool monotonic = true;
+  for (int key = 0; key <= 127; ++key)
+    for (int step = 1; step <= 200; ++step) {
+      const auto a = (float)step / 100.0f, b = (float)(step - 1) / 100.0f;
+      monotonic &= keyboardGain(a, key) <= keyboardGain(b, key) + 1.0e-7f &&
+                   keyboardGain(-a, key) <= keyboardGain(-b, key) + 1.0e-7f;
+    }
+
+  check(monotonic, "every step away from zero turns each key down further or "
+                   "leaves it, on both sides");
+
+  bool neverLouder = true;
+  for (int key = 0; key <= 127; ++key)
+    for (int step = -200; step <= 200; ++step)
+      neverLouder &= keyboardGain((float)step / 100.0f, key) <= 1.0f;
+
+  check(neverLouder, "and no amount ever raises a key above the fader");
+
+  // Through the engine, on a partial and on the noise.
+  constexpr double sr = 48000.0;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+
+  std::vector<float> l(4800), r(4800);
+
+  const auto settled = [&](SynthParams &p, int note) {
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+    engine.render(l.data(), r.data(), (int)l.size(), p);
+    return std::pair<float, float>{engine.getPartialLevel(0),
+                                   engine.getPartialKeyboard(0)};
+  };
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].sustain = 1.0f;
+
+  const auto flat = settled(p, 48);
+  p.osc[0].keyAmount = 1.0f;
+  const auto tilted = settled(p, 48);
+
+  std::printf("  C3 at 100%%: level %.4f against %.4f, lamp %.4f\n",
+              tilted.first, flat.first, tilted.second);
+
+  check(std::abs(flat.second - 1.0f) < 1.0e-6f &&
+            std::abs(tilted.second - 0.0631f) < 1.0e-4f &&
+            std::abs(tilted.first / flat.first - tilted.second) < 1.0e-3f,
+        "an octave under middle C at 100% plays 24 dB down, which the lamp "
+        "shows");
+
+  // The key number, not the pitch.
+  p.global.bendSemitones = 2.0f;
+  for (auto &o : p.osc)
+    o.tuneBlend = 1.0f;
+
+  const auto bent = settled(p, 48);
+
+  check(std::abs(bent.second - tilted.second) < 1.0e-6f,
+        "bend and TUNE leave the level alone, since the row reads the key");
+
+  p = makeFlatParams(0.0f);
+  p.noise.volume = 0.5f;
+  p.noise.keyAmount = -1.0f;
+
+  engine.prepare(sr);
+  engine.noteOn(84, 1.0f, p);
+  engine.render(l.data(), r.data(), (int)l.size(), p);
+
+  check(std::abs(engine.getNoiseKeyboard() - 0.003981f) < 1.0e-5f,
+        "the noise channel has its own row, two octaves above middle C at "
+        "-100% being 48 dB down (" +
+            std::to_string(engine.getNoiseKeyboard()) + ")");
+
+  // Under Glide the level follows the key across, without a step.
+  {
+    p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].keyAmount = 1.0f;
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.setLegato(true);
+    engine.noteOn(36, 1.0f, p);
+    engine.render(l.data(), r.data(), 4800, p);
+
+    const auto low = engine.getPartialKeyboard(0);
+    engine.noteOn(60, 1.0f, p);
+
+    float last = low, biggestStep = 0.0f;
+    bool rising = true;
+    std::vector<float> chunk(256), chunkR(256);
+
+    for (int i = 0; i < (int)(0.5 * sr) / 256; ++i) {
+      engine.render(chunk.data(), chunkR.data(), 256, p);
+      const auto now = engine.getPartialKeyboard(0);
+      rising &= now >= last - 1.0e-6f;
+      biggestStep = std::max(biggestStep, std::abs(20.0f * std::log10(now) -
+                                                   20.0f * std::log10(last)));
+      last = now;
+    }
+
+    std::printf("  glide C2 to C4: lamp %.4f to %.4f, largest step %.2f dB\n",
+                low, last, biggestStep);
+
+    check(std::abs(low - 0.003981f) < 1.0e-4f &&
+              std::abs(last - 1.0f) < 1.0e-5f,
+          "a glide from two octaves below middle C starts 48 dB down and "
+          "arrives at the fader");
+
+    check(rising && biggestStep < 1.0f,
+          "and the level follows the key there in steps under a dB, without "
+          "a jump");
+  }
+}
+
 // -----------------------------------------------------------------------------
 // 9. Modulation actually modulates.
 // -----------------------------------------------------------------------------
@@ -13249,6 +13417,7 @@ int main() {
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();
+  testKeyboardRow();
   testPanning();
   testAftertouch();
   testDrift();

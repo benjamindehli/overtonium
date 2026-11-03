@@ -3,6 +3,7 @@
 #include "dsp/BusDrive.h"
 
 #include "dsp/Harmonics.h"
+#include "dsp/Keyboard.h"
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
 
@@ -468,7 +469,8 @@ const char *macroRowName(int row) {
                                       "Velocity",
                                       "Aftertouch",
                                       "Pan",
-                                      "Level"};
+                                      "Level",
+                                      "Keyboard"};
 
   static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows + 1,
                 "every row a macro can drive has to have a name, and None too");
@@ -1187,12 +1189,35 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::ParameterID{velocityCurveId, 1}, "Velocity Curve",
       juce::StringArray{"Classic", "dB"}, (int)VelocityCurve::Decibels));
 
+  // The KEYBOARD rows, on the end so existing automation keeps its place.
+  // Linear in the amount, since the slope's own curve is in keyboardTilt, and
+  // the readout names the slope and the centre.
+  const auto keyboardAttributes =
+      FAttr()
+          .withStringFromValueFunction(keyboardText)
+          .withValueFromStringFunction(keyboardValue);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(keySuffix, i), 1},
+        prefixFor(i) + "Keyboard",
+        juce::NormalisableRange<float>(-kKeyboardMaxAmount, kKeyboardMaxAmount),
+        0.0f, keyboardAttributes));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(keySuffix), 1}, "Noise Keyboard",
+      juce::NormalisableRange<float>(-kKeyboardMaxAmount, kKeyboardMaxAmount),
+      0.0f, keyboardAttributes));
+
   return layout;
 }
 
 std::optional<float> valueInOlderFiles(juce::StringRef id) {
   if (id == juce::StringRef(velocityCurveId))
     return (float)VelocityCurve::Classic;
+
+  if (juce::String(id).endsWith(juce::String("_") + keySuffix))
+    return 0.0f;
 
   return std::nullopt;
 }
@@ -1294,12 +1319,13 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     o.amShape = apvts.getRawParameterValue(oscParamId(amShapeSuffix, i));
     o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
     o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
+    o.key = apvts.getRawParameterValue(oscParamId(keySuffix, i));
     o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
     o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
     o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
     o.pan = apvts.getRawParameterValue(oscParamId(panSuffix, i));
 
-    jassert(o.tune != nullptr && o.volume != nullptr);
+    jassert(o.tune != nullptr && o.volume != nullptr && o.key != nullptr);
   }
 
   noise.colour = apvts.getRawParameterValue(noiseParamId(colourSuffix));
@@ -1316,6 +1342,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   noise.amShape = apvts.getRawParameterValue(noiseParamId(amShapeSuffix));
   noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
   noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
+  noise.key = apvts.getRawParameterValue(noiseParamId(keySuffix));
   noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
   noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
   noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
@@ -1328,7 +1355,87 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
       apvts.getRawParameterValue(noiseParamId(stringPointSuffix));
 
   jassert(noise.colour != nullptr && noise.volume != nullptr &&
-          noise.string != nullptr && noise.stringPoint != nullptr);
+          noise.key != nullptr && noise.string != nullptr &&
+          noise.stringPoint != nullptr);
+}
+
+juce::String keyName(int key) {
+  const auto k = juce::jlimit(0, 127, key);
+
+  return juce::String(kPitchClassNames[(size_t)(k % 12)]) +
+         juce::String(k / 12 - 1);
+}
+
+juce::String keyboardText(float amount, int) {
+  const auto tilt = keyboardTilt(amount);
+
+  // Shown as zero by the slope's own rounding, so the knob does not claim a
+  // side while it does nothing.
+  if (tilt.dbPerOctave < 0.05f)
+    return "0 dB/oct";
+
+  const auto slope = tilt.dbPerOctave < 9.95f
+                         ? juce::String(tilt.dbPerOctave, 1)
+                         : juce::String(juce::roundToInt(tilt.dbPerOctave));
+
+  return slope + " dB/oct " + (tilt.below ? "below " : "above ") +
+         keyName(juce::roundToInt(tilt.centre));
+}
+
+namespace {
+/// A key name such as "F#2" or "C-1" at the start of `text`, or -1.
+int keyFromName(const juce::String &text) {
+  const auto t = text.trim().toUpperCase();
+
+  if (t.isEmpty())
+    return -1;
+
+  static const int letters[] = {9, 11, 0, 2, 4, 5, 7}; // A to G
+  const auto letter = t[0];
+
+  if (letter < 'A' || letter > 'G')
+    return -1;
+
+  int pitchClass = letters[letter - 'A'];
+  auto rest = t.substring(1);
+
+  if (rest.startsWithChar('#')) {
+    ++pitchClass;
+    rest = rest.substring(1);
+  }
+
+  if (!rest.containsOnly("-0123456789") || !rest.containsAnyOf("0123456789"))
+    return -1;
+
+  const auto key = (rest.getIntValue() + 1) * 12 + pitchClass;
+  return key >= 0 && key <= 127 ? key : -1;
+}
+} // namespace
+
+float keyboardValue(const juce::String &text) {
+  const auto t = text.trim().toLowerCase();
+  const auto n = t.getFloatValue();
+
+  if (t.containsChar('%'))
+    return juce::jlimit(-kKeyboardMaxAmount, kKeyboardMaxAmount, n / 100.0f);
+
+  const bool above = t.contains("above");
+  const auto sign = above ? -1.0f : 1.0f;
+
+  // A centre away from middle C on the side the slope turns down is past full
+  // amount. On the other side there is no such setting, so only the slope is
+  // read.
+  const auto centre = keyFromName(
+      t.fromLastOccurrenceOf(above ? "above" : "below", false, false));
+  const auto away = (float)centre - kKeyboardCentreKey;
+
+  if (centre >= 0 && away * sign > 0.0f)
+    return juce::jlimit(-kKeyboardMaxAmount, kKeyboardMaxAmount,
+                        sign *
+                            (1.0f + std::abs(away) / kKeyboardKeysPerAmount));
+
+  const auto slope = juce::jlimit(0.0f, kKeyboardMaxSlopeDb, std::abs(n));
+  return sign * std::sqrt(slope / kKeyboardMaxSlopeDb);
 }
 
 juce::String strikeRangeText(float amount, float delay, float attack) {
@@ -1419,13 +1526,15 @@ float *macroField(OscParams &o, int row) {
     return &o.pan;
   case 19:
     return &o.volume;
+  case 20:
+    return &o.keyAmount;
 
   default:
     return nullptr;
   }
 }
 
-static_assert(kNumMacroRows == 19,
+static_assert(kNumMacroRows == 20,
               "macroField has a case per row and has to grow with the list");
 
 } // namespace
@@ -1463,6 +1572,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     o.amDepth = c.amDepth->load();
     o.velAmount = c.vel->load();
     o.atAmount = c.at->load();
+    o.keyAmount = c.key->load();
     o.volume = c.volume->load();
     o.pan = c.pan->load();
 
@@ -1550,6 +1660,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     n.amDepth = noise.amDepth->load();
     n.velAmount = noise.vel->load();
     n.atAmount = noise.at->load();
+    n.keyAmount = noise.key->load();
     n.volume = noise.volume->load();
     n.pan = noise.pan->load();
     n.stringAmount = noise.string->load();
