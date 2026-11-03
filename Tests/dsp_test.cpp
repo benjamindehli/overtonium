@@ -122,6 +122,10 @@ SynthParams makeFlatParams(float volumePerPartial) {
   p.global.phaseReset = true;
   p.global.safetyClip = false;
 
+  // The curve the velocity tests were written against. The Decibels curve has
+  // its own, see testVelocityCurve.
+  p.global.velocityCurve = VelocityCurve::Classic;
+
   return p;
 }
 
@@ -5340,7 +5344,7 @@ void testActivity() {
     render(0.2);
 
     const auto lamp = engine.getPartialVelocity(0);
-    const auto expected = velocityGain(0.6f, 0.25f);
+    const auto expected = velocityGain(0.6f, 0.25f, p.global.velocityCurve);
 
     std::printf("  a blow at 0.25 into a row at 0.6 reads %.3f, the row "
                 "leaves %.3f\n",
@@ -6931,6 +6935,114 @@ void testVoiceAllocation() {
 }
 
 // -----------------------------------------------------------------------------
+// The Decibels velocity curve, and the conversion the switch on the row makes.
+// -----------------------------------------------------------------------------
+void testVelocityCurve() {
+  section("Velocity curve in decibels");
+
+  const auto db = [](float gain) { return 20.0f * std::log10(gain); };
+  constexpr auto kDb = VelocityCurve::Decibels;
+  constexpr auto kClassic = VelocityCurve::Classic;
+
+  // Equal steps of velocity are equal steps of dB, and full amount reaches
+  // the whole range on the softest note.
+  const auto at = [&db](float amount, float velocity) {
+    return db(velocityGain(amount, velocity, VelocityCurve::Decibels));
+  };
+
+  std::printf("  at 100%%: velocity 0 %.1f dB, 0.25 %.1f, 0.5 %.1f, 0.75 %.1f, "
+              "1 %.1f\n",
+              at(1.0f, 0.0f), at(1.0f, 0.25f), at(1.0f, 0.5f), at(1.0f, 0.75f),
+              at(1.0f, 1.0f));
+
+  check(std::abs(at(1.0f, 0.0f) + kVelocityRangeDb) < 1.0e-3f &&
+            std::abs(at(1.0f, 0.5f) + kVelocityRangeDb * 0.5f) < 1.0e-3f &&
+            std::abs(at(1.0f, 1.0f)) < 1.0e-4f,
+        "at full amount the softest note is 40 dB down, a medium one 20 and "
+        "the hardest untouched");
+
+  bool even = true;
+
+  for (int i = 0; i < 10; ++i) {
+    const auto step =
+        at(1.0f, (float)(i + 1) / 10.0f) - at(1.0f, (float)i / 10.0f);
+    even &= std::abs(step - kVelocityRangeDb / 10.0f) < 1.0e-3f;
+  }
+
+  check(even, "every tenth of velocity is the same number of dB");
+
+  check(std::abs(at(0.5f, 0.5f) - 0.5f * at(1.0f, 0.5f)) < 1.0e-3f,
+        "half the amount is half the dB, where Classic at 50% leaves a medium "
+        "note 2.5 dB down");
+
+  check(std::abs(at(-1.0f, 1.0f) - at(1.0f, 0.0f)) < 1.0e-3f &&
+            std::abs(at(-1.0f, 0.0f)) < 1.0e-4f,
+        "a negative amount is the mirror, taking the hardest note down");
+
+  check(std::abs(velocityGain(0.0f, 0.1f, kDb) - 1.0f) < 1.0e-6f &&
+            std::abs(velocityGain(0.0f, 0.1f, kClassic) - 1.0f) < 1.0e-6f,
+        "zero amount leaves the fader alone on both curves");
+
+  // The conversion keeps a medium note where it was, in both directions and
+  // with the sign kept.
+  bool keepsMiddle = true, roundTrips = true;
+
+  for (int i = -10; i <= 10; ++i) {
+    const auto classic = (float)i / 10.0f;
+    const auto converted = decibelsAmountFor(classic);
+
+    keepsMiddle &= std::abs(velocityGain(classic, 0.5f, kClassic) -
+                            velocityGain(converted, 0.5f, kDb)) < 1.0e-5f;
+    keepsMiddle &= (classic < 0.0f) == (converted < 0.0f);
+    roundTrips &= std::abs(classicAmountFor(converted) - classic) < 1.0e-5f;
+  }
+
+  check(keepsMiddle, "converting to dB keeps a medium note at the level it "
+                     "had, on both sides of zero");
+
+  check(roundTrips, "and converting back gives the amount it started from");
+
+  std::printf("  Classic 100%% converts to %.3f and 70%% to %.3f\n",
+              decibelsAmountFor(1.0f), decibelsAmountFor(0.7f));
+
+  check(std::abs(decibelsAmountFor(1.0f) - 0.30103f) < 1.0e-4f,
+        "Classic at full becomes about 30% on the dB curve");
+
+  check(std::abs(classicAmountFor(1.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(classicAmountFor(-0.8f) + 1.0f) < 1.0e-6f,
+        "a dB amount past what Classic can reach is held at full");
+
+  // Through the engine: the curve the global setting names is the one a note
+  // is struck with.
+  constexpr double sr = 48000.0;
+  SynthEngine engine;
+  engine.prepare(sr);
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 1.0f;
+  p.osc[0].velAmount = 1.0f;
+
+  std::vector<float> l(256), r(256);
+
+  const auto lampFor = [&](VelocityCurve curve) {
+    p.global.velocityCurve = curve;
+    engine.allSoundOff();
+    engine.noteOn(60, 0.5f, p);
+    engine.render(l.data(), r.data(), 256, p);
+    return engine.getPartialVelocity(0);
+  };
+
+  const auto classicLamp = lampFor(kClassic);
+  const auto dbLamp = lampFor(kDb);
+
+  check(std::abs(classicLamp - 0.5f) < 1.0e-5f &&
+            std::abs(dbLamp - 0.1f) < 1.0e-5f,
+        "a medium note at full amount is struck at half its fader on Classic "
+        "and a tenth on dB (" +
+            std::to_string(classicLamp) + ", " + std::to_string(dbLamp) + ")");
+}
+
+// -----------------------------------------------------------------------------
 // 9. Modulation actually modulates.
 // -----------------------------------------------------------------------------
 // -----------------------------------------------------------------------------
@@ -8150,8 +8262,8 @@ void testStrikeVelocity() {
       const auto a = (float)i / 10.0f;
       const auto v = (float)j / 10.0f;
 
-      oneShape &=
-          std::abs(velocityGain(a, v) - (1.0f - velocityReach(a, v))) < 1.0e-6f;
+      oneShape &= std::abs(velocityGain(a, v, VelocityCurve::Classic) -
+                           (1.0f - velocityReach(a, v))) < 1.0e-6f;
     }
 
   check(oneShape,
@@ -13136,6 +13248,7 @@ int main() {
   testModulation();
   testModulatorsInPhase();
   testPerPartialVelocity();
+  testVelocityCurve();
   testPanning();
   testAftertouch();
   testDrift();

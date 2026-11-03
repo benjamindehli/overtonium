@@ -22,10 +22,52 @@ inline float velocityReach(float amount, float velocity) noexcept {
   return a >= 0.0f ? a * (1.0f - v) : -a * v;
 }
 
+/// How the VELOCITY row turns its reach into a level.
+///
+/// Classic takes the reach off the fader as a fraction, which is linear in
+/// amplitude: even at full amount a medium note is only 6 dB down, and most of
+/// the change falls on the softest notes. Decibels takes the reach off in dB,
+/// so every step of the knob and every step of velocity is the same number of
+/// dB. Classic stays for the patches made with it. See kVelocityRangeDb.
+enum class VelocityCurve { Classic = 0, Decibels };
+
+/// How far the Decibels curve takes a partial down at full amount, on the
+/// softest note.
+inline constexpr float kVelocityRangeDb = 40.0f;
+
 /// What the VELOCITY row leaves of a partial's fader, 0 to 1. Zero amount
-/// leaves the fader as set.
-inline float velocityGain(float amount, float velocity) noexcept {
-  return 1.0f - velocityReach(amount, velocity);
+/// leaves the fader as set on either curve.
+inline float velocityGain(float amount, float velocity,
+                          VelocityCurve curve) noexcept {
+  const auto reach = velocityReach(amount, velocity);
+
+  if (curve == VelocityCurve::Classic)
+    return 1.0f - reach;
+
+  return std::pow(10.0f, -reach * kVelocityRangeDb / 20.0f);
+}
+
+/// The Decibels amount that gives a medium note, velocity one half, the level
+/// a Classic amount gives it. What the switch on the row converts with, so
+/// changing curve keeps the middle of the keyboard's dynamics where it was and
+/// moves the soft and loud ends. The sign is kept.
+inline float decibelsAmountFor(float classicAmount) noexcept {
+  const auto a = std::clamp(classicAmount, -1.0f, 1.0f);
+  const auto gain = 1.0f - std::abs(a) * 0.5f;
+  const auto magnitude = -20.0f * std::log10(gain) / (kVelocityRangeDb * 0.5f);
+
+  return std::copysign(std::min(magnitude, 1.0f), a);
+}
+
+/// The other way, from a Decibels amount to the Classic one that gives a
+/// medium note the same level. Held at full, since Classic at full only
+/// reaches 6 dB at a medium note.
+inline float classicAmountFor(float decibelsAmount) noexcept {
+  const auto a = std::clamp(decibelsAmount, -1.0f, 1.0f);
+  const auto gain =
+      std::pow(10.0f, -std::abs(a) * kVelocityRangeDb * 0.5f / 20.0f);
+
+  return std::copysign(std::min(2.0f * (1.0f - gain), 1.0f), a);
 }
 
 /// The longest attack the ATTACK row can be set to, in seconds. STRIKE never

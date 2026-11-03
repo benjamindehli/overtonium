@@ -117,6 +117,21 @@ RowGutter::RowGutter() {
   for (auto *b : {&glideLegato, &glideFixedTime})
     addAndMakeVisible(*b);
 
+  // dB, lit for the curve in decibels and dark for Classic.
+  velocityDecibels.setButtonText("dB");
+  velocityDecibels.setTooltip(
+      "Velocity in dB: every step of velocity takes the same number of "
+      "decibels, down to 40 dB at full. Dark is the Classic curve that patches "
+      "made before it use. Switching converts every channel's amount so a "
+      "medium note keeps its level.");
+  velocityDecibels.setTitle("Velocity in decibels");
+  velocityDecibels.setComponentID("velocityCurve");
+  velocityDecibels.onClick = [this] {
+    if (onVelocityCurveClicked != nullptr)
+      onVelocityCurveClicked();
+  };
+  addAndMakeVisible(velocityDecibels);
+
   // The shared-modulator switch on each shape row, the same switch as the
   // last item in every shape button's menu.
   const auto setUpInPhase = [this](ovt::ui::ScreenSwitch &b, const char *which,
@@ -175,6 +190,7 @@ void RowGutter::resized() {
   placeCaps(Row::PmShape, {&pitchInPhase}, rows, headerBottom);
   placeCaps(Row::Glide, {&glideLegato, &glideFixedTime}, rows, headerBottom);
   placeCaps(Row::AmShape, {&ampInPhase}, rows, headerBottom);
+  placeCaps(Row::Velocity, {&velocityDecibels}, rows, headerBottom);
 
   headerCap.toFront(false);
 
@@ -241,6 +257,10 @@ void RowGutter::setScroll(int s) {
   scroll = s;
   resized();
   repaint();
+}
+
+void RowGutter::setVelocityCurve(bool decibels) {
+  velocityDecibels.setToggleState(decibels, juce::dontSendNotification);
 }
 
 void RowGutter::setGlideSwitches(bool legato, bool fixedTime) {
@@ -675,6 +695,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   gutter.onGlideFixedTimeClicked = [flip] { flip(ovt::params::glideModeId); };
   gutter.onPitchInPhaseClicked = [flip] { flip(ovt::params::pmInPhaseId); };
   gutter.onAmpInPhaseClicked = [flip] { flip(ovt::params::amInPhaseId); };
+
+  // Not a plain flip: every channel's amount is converted with it.
+  gutter.onVelocityCurveClicked = [this] {
+    ovt::params::switchVelocityCurve(plugin().apvts);
+    syncSharedModulators();
+  };
 
   // Index -1, as for the noise channel, so a caption cannot arm a LINK
   // preview on a channel.
@@ -1909,6 +1935,7 @@ void OvertoniumEditor::syncSharedModulators() {
 
   gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
   gutter.setGlideSwitches(on(cache.glideTrigger), on(cache.glideMode));
+  gutter.setVelocityCurve(on(cache.velocityCurve));
 }
 
 void OvertoniumEditor::timerCallback() {

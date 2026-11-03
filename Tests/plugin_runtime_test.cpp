@@ -623,6 +623,263 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
   legato->setValueNotifyingHost(0.0f);
 }
 
+/// The velocity curve switch: dB for anything new and Classic for everything
+/// made before it, whether that arrives as a factory preset, a saved session or
+/// a preset file, and a click that converts every channel's amount so a medium
+/// note keeps its level.
+void testVelocityCurveSwitch(OvertoniumProcessor &p) {
+  section("The velocity curve");
+
+  using namespace ovt::params;
+  using ovt::VelocityCurve;
+
+  auto &undo = p.undo();
+  auto *curve = p.apvts.getParameter(velocityCurveId);
+
+  check(curve != nullptr, "the velocity curve is a parameter");
+  if (curve == nullptr)
+    return;
+
+  const auto isDecibels = [curve] { return curve->getValue() > 0.5f; };
+  const auto setDecibels = [curve](bool on) {
+    curve->setValueNotifyingHost(on ? 1.0f : 0.0f);
+  };
+
+  const auto amountOf = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr ? param->convertFrom0to1(param->getValue()) : 0.0f;
+  };
+
+  const auto setAmount = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  check(curve->getDefaultValue() > 0.5f, "dB is the default");
+
+  auto *velocity = p.apvts.getParameter(oscParamId(velSuffix, 3));
+  auto *noiseVelocity = p.apvts.getParameter(noiseParamId(velSuffix));
+
+  check(velocity != nullptr && noiseVelocity != nullptr &&
+            std::abs(velocity->convertFrom0to1(velocity->getDefaultValue())) <
+                1.0e-6f &&
+            std::abs(noiseVelocity->convertFrom0to1(
+                noiseVelocity->getDefaultValue())) < 1.0e-6f,
+        "and the VELOCITY row starts at zero on a channel and on noise");
+
+  // Every factory preset was voiced on Classic, from any curve before it.
+  int classic = 0;
+
+  for (int i = 0; i < ovt::presets::names().size(); ++i) {
+    setDecibels(true);
+    ovt::presets::apply(p.apvts, i);
+    classic += isDecibels() ? 0 : 1;
+  }
+
+  check(classic == ovt::presets::names().size(),
+        "every factory preset loads on Classic (" + std::to_string(classic) +
+            " of " + std::to_string(ovt::presets::names().size()) + ")");
+
+  // A session saved before the switch existed does not name it.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setDecibels(true);
+
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  const auto withoutCurve = [](const juce::MemoryBlock &block) {
+    auto xml = juce::AudioProcessor::getXmlFromBinary(block.getData(),
+                                                      (int)block.getSize());
+    juce::MemoryBlock out;
+
+    if (xml == nullptr)
+      return out;
+
+    for (auto *child : xml->getChildIterator())
+      if (child->getStringAttribute("id") == velocityCurveId) {
+        xml->removeChildElement(child, true);
+        break;
+      }
+
+    juce::AudioProcessor::copyXmlToBinary(*xml, out);
+    return out;
+  };
+
+  const auto older = withoutCurve(saved);
+
+  check(older.getSize() > 0, "an old session can be made from a new one");
+
+  setDecibels(true);
+  p.setStateInformation(older.getData(), (int)older.getSize());
+
+  check(!isDecibels(),
+        "a session from before the switch loads on Classic, though the "
+        "instance was on dB");
+
+  setDecibels(false);
+  p.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  check(isDecibels(), "and a session that names dB loads on dB");
+
+  // The same for a preset file.
+  auto file = ovt::presets::capture(p.apvts, "Then");
+
+  check(file != nullptr, "a preset can be captured");
+  if (file == nullptr)
+    return;
+
+  auto oldFile = std::make_unique<juce::XmlElement>(*file);
+
+  for (auto *child : oldFile->getChildIterator())
+    if (child->getStringAttribute("id") == velocityCurveId) {
+      oldFile->removeChildElement(child, true);
+      break;
+    }
+
+  setDecibels(true);
+  ovt::presets::restore(p.apvts, *oldFile);
+
+  check(!isDecibels(), "a preset file from before the switch loads on Classic");
+
+  setDecibels(false);
+  ovt::presets::restore(p.apvts, *file);
+
+  check(isDecibels(), "and one that names dB loads on dB");
+
+  // The switch converts. A spread of amounts on Classic, the noise channel's
+  // and a negative one among them, and one channel left at zero.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  std::vector<juce::String> ids;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    ids.push_back(oscParamId(velSuffix, i));
+  ids.push_back(noiseParamId(velSuffix));
+
+  std::vector<float> before;
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    const auto amount =
+        i == 5 ? 0.0f : (i == 7 ? -0.6f : (float)(i % 11) / 10.0f);
+    setAmount(ids[i], amount);
+    before.push_back(amountOf(ids[i]));
+  }
+
+  setDecibels(false);
+  undo.clearUndoHistory();
+
+  switchVelocityCurve(p.apvts);
+
+  int converted = 0;
+
+  for (size_t i = 0; i < ids.size(); ++i)
+    converted +=
+        std::abs(amountOf(ids[i]) - ovt::decibelsAmountFor(before[i])) < 1.0e-3f
+            ? 1
+            : 0;
+
+  check(isDecibels(), "the switch turns dB on");
+
+  check(converted == (int)ids.size(),
+        "and converts all 33 amounts so a medium note keeps its level (" +
+            std::to_string(converted) + ")");
+
+  check(std::abs(amountOf(ids[5])) < 1.0e-6f && amountOf(ids[7]) < 0.0f,
+        "a channel at zero stays at zero and a negative amount stays negative");
+
+  check(undo.undo() && !isDecibels() && !undo.canUndo(),
+        "one undo puts the curve back");
+
+  int restored = 0;
+  for (size_t i = 0; i < ids.size(); ++i)
+    restored += std::abs(amountOf(ids[i]) - before[i]) < 1.0e-3f ? 1 : 0;
+
+  check(restored == (int)ids.size(),
+        "and every amount with it (" + std::to_string(restored) + ")");
+
+  // And back again, from dB to Classic.
+  switchVelocityCurve(p.apvts);
+  switchVelocityCurve(p.apvts);
+
+  int roundTrip = 0;
+  for (size_t i = 0; i < ids.size(); ++i)
+    roundTrip += std::abs(amountOf(ids[i]) - before[i]) < 2.0e-3f ? 1 : 0;
+
+  check(!isDecibels() && roundTrip == (int)ids.size(),
+        "switching to dB and back gives the amounts it started with (" +
+            std::to_string(roundTrip) + ")");
+
+  // The gutter's switch shows the parameter.
+  {
+    RowGutter gutter;
+    gutter.setBounds(0, 0, ovt::ui::kGutterWidth,
+                     ovt::ui::preferredStripHeight());
+
+    auto *button =
+        dynamic_cast<juce::Button *>(gutter.findChildWithID(velocityCurveId));
+
+    const auto rows = ovt::ui::layoutRows(
+        gutter.getLocalBounds().reduced(0, ovt::ui::kStripPadY));
+
+    check(button != nullptr && button->isVisible() &&
+              rows[(size_t)ovt::ui::Row::Velocity].contains(
+                  button->getBounds().getCentre()),
+          "the gutter has the dB switch in the velocity row");
+
+    if (button != nullptr) {
+      gutter.setVelocityCurve(true);
+      const auto lit = button->getToggleState();
+      gutter.setVelocityCurve(false);
+
+      check(lit && !button->getToggleState(),
+            "and it lights for dB and goes dark for Classic");
+    }
+  }
+
+  // Through the processor: one partial at full amount, struck at a medium
+  // velocity on each curve. Kept below the clipper so levels compare.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    setAmount(oscParamId(volumeSuffix, i), i == 0 ? 1.0f : 0.0f);
+
+  setAmount(oscParamId(velSuffix, 0), 1.0f);
+
+  auto *master = p.apvts.getParameter(masterGainId);
+  master->setValueNotifyingHost(master->convertTo0to1(-24.0f));
+  p.apvts.getParameter(safetyClipId)->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  // Measured once the note has settled. The same key struck again carries on
+  // in its voice and ramps from the level it had, so the first blocks show
+  // the note before.
+  const auto peakOn = [&](bool decibels) {
+    setDecibels(decibels);
+    p.reset();
+    renderBlocks(p, 4, 512);
+    renderBlocks(p, 10, 512, noteOnAt(57, 0.5f, 0));
+    return renderBlocks(p, 10, 512).peak;
+  };
+
+  const auto classicPeak = peakOn(false);
+  const auto decibelsPeak = peakOn(true);
+
+  // A note-on of one half arrives as 64 of 127.
+  const auto v = 64.0f / 127.0f;
+  const auto wanted = ovt::velocityGain(1.0f, v, VelocityCurve::Decibels) /
+                      ovt::velocityGain(1.0f, v, VelocityCurve::Classic);
+  const auto ratio = decibelsPeak / juce::jmax(1.0e-9f, classicPeak);
+
+  std::printf("  a medium note at 100%%: Classic peak %.4f, dB peak %.4f, "
+              "ratio %.3f, expected %.3f\n",
+              classicPeak, decibelsPeak, ratio, wanted);
+
+  check(classicPeak > 0.0f && std::abs(ratio - wanted) < 0.02f * wanted,
+        "the curve the switch names is the one the processor plays");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+}
+
 /// The help on the row names. Every caption the gutter draws has its own line,
 /// the tooltip finds it from the same layout the captions are drawn with, and
 /// a folded row has none.
@@ -845,9 +1102,9 @@ void testParameterWiring(OvertoniumProcessor &p) {
   //
   // And six for each macro: the amount, the row it reaches, the channels it
   // reaches, how it is shared out, the channel a taper leans on, and its
-  // colour.
+  // colour. Then the velocity curve.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6 + 1;
 
   // No stack defaults to on. Asked of the parameter rather than of the tree, so
   // the answer does not depend on what an earlier test left behind.
@@ -13249,6 +13506,7 @@ int main(int argc, char **argv) {
   testSoloAndMute(processor);
   testClearMuteAndSolo(processor);
   testOnlyThisChannel(processor);
+  testVelocityCurveSwitch(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

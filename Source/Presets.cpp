@@ -123,6 +123,10 @@ struct Applier {
     set(params::noiseParamId(params::stringDampSuffix), 0.4f);
     set(params::noiseParamId(params::stringPointSuffix), 0.25f);
 
+    // Every factory preset was voiced on the Classic velocity curve, so each
+    // keeps it until it is voiced again on dB.
+    set(params::velocityCurveId, (float)VelocityCurve::Classic);
+
     // Everything global that is part of the sound rather than the setup.
     // Nothing here may write a session parameter, see kSessionParamIds.
     set(params::stretchId, 0.0f);
@@ -406,9 +410,11 @@ int restore(APVTS &apvts, const juce::XmlElement &doc,
   }
 
   int applied = 0;
+  juce::StringArray named;
 
   for (auto *entry : doc.getChildWithTagNameIterator(kParamTag)) {
     const auto id = entry->getStringAttribute("id");
+    named.add(id);
 
     // Session parameters are skipped even when an older file names them.
     if (params::isSessionParam(id))
@@ -425,6 +431,19 @@ int restore(APVTS &apvts, const juce::XmlElement &doc,
       p->setValueNotifyingHost(p->convertTo0to1(plain));
       ++applied;
     }
+  }
+
+  // A file saved before a parameter existed does not name it, and the
+  // parameter would otherwise keep whatever the last patch left. See
+  // params::valueInOlderFiles.
+  for (auto *p : apvts.processor.getParameters()) {
+    auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(p);
+
+    if (ranged == nullptr || named.contains(ranged->paramID))
+      continue;
+
+    if (const auto older = params::valueInOlderFiles(ranged->paramID))
+      ranged->setValueNotifyingHost(ranged->convertTo0to1(*older));
   }
 
   return applied;

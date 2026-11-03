@@ -65,6 +65,14 @@ public:
   std::function<void()> onGlideLegatoClicked;
   std::function<void()> onGlideFixedTimeClicked;
 
+  /// The dB switch beside the VELOCITY caption: whether every channel's
+  /// velocity row works in decibels or on the Classic curve. Part of the patch.
+  void setVelocityCurve(bool decibels);
+
+  /// Fired when the dB switch is clicked. The editor owns the parameter, and
+  /// converts every channel's amount with it.
+  std::function<void()> onVelocityCurveClicked;
+
   /// Fired when a heading is clicked. The editor owns the fold state, since the
   /// strips are told too.
   std::function<void(ovt::ui::Section)> onSectionToggled;
@@ -102,6 +110,9 @@ private:
 
   /// The glide switches, a pair just left of the GLIDE caption. Lit is on.
   ovt::ui::ScreenSwitch glideLegato, glideFixedTime;
+
+  /// The velocity curve switch, just left of the VELOCITY caption. Lit is dB.
+  ovt::ui::ScreenSwitch velocityDecibels;
 
   /// The in-phase switches, one just left of each shape caption. Lit is one
   /// modulator shared by the whole keyboard.

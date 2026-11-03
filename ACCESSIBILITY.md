@@ -12,7 +12,7 @@ These are things that are checked, not just intended. Where a number appears, it
 
 **The readouts can be read without looking at them.** The tuning and level figures, the converter readouts and the displays in the Playing and Tuning bars are drawn as segment shapes, not written as text, so a screen reader finds nothing in them. Each one therefore has a separate spoken name and value. Replacing a plain label with a segment display has removed the name without any warning before, and the suite checks for that.
 
-**Every control is a host parameter**, 850 parameters in all. This matters more than it sounds. A host's own generic editor is a plain list of named parameters with text fields, and it works with a keyboard and a screen reader in a way the plugin's own window does not. If you cannot use the mixer, the host's generic view is a complete alternative, not a reduced one. Nothing is hidden from it.
+**Every control is a host parameter**, 851 parameters in all. This matters more than it sounds. A host's own generic editor is a plain list of named parameters with text fields, and it works with a keyboard and a screen reader in a way the plugin's own window does not. If you cannot use the mixer, the host's generic view is a complete alternative, not a reduced one. Nothing is hidden from it.
 
 **Colour is never the only way something important is shown.** Each channel shows its harmonic's number at the top of the strip as well as its interval colour, and its tuning in cents as a figure. The one exception is listed below.
 

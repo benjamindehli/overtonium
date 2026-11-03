@@ -39,7 +39,9 @@ capture(juce::AudioProcessorValueTreeState &, const juce::String &name,
         const params::MacroChannels *channels = nullptr);
 
 /// Applies a captured preset. Parameters the document does not mention are
-/// left alone rather than reset, so an older file loads into a newer build.
+/// left alone rather than reset, so an older file loads into a newer build,
+/// except those params::valueInOlderFiles names, which take the value every
+/// file from before them was made with.
 /// Session parameters are ignored even when a file names them. A macro on
 /// Selected that the document names no channels for reaches none.
 ///
