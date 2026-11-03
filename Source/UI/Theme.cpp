@@ -901,6 +901,107 @@ const char *rowLabel(Row r) {
   }
 }
 
+juce::String rowHelp(Row r) {
+  // A heading folds when clicked, which nothing else on it says.
+  const juce::String fold = " Click the heading to fold the section away or "
+                            "open it again.";
+
+  switch (r) {
+  case Row::TuneKnob:
+    return "Where each partial sits, from its equal-tempered position to the "
+           "exact ratio of the harmonic series.";
+  case Row::TuneText:
+    return "How far each partial is from equal temperament, in cents.";
+  case Row::PitchModHeading:
+    return "Vibrato for each partial, with its own shape, rate and depth." +
+           fold;
+  case Row::PmShape:
+    return "The shape the vibrato traces. Click the drawing on a channel to "
+           "choose one.";
+  case Row::PmRate:
+    return "How fast the vibrato moves, from 0.01 to 30 Hz.";
+  case Row::PmDepth:
+    return "How far the vibrato moves the partial, up to 1200 cents.";
+  case Row::Drift:
+    return "A slow random wander in pitch, different for every partial, up to "
+           "25 cents.";
+  case Row::Glide:
+    return "How long each partial takes to reach a new note, so the partials "
+           "can arrive one at a time. L glides only legato, and T makes every "
+           "glide take the same time.";
+  case Row::EnvHeading:
+    return "How each partial rises and falls while the key is down." + fold;
+  case Row::Strike:
+    return "How much velocity changes the delay and attack below. Positive "
+           "makes a hard note start sooner and rise faster, and a soft one "
+           "wait and rise slowly.";
+  case Row::Delay:
+    return "How long the partial stays silent before its attack begins.";
+  case Row::Attack:
+    return "How long the partial takes to rise. Below 0.2 ms it sets where in "
+           "its cycle the partial starts instead.";
+  case Row::Decay:
+    return "How long the partial takes to fall from its peak to the sustain "
+           "level.";
+  case Row::Sustain:
+    return "The level the partial holds while the key is down.";
+  case Row::KeyOffHeading:
+    return "A second envelope that runs when the key is released." + fold;
+  case Row::Swell:
+    return "How long the partial takes to move to the key-off level once the "
+           "key is released.";
+  case Row::OffLevel:
+    return "The level the partial moves to when the key is released. Above "
+           "the sustain it swells, below it drops. Zero skips the stage.";
+  case Row::Release:
+    return "How long the partial takes to fade to silence after the key-off "
+           "stage.";
+  case Row::AmpModHeading:
+    return "Tremolo for each partial, with its own shape, rate and depth." +
+           fold;
+  case Row::AmShape:
+    return "The shape the tremolo traces. Click the drawing on a channel to "
+           "choose one.";
+  case Row::AmRate:
+    return "How fast the tremolo moves, from 0.01 to 30 Hz.";
+  case Row::AmDepth:
+    return "How far the tremolo lowers the level, up to 100%.";
+  case Row::OutputHeading:
+    return "How each partial answers the keys, where it sits and how loud it "
+           "is." +
+           fold;
+  case Row::Velocity:
+    return "How much key velocity scales the level. Positive makes soft notes "
+           "quieter, negative makes hard notes quieter.";
+  case Row::Aftertouch:
+    return "How much key pressure moves the level. Negative fades the partial "
+           "out as you press.";
+  case Row::Pan:
+    return "Where the partial sits between left and right. The level stays the "
+           "same as it moves.";
+  case Row::MuteSolo: {
+#if JUCE_MAC
+    const juce::String key = "Option";
+#else
+    const juce::String key = "Alt";
+#endif
+    return "Mute or solo each partial. Mute overrides solo. " + key +
+           "-click to mute or solo only one, and right-click to clear them "
+           "all.";
+  }
+  case Row::Fader:
+    return "Each partial's level, in decibels, with its meter inside the "
+           "track.";
+  case Row::FaderText:
+    return "The level each fader is set to, in decibels.";
+
+  case Row::Header:
+  case Row::NumRows:
+  default:
+    return {};
+  }
+}
+
 const char *linkScopeName(LinkScope s) {
   switch (s) {
   case LinkScope::All:

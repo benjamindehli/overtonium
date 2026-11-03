@@ -623,6 +623,98 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
   legato->setValueNotifyingHost(0.0f);
 }
 
+/// The help on the row names. Every caption the gutter draws has its own line,
+/// the tooltip finds it from the same layout the captions are drawn with, and
+/// a folded row has none.
+void testRowNameHelp() {
+  section("Help on the row names");
+
+  using namespace ovt::ui;
+
+  RowGutter gutter;
+  gutter.setBounds(0, 0, kGutterWidth, preferredStripHeight());
+
+  // Where each caption is drawn, as paint lays it out.
+  const auto captionAt = [&gutter](Row row, SectionMask folded) {
+    const auto rows =
+        layoutRows(gutter.getLocalBounds().reduced(0, kStripPadY), folded);
+    auto area = rows[(size_t)row];
+
+    if (row == Row::Fader)
+      area = area.removeFromTop(16);
+
+    return area.getCentre();
+  };
+
+  int captions = 0, helped = 0, found = 0;
+  std::set<std::string> lines;
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    if (rowLabel(row) == nullptr) {
+      check(rowHelp(row).isEmpty(), "a row with no caption has no help (row " +
+                                        std::to_string(i) + ")");
+      continue;
+    }
+
+    ++captions;
+    const auto help = rowHelp(row);
+
+    if (help.isNotEmpty())
+      ++helped;
+
+    lines.insert(help.toStdString());
+
+    if (gutter.tooltipAt(captionAt(row, 0)) == help)
+      ++found;
+  }
+
+  check(helped == captions, "every caption has a line of help (" +
+                                std::to_string(helped) + " of " +
+                                std::to_string(captions) + ")");
+
+  check((int)lines.size() == captions,
+        "and no two say the same, so the two shape, rate and depth rows each "
+        "say which modulator they belong to");
+
+  check(found == captions,
+        "the pointer on each caption gets that caption's help (" +
+            std::to_string(found) + " of " + std::to_string(captions) + ")");
+
+  check(rowHelp(Row::MuteSolo).contains("-click to mute or solo only one"),
+        "the mute and solo caption says how to mute or solo only one");
+
+  // Folded, a section keeps the help on its heading and its rows have none,
+  // wherever the pointer is.
+  const auto folded = sectionBit(Section::Envelope);
+  gutter.setCollapsedSections(folded);
+
+  check(gutter.tooltipAt(captionAt(Row::EnvHeading, folded)) ==
+            rowHelp(Row::EnvHeading),
+        "with ENVELOPE folded its heading still has its help");
+
+  bool strikeAnywhere = false;
+
+  for (int y = 0; y < gutter.getHeight(); ++y)
+    strikeAnywhere |=
+        gutter.tooltipAt({gutter.getWidth() / 2, y}) == rowHelp(Row::Strike);
+
+  check(!strikeAnywhere, "and nowhere in the gutter offers STRIKE's help");
+
+  check(gutter.tooltipAt(captionAt(Row::Swell, folded)) == rowHelp(Row::Swell),
+        "while the rows below move up and keep theirs");
+
+  // The band under LEVEL's caption is the fader, not the caption.
+  gutter.setCollapsedSections(0);
+
+  const auto fader = layoutRows(
+      gutter.getLocalBounds().reduced(0, kStripPadY))[(size_t)Row::Fader];
+
+  check(gutter.tooltipAt({fader.getCentreX(), fader.getY() + 40}).isEmpty(),
+        "below LEVEL's caption the fader's band has no row help");
+}
+
 /// The glide caps in the gutter, beside the GLIDE caption: lit by the two
 /// switches, firing their own callbacks, and gone with the row when its
 /// section is folded.
@@ -13057,6 +13149,7 @@ int main(int argc, char **argv) {
   testAttackReachesIntoThePhase(processor);
   testLegatoSwitch(processor);
   testGlideCaps();
+  testRowNameHelp();
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

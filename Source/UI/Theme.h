@@ -326,6 +326,10 @@ int minimumStripHeight(SectionMask collapsed = 0);
 /// Left-gutter caption for a row, or nullptr for rows that need no caption.
 const char *rowLabel(Row r);
 
+/// What the tooltip on a row's caption says, or empty for a row with no
+/// caption. Written from the manual's own description of each row.
+juce::String rowHelp(Row r);
+
 /// The per-strip controls that the LINK switch ganged across all 32 channels.
 enum class Role {
   Tune = 0,
