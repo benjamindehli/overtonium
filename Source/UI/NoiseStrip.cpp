@@ -36,8 +36,11 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames()),
-      muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
-      envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
+      muteButton(state, "M", params::noiseParamId(params::muteSuffix),
+                 params::muteSuffix),
+      soloButton(state, "S", params::noiseParamId(params::soloSuffix),
+                 params::soloSuffix),
+      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
       tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
       pressureLamp(kNoiseColour) {
   for (auto *lamp :
@@ -121,8 +124,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   // The lamp colours. See GlowButton.
   muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
   soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
-  muteButton.setTooltip("Mute the noise channel");
-  soloButton.setTooltip("Solo the noise channel");
+  muteButton.setTooltip("Mute the noise channel. " + muteButton.onlyThisHint());
+  soloButton.setTooltip("Solo the noise channel. " + soloButton.onlyThisHint());
   muteButton.setTitle("Noise mute");
   soloButton.setTitle("Noise solo");
   // One moulding around the pair, each half lighting on its own.

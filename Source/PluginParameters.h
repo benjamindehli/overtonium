@@ -266,9 +266,17 @@ int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
                        const char *suffix);
 
 /// Turns it off wherever it is on, so a host sees a gesture only on the
-/// channels that moved.
+/// channels that moved. One step in the undo history.
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
                         const char *suffix);
+
+/// Turns it on for one channel and off for every other, for soloing or muting
+/// only that channel. One step in the undo history, with a gesture only on the
+/// channels that moved.
+///
+/// @param onlyId  the one channel's parameter, which must carry this suffix
+void switchOnlyChannel(juce::AudioProcessorValueTreeState &, const char *suffix,
+                       const juce::String &onlyId);
 
 inline constexpr const char *colourSuffix = "colour";
 

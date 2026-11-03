@@ -6,6 +6,9 @@
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
 
+#include <utility>
+#include <vector>
+
 namespace ovt::params {
 
 namespace {
@@ -511,19 +514,47 @@ int channelsSwitchedOn(juce::AudioProcessorValueTreeState &apvts,
   return on;
 }
 
-void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
-                        const char *suffix) {
+namespace {
+/// Sets the switch on every channel, on for `onlyId` and off for the rest, or
+/// off everywhere when it is empty.
+void setChannelSwitches(juce::AudioProcessorValueTreeState &apvts,
+                        const char *suffix, const juce::String &onlyId) {
+  std::vector<std::pair<juce::RangedAudioParameter *, float>> moving;
+
   for (const auto &id : channelIds(suffix)) {
     auto *param = apvts.getParameter(id);
 
-    // Only what is on, so no gesture or empty undo step is made for the rest.
-    if (param == nullptr || param->getValue() <= 0.5f)
+    if (param == nullptr)
       continue;
 
-    param->beginChangeGesture();
-    param->setValueNotifyingHost(0.0f);
-    param->endChangeGesture();
+    const auto on = id == onlyId;
+
+    // Only what changes, so no gesture or empty undo step is made for the rest.
+    if ((param->getValue() > 0.5f) != on)
+      moving.emplace_back(param, on ? 1.0f : 0.0f);
   }
+
+  // Every gesture is open before anything moves and closed after, so the
+  // whole change is one step in the undo history.
+  for (const auto &move : moving)
+    move.first->beginChangeGesture();
+
+  for (const auto &move : moving)
+    move.first->setValueNotifyingHost(move.second);
+
+  for (const auto &move : moving)
+    move.first->endChangeGesture();
+}
+} // namespace
+
+void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
+                        const char *suffix) {
+  setChannelSwitches(apvts, suffix, {});
+}
+
+void switchOnlyChannel(juce::AudioProcessorValueTreeState &apvts,
+                       const char *suffix, const juce::String &onlyId) {
+  setChannelSwitches(apvts, suffix, onlyId);
 }
 
 float defaultVolumeFor(int index0) {
