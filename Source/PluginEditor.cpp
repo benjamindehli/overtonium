@@ -276,6 +276,31 @@ void RowGutter::mouseMove(const juce::MouseEvent &e) {
     onHoverChanged(onHeading ? sectionHeading(section) : kNoRow);
 }
 
+juce::String RowGutter::getTooltip() { return tooltipAt(getMouseXYRelative()); }
+
+juce::String RowGutter::tooltipAt(juce::Point<int> point) const {
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    // The rows paint draws a caption on, and only where it draws it.
+    if (rowLabel(row) == nullptr || rowIsCollapsed(row, collapsed))
+      continue;
+
+    auto area = rows[(size_t)i];
+
+    if (row == Row::Fader)
+      area = area.removeFromTop(16);
+
+    if (area.contains(point))
+      return rowHelp(row);
+  }
+
+  return {};
+}
+
 void RowGutter::mouseExit(const juce::MouseEvent &) {
   if (onHoverChanged)
     onHoverChanged(kNoRow);

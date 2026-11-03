@@ -19,9 +19,18 @@
 
 /// Left-hand caption column. Lays out the same rows as a channel strip so
 /// every knob in the mixer has a name without repeating it 32 times.
-class RowGutter : public juce::Component {
+class RowGutter : public juce::Component, public juce::TooltipClient {
 public:
   RowGutter();
+
+  /// What the caption under the pointer does. See tooltipAt.
+  juce::String getTooltip() override;
+
+  /// What the caption at this point does, from the manual's description of
+  /// its row, or empty where there is no caption. A folded row has none, and
+  /// the band under LEVEL's caption belongs to the fader. Public so a test can
+  /// ask without a pointer.
+  juce::String tooltipAt(juce::Point<int>) const;
 
   void paint(juce::Graphics &) override;
 

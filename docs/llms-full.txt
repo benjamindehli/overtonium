@@ -307,6 +307,8 @@ This page covers the mixer. The bar across the top, from the oscillator characte
 
 Six channels and the caption gutter. Each row is named once on the left instead of on every strip.
 
+Hold the pointer over a row's name in the gutter to see what the row does. The table below says the same at more length.
+
 | Control | Range | What it does |
 |---|---|---|
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the readout stays at 0.0 |
