@@ -972,7 +972,8 @@ juce::String rowHelp(Row r) {
            fold;
   case Row::Velocity:
     return "How much key velocity scales the level. Positive makes soft notes "
-           "quieter, negative makes hard notes quieter.";
+           "quieter, negative makes hard notes quieter. The dB switch beside "
+           "it spreads the change evenly in decibels.";
   case Row::Aftertouch:
     return "How much key pressure moves the level. Negative fades the partial "
            "out as you press.";

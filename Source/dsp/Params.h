@@ -8,6 +8,7 @@
 #include "Harmonics.h"
 #include "Lfo.h"
 #include "Temperament.h"
+#include "Velocity.h"
 
 namespace ovt {
 
@@ -74,8 +75,9 @@ struct OscParams {
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
-  /// harder is louder, negative means softer is louder.
-  float velAmount = 0.7f;
+  /// harder is louder, negative means softer is louder. Zero by default, so
+  /// velocity is something a patch asks for. See GlobalParams::velocityCurve.
+  float velAmount = 0.0f;
   /// How much channel or polyphonic aftertouch moves this partial's level,
   /// -1 to 1. It adds to the fader rather than scaling it, so a strip at zero
   /// can be faded in by pressure.
@@ -105,7 +107,7 @@ struct NoiseParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f;
-  float velAmount = 0.7f;
+  float velAmount = 0.0f;
   float atAmount = 0.0f;
   float volume = 0.0f;
   float pan = 0.0f;
@@ -190,6 +192,11 @@ struct GlobalParams {
   /// GlideTrigger and GlideMode.
   GlideTrigger glideTrigger = GlideTrigger::Always;
   GlideMode glideMode = GlideMode::Rate;
+
+  /// How every channel's VELOCITY row turns velocity into level. Decibels for
+  /// anything new. A session or preset made before the switch existed loads
+  /// as Classic. See VelocityCurve.
+  VelocityCurve velocityCurve = VelocityCurve::Decibels;
 };
 
 /// Which delay the repeats come out of.

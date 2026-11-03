@@ -6,6 +6,7 @@
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
 
+#include <cmath>
 #include <utility>
 #include <vector>
 
@@ -552,6 +553,47 @@ void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
   setChannelSwitches(apvts, suffix, {});
 }
 
+void switchVelocityCurve(juce::AudioProcessorValueTreeState &apvts) {
+  auto *curve = apvts.getParameter(velocityCurveId);
+
+  if (curve == nullptr)
+    return;
+
+  const auto toDecibels = curve->getValue() < 0.5f;
+
+  // Normalised values, so each parameter is set as it is stored.
+  std::vector<std::pair<juce::RangedAudioParameter *, float>> moving;
+
+  for (const auto &id : channelIds(velSuffix)) {
+    auto *param = apvts.getParameter(id);
+
+    if (param == nullptr)
+      continue;
+
+    const auto amount = param->convertFrom0to1(param->getValue());
+    const auto converted =
+        toDecibels ? decibelsAmountFor(amount) : classicAmountFor(amount);
+    const auto stored = param->convertTo0to1(converted);
+
+    // Only what changes, so a channel at zero gets no gesture.
+    if (std::abs(stored - param->getValue()) > 1.0e-7f)
+      moving.emplace_back(param, stored);
+  }
+
+  moving.emplace_back(curve, toDecibels ? 1.0f : 0.0f);
+
+  // Every gesture is open before anything moves and closed after, so the
+  // switch and the amounts are one step in the undo history.
+  for (const auto &move : moving)
+    move.first->beginChangeGesture();
+
+  for (const auto &move : moving)
+    move.first->setValueNotifyingHost(move.second);
+
+  for (const auto &move : moving)
+    move.first->endChangeGesture();
+}
+
 void switchOnlyChannel(juce::AudioProcessorValueTreeState &apvts,
                        const char *suffix, const juce::String &onlyId) {
   setChannelSwitches(apvts, suffix, onlyId);
@@ -904,7 +946,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
-        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
         FAttr().withStringFromValueFunction(signedPercentText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -992,7 +1034,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
-      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(signedPercentText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -1137,7 +1179,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
       FAttr().withStringFromValueFunction(percentText)));
 
+  // The velocity curve, on the end. Part of the patch. dB for anything new,
+  // and Classic for whatever was saved before it existed, see
+  // valueInOlderFiles. Two entries, fixed, since a choice's length is part of
+  // what a stored value means.
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{velocityCurveId, 1}, "Velocity Curve",
+      juce::StringArray{"Classic", "dB"}, (int)VelocityCurve::Decibels));
+
   return layout;
+}
+
+std::optional<float> valueInOlderFiles(juce::StringRef id) {
+  if (id == juce::StringRef(velocityCurveId))
+    return (float)VelocityCurve::Classic;
+
+  return std::nullopt;
 }
 
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
@@ -1148,6 +1205,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   amInPhase = apvts.getRawParameterValue(amInPhaseId);
   glideTrigger = apvts.getRawParameterValue(glideTriggerId);
   glideMode = apvts.getRawParameterValue(glideModeId);
+  velocityCurve = apvts.getRawParameterValue(velocityCurveId);
   legato = apvts.getRawParameterValue(legatoId);
   adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
   adaptiveSeventh = apvts.getRawParameterValue(adaptiveSeventhId);
@@ -1558,6 +1616,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       glideTrigger->load() > 0.5f ? GlideTrigger::Legato : GlideTrigger::Always;
   out.global.glideMode =
       glideMode->load() > 0.5f ? GlideMode::Time : GlideMode::Rate;
+  out.global.velocityCurve = velocityCurve->load() > 0.5f
+                                 ? VelocityCurve::Decibels
+                                 : VelocityCurve::Classic;
 
   {
     const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,

@@ -234,7 +234,10 @@
                                 <tr>
                                     <td>VELOCITY</td>
                                     <td>-100 to +100%</td>
-                                    <td>How much key velocity scales this partial. Negative inverts it</td>
+                                    <td>
+                                        How much key velocity scales this partial. Negative inverts it. The dB switch beside the caption picks the
+                                        curve
+                                    </td>
                                 </tr>
                                 <tr>
                                     <td>AFTERTOUCH</td>
@@ -374,6 +377,21 @@
                         that, so the partial is loudest when you play softly. The two halves mirror each other exactly, so -50% at a given velocity
                         matches +50% at the opposite velocity. The negative half is useful for crossfading. Give one set of partials a positive amount
                         and another set a negative one, and the two timbres swap places across the velocity range instead of one just fading in.
+                    </p>
+
+                    <p>
+                        <strong>The dB switch</strong> beside the VELOCITY caption picks how velocity becomes level, for every channel at once. Lit,
+                        each step of velocity takes the same number of decibels off. At 100% a medium note is 20 dB down and the softest note 40 dB
+                        down, and at 50% each of those is half as much. Dark is the Classic curve, which takes velocity off as a fraction of the
+                        level. Even at 100% it leaves a medium note only 6 dB down, and most of what it does happens on the softest notes, so it only
+                        starts to sound like much near the top of the knob.
+                    </p>
+
+                    <p>
+                        Patches made before the switch existed keep Classic, so a saved project and a saved preset sound as they did. Every factory
+                        preset uses Classic too. Clicking the switch converts every channel's amount with it, so a medium note keeps its level and
+                        only the soft and loud ends move. Classic at 100% becomes about 30% on dB. Both the switch and the conversion are a single
+                        step to undo.
                     </p>
 
                     <p>

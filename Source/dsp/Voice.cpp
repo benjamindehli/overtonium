@@ -195,7 +195,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
 
     // Each strip's own velocity sensitivity, latched so a velocity change
     // cannot alter a note already sounding. See Velocity.h.
-    pt.velGain = velocityGain(op.velAmount, vel);
+    pt.velGain = velocityGain(op.velAmount, vel, p.global.velocityCurve);
 
     // How soon the partial starts and how quickly it gets there, from the same
     // velocity.
@@ -256,7 +256,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
   {
     const auto &np = p.noise;
 
-    noise.velGain = velocityGain(np.velAmount, vel);
+    noise.velGain = velocityGain(np.velAmount, vel, p.global.velocityCurve);
 
     noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);

@@ -8,7 +8,7 @@ There are three layers, and the boundary between the first two is the important 
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. A CI job checks this. It builds the core with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. This means the part that does the arithmetic can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 850 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the forty-one factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 851 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the forty-one factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
@@ -68,7 +68,7 @@ Source/
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
     AdaptiveSnapshot.h  Adaptive's result for the held chord, and the
                     triple buffer that hands it to the editor
-  PluginParameters.*  APVTS layout, 850 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 851 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state

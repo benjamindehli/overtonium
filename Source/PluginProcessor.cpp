@@ -2,6 +2,7 @@
 #include "Presets.h"
 
 #include <utility>
+#include <vector>
 
 namespace {
 /// One step in the history: the normalised values of everything that moved
@@ -723,6 +724,19 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       // Defaults to the first preset when absent.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
 
+      // The parameters this state does not name, found before replaceState,
+      // which adds an entry for each of them to this same tree. See
+      // params::valueInOlderFiles.
+      std::vector<std::pair<juce::RangedAudioParameter *, float>> older;
+
+      for (auto *parameter : getParameters())
+        if (auto *ranged =
+                dynamic_cast<juce::RangedAudioParameter *>(parameter))
+          if (!tree.getChildWithProperty("id", ranged->paramID).isValid())
+            if (const auto value =
+                    ovt::params::valueInOlderFiles(ranged->paramID))
+              older.emplace_back(ranged, *value);
+
       {
         // Everything here that getStateInformation reads, changed under the
         // same lock. See stateLock.
@@ -758,6 +772,12 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       for (int m = 0; m < ovt::params::kNumMacros; ++m)
         paramCache.macroChannels[(size_t)m].store(ovt::params::channelListMask(
             tree.getProperty(macroChannelsProperty(m)).toString()));
+
+      // A session saved before a parameter existed gets the value it was made
+      // with, not whatever the last patch left in it.
+      for (const auto &entry : older)
+        entry.first->setValueNotifyingHost(
+            entry.first->convertTo0to1(entry.second));
 
       // A value that is not a number, from a corrupted or hand edited file, is
       // put back to the default. NaN is the one value the range clamps let

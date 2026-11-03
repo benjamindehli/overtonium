@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <array>
@@ -46,6 +48,11 @@ inline constexpr const char *pmInPhaseId = "pmInPhase";
 inline constexpr const char *amInPhaseId = "amInPhase";
 inline constexpr const char *glideTriggerId = "glideTrigger";
 inline constexpr const char *glideModeId = "glideMode";
+
+/// How every channel's VELOCITY row turns velocity into level, Classic or dB.
+/// Part of the patch, and the switch beside the velocity caption. See
+/// VelocityCurve.
+inline constexpr const char *velocityCurveId = "velocityCurve";
 
 /// Legato, beside the voice count. With one voice it is monophonic legato,
 /// with more the top line, where the highest held note carries on into a new
@@ -270,6 +277,12 @@ int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
                         const char *suffix);
 
+/// Switches the velocity curve between Classic and dB, and converts every
+/// channel's VELOCITY amount, the noise channel's included, so a medium note
+/// keeps the level it had. One step in the undo history. What the switch beside
+/// the velocity caption does. See decibelsAmountFor.
+void switchVelocityCurve(juce::AudioProcessorValueTreeState &);
+
 /// Turns it on for one channel and off for every other, for soloing or muting
 /// only that channel. One step in the undo history, with a gesture only on the
 /// channels that moved.
@@ -410,6 +423,7 @@ struct Cache {
   std::atomic<float> *adaptiveSeventh = nullptr;
   std::atomic<float> *adaptiveHome = nullptr;
   std::atomic<float> *glideMode = nullptr;
+  std::atomic<float> *velocityCurve = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;
@@ -477,6 +491,16 @@ inline const std::array<const char *, 15> kSessionParamIds{
     adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
 
 /// Whether `id` is one of those.
+/// What a parameter reads as when a saved session or preset file comes from
+/// before the parameter existed, where that is not its default.
+///
+/// JUCE leaves a parameter that a restored state does not name where it was,
+/// and a preset file is read the same way, so without this an old project
+/// would take whatever the last patch left behind. The velocity curve is the
+/// one so far: every patch made before it existed was made on Classic, and a
+/// new one starts on dB. Returns a plain value.
+std::optional<float> valueInOlderFiles(juce::StringRef id);
+
 inline bool isSessionParam(juce::StringRef id) {
   for (auto *session : kSessionParamIds)
     if (id == juce::StringRef(session))

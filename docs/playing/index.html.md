@@ -102,7 +102,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
+Eight hundred and fifty-one parameters reach the host: forty-five global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
 
 Every per-channel name includes its channel, so you can search a parameter list either way. Type `H7` to find that partial, or type `Tune` to find that row across the whole mixer. A screen reader reads the same names, which is why they are words, not numbers.
 
@@ -124,9 +124,9 @@ LINK is not a parameter, because it is a mouse tool, not part of the sound. A LI
 
 ### Every parameter
 
-All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 851 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, forty-four of them.
+**Global**, forty-five of them.
 
 | What the host calls it       | Id                | Range                                                                                                                              | Default    |
 | ---------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -174,6 +174,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Resonator Mix`              | `resonatorMix`    | 0 % to 100 %                                                                                                                       | 50 %       |
 | `Resonator Decay`            | `resonatorDecay`  | 200 ms to 10.00 s                                                                                                                  | 4.00 s     |
 | `Resonator Damp`             | `resonatorDamp`   | 0 % to 100 %                                                                                                                       | 40 %       |
+| `Velocity Curve`             | `velocityCurve`   | Classic, dB                                                                                                                        | dB         |
 
 **On every partial**, twenty-three controls, each one on all 32 partials.
 
@@ -196,7 +197,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `H1 Amp Mod Rate to H32 Amp Mod Rate`       | `h01_amRate to h32_amRate`         | 0.01 Hz to 30.0 Hz                                                                     | 4.00 Hz                                            |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth`     | `h01_amDepth to h32_amDepth`       | 0 % to 100 %                                                                           | 0 %                                                |
 | `H1 Amp Mod Shape to H32 Amp Mod Shape`     | `h01_amShape to h32_amShape`       | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random              | Sine                                               |
-| `H1 Velocity to H32 Velocity`               | `h01_vel to h32_vel`               | -100 % to +100 %                                                                       | +70 %                                              |
+| `H1 Velocity to H32 Velocity`               | `h01_vel to h32_vel`               | -100 % to +100 %                                                                       | 0 %                                                |
 | `H1 Aftertouch to H32 Aftertouch`           | `h01_aftertouch to h32_aftertouch` | -100 % to +100 %                                                                       | 0 %                                                |
 | `H1 Mute to H32 Mute`                       | `h01_mute to h32_mute`             | Off or on                                                                              | Off                                                |
 | `H1 Solo to H32 Solo`                       | `h01_solo to h32_solo`             | Off or on                                                                              | Off                                                |
@@ -219,7 +220,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Noise Amp Mod Rate`    | `noise_amRate`      | 0.01 Hz to 30.0 Hz                                                        | 4.00 Hz |
 | `Noise Amp Mod Depth`   | `noise_amDepth`     | 0 % to 100 %                                                              | 0 %     |
 | `Noise Amp Mod Shape`   | `noise_amShape`     | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine    |
-| `Noise Velocity`        | `noise_vel`         | -100 % to +100 %                                                          | +70 %   |
+| `Noise Velocity`        | `noise_vel`         | -100 % to +100 %                                                          | 0 %     |
 | `Noise Aftertouch`      | `noise_aftertouch`  | -100 % to +100 %                                                          | 0 %     |
 | `Noise Mute`            | `noise_mute`        | Off or on                                                                 | Off     |
 | `Noise Solo`            | `noise_solo`        | Off or on                                                                 | Off     |
@@ -267,7 +268,7 @@ A full sweep reaches the ends of the range, so if the patch value is already nea
 
 **Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see which control is listening without opening the menu again. Only one control can wait at a time. Right-click the same control afterwards and the menu shows which controller moves it, with options to remove the binding or bind a different one. In the mixer these items are below the LINK settings in the right-click menu. On the top bar, the Playing and Tuning bars and the noise channel, they have a menu of their own, because none of these is part of the series LINK gangs.
 
-Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 850 parameters, and it works the same way in every host.
+Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 851 parameters, and it works the same way in every host.
 
 **Eleven controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
 
