@@ -12733,6 +12733,161 @@ void testMpeSlide() {
         "both ends sound with slide aimed at tuning");
 }
 
+/// Option-click on M or S, and the matching menu entry, mute or solo only that
+/// channel. Every other channel's switch goes off, the noise channel's
+/// included, in one undo step, and the same click on a channel that is already
+/// alone puts it back to none.
+void testOnlyThisChannel(OvertoniumProcessor &p) {
+  section("Muting or soloing only one channel");
+
+  using namespace ovt::ui;
+  using ovt::params::muteSuffix;
+  using ovt::params::soloSuffix;
+
+  auto &undo = p.undo();
+
+  const auto on = [&p](const char *suffix) {
+    return ovt::params::channelsSwitchedOn(p.apvts, suffix);
+  };
+
+  const auto isOn = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr && param->getValue() > 0.5f;
+  };
+
+  // Written with no gesture, as automation writes, so none of it is undone.
+  const auto set = [&p](const juce::String &id, bool state) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(state ? 1.0f : 0.0f);
+  };
+
+  const auto onlyEntry = [](MuteSoloButton &button) {
+    auto menu = button.buildMenu();
+    std::pair<int, bool> found{0, false};
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().text.endsWith("only this channel"))
+        found = {it.getItem().itemID, it.getItem().isEnabled};
+
+    return found;
+  };
+
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+  ovt::params::clearChannelSwitch(p.apvts, soloSuffix);
+
+  // Three solos, the noise channel among them, and one mute, which a solo
+  // must leave alone.
+  const auto six = ovt::params::oscParamId(soloSuffix, 5);
+
+  set(ovt::params::oscParamId(soloSuffix, 2), true);
+  set(ovt::params::oscParamId(soloSuffix, 20), true);
+  set(ovt::params::noiseParamId(soloSuffix), true);
+  set(ovt::params::oscParamId(muteSuffix, 9), true);
+  undo.clearUndoHistory();
+
+  MuteSoloButton solo(p.apvts, "S", six, soloSuffix);
+
+  check(solo.onlyThisHint().endsWith("-click to solo only this channel."),
+        "the tooltip says what the click does (" +
+            solo.onlyThisHint().toStdString() + ")");
+
+  // An Option-click, through the button's own mouse handling.
+  const auto press = [](MuteSoloButton &button, juce::ModifierKeys mods) {
+    const auto centre = button.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+
+    const juce::MouseEvent e(juce::Desktop::getInstance().getMainMouseSource(),
+                             centre, mods,
+                             juce::MouseInputSource::defaultPressure,
+                             juce::MouseInputSource::defaultOrientation,
+                             juce::MouseInputSource::defaultRotation,
+                             juce::MouseInputSource::defaultTiltX,
+                             juce::MouseInputSource::defaultTiltY, &button,
+                             &button, now, centre, now, 1, false);
+
+    button.mouseDown(e);
+    button.mouseUp(e);
+  };
+
+  solo.setSize(20, 20);
+  press(solo, juce::ModifierKeys(juce::ModifierKeys::altModifier |
+                                 juce::ModifierKeys::leftButtonModifier));
+
+  check(isOn(six) && on(soloSuffix) == 1,
+        "Option-click on channel 6's S solos channel 6 alone (" +
+            std::to_string(on(soloSuffix)) + " soloed)");
+
+  check(!isOn(ovt::params::noiseParamId(soloSuffix)),
+        "the noise channel's solo goes off with the rest");
+
+  check(isOn(ovt::params::oscParamId(muteSuffix, 9)),
+        "and the mute is left alone");
+
+  check(!onlyEntry(solo).second,
+        "with channel 6 alone, the menu entry is greyed out");
+
+  check(undo.undo() && on(soloSuffix) == 3 && !isOn(six) && !undo.canUndo(),
+        "one undo brings the three solos back and takes channel 6's away");
+
+  // The menu entry does the same.
+  undo.clearUndoHistory();
+
+  const auto entry = onlyEntry(solo);
+
+  check(entry.first > 0 && entry.second,
+        "with others soloed, the menu offers to solo channel 6 alone");
+
+  solo.chooseFromMenu(entry.first);
+
+  check(isOn(six) && on(soloSuffix) == 1, "and picking it does");
+
+  // Option-click again on the channel that is alone clears it.
+  undo.clearUndoHistory();
+  solo.switchOnlyThis();
+
+  check(on(soloSuffix) == 0,
+        "Option-click on the only soloed channel clears the solo");
+
+  check(undo.undo() && isOn(six) && on(soloSuffix) == 1 && !undo.canUndo(),
+        "in one undo step as well");
+
+  // Mute works the same way, here from the noise channel's M.
+  set(ovt::params::oscParamId(muteSuffix, 0), true);
+  set(ovt::params::oscParamId(muteSuffix, 31), true);
+  undo.clearUndoHistory();
+
+  MuteSoloButton noiseMute(p.apvts, "M", ovt::params::noiseParamId(muteSuffix),
+                           muteSuffix);
+
+  const auto muteEntry = onlyEntry(noiseMute);
+
+  check(muteEntry.first > 0 && muteEntry.second,
+        "the noise channel's M menu offers to mute only it");
+
+  noiseMute.chooseFromMenu(muteEntry.first);
+
+  check(isOn(ovt::params::noiseParamId(muteSuffix)) && on(muteSuffix) == 1,
+        "and picking it mutes the noise channel and unmutes the other three");
+
+  check(isOn(six) && on(soloSuffix) == 1, "leaving the solo alone");
+
+  check(undo.undo() && on(muteSuffix) == 3 &&
+            !isOn(ovt::params::noiseParamId(muteSuffix)) && !undo.canUndo(),
+        "and one undo brings the three mutes back");
+
+  // Clearing every mute is one step too, where it used to be one per channel.
+  undo.clearUndoHistory();
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+
+  check(on(muteSuffix) == 0 && undo.undo() && on(muteSuffix) == 3 &&
+            !undo.canUndo(),
+        "clearing three mutes comes back in one undo step");
+
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+  ovt::params::clearChannelSwitch(p.apvts, soloSuffix);
+  undo.clearUndoHistory();
+}
+
 /// Clearing every mute or every solo at once, from the menu a right-click on an
 /// M or an S opens.
 void testClearMuteAndSolo(OvertoniumProcessor &p) {
@@ -12773,19 +12928,23 @@ void testClearMuteAndSolo(OvertoniumProcessor &p) {
   // The menu says how many there are to clear, which is the other question a
   // player opens it to ask.
   {
-    juce::Component parent;
-    MuteSoloButton button(p.apvts, "M");
+    MuteSoloButton button(p.apvts, "M",
+                          ovt::params::oscParamId(ovt::params::muteSuffix, 1),
+                          ovt::params::muteSuffix);
     auto menu = button.buildMenu();
 
     std::vector<std::string> entries;
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      entries.push_back(it.getItem().text.toStdString());
+      if (!it.getItem().isSeparator)
+        entries.push_back(it.getItem().text.toStdString());
 
-    check(entries.size() == 2 && entries[0] == "Clear all mutes (5)" &&
-              entries[1] == "Clear all solos (2)",
-          "the menu counts what it would clear (" +
-              (entries.empty() ? std::string("nothing")
-                               : entries[0] + " / " + entries[1]) +
+    check(entries.size() == 3 && entries[0] == "Mute only this channel" &&
+              entries[1] == "Clear all mutes (5)" &&
+              entries[2] == "Clear all solos (2)",
+          "the menu offers this channel alone, then counts what it would "
+          "clear (" +
+              (entries.size() < 3 ? std::string("not three entries")
+                                  : entries[1] + " / " + entries[2]) +
               ")");
   }
 
@@ -12802,17 +12961,22 @@ void testClearMuteAndSolo(OvertoniumProcessor &p) {
   // Nothing to clear is not an error, and the entries say so rather than
   // disappearing.
   {
-    MuteSoloButton button(p.apvts, "S");
+    MuteSoloButton button(p.apvts, "S",
+                          ovt::params::oscParamId(ovt::params::soloSuffix, 1),
+                          ovt::params::soloSuffix);
     auto menu = button.buildMenu();
 
     std::vector<std::pair<std::string, bool>> entries;
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      entries.emplace_back(it.getItem().text.toStdString(),
-                           it.getItem().isEnabled);
+      if (!it.getItem().isSeparator)
+        entries.emplace_back(it.getItem().text.toStdString(),
+                             it.getItem().isEnabled);
 
-    check(entries.size() == 2 && entries[0].first == "Clear all mutes" &&
-              !entries[0].second && !entries[1].second,
-          "with none on, both entries are there and both are greyed out");
+    check(entries.size() == 3 && entries[0].first == "Solo only this channel" &&
+              entries[0].second && entries[1].first == "Clear all mutes" &&
+              !entries[1].second && !entries[2].second,
+          "with none on, both clear entries are there and greyed out, and "
+          "soloing only this channel is offered");
   }
 
   ovt::params::clearChannelSwitch(p.apvts, ovt::params::muteSuffix);
@@ -12991,6 +13155,7 @@ int main(int argc, char **argv) {
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);
   testClearMuteAndSolo(processor);
+  testOnlyThisChannel(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

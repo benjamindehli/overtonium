@@ -1113,8 +1113,11 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
       amShape(state, params::oscParamId(params::amShapeSuffix, index0),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames()),
-      muteButton(state, "M"), soloButton(state, "S"), meter(colour),
-      pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
+      muteButton(state, "M", params::oscParamId(params::muteSuffix, index0),
+                 params::muteSuffix),
+      soloButton(state, "S", params::oscParamId(params::soloSuffix, index0),
+                 params::soloSuffix),
+      meter(colour), pitchLamp(colour), envLamp(colour), keyOffLamp(colour),
       tremoloLamp(colour), velocityLamp(colour), pressureLamp(colour) {
   // The background fills the whole strip, so nothing behind it needs
   // painting.
@@ -1182,8 +1185,10 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   // The colour of the lamp behind the cap.
   muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
   soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
-  muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic));
-  soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic));
+  muteButton.setTooltip("Mute harmonic " + juce::String(info.harmonic) + ". " +
+                        muteButton.onlyThisHint());
+  soloButton.setTooltip("Solo harmonic " + juce::String(info.harmonic) + ". " +
+                        soloButton.onlyThisHint());
   muteButton.setTitle("Harmonic " + juce::String(info.harmonic) + " mute");
   soloButton.setTitle("Harmonic " + juce::String(info.harmonic) + " solo");
   // One moulding around the pair, each half lighting on its own.

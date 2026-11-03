@@ -319,7 +319,7 @@ Six channels and the caption gutter. Each row is named once on the left instead 
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
 | PAN | hard left to hard right | Equal power, so the level stays the same as the partial moves across the stereo field |
-| M and S |  | Mute overrides solo. Right-click either one to clear every mute or every solo at once |
+| M and S |  | Mute overrides solo. Option-click or Alt-click either one to mute or solo only that channel. Right-click either one for the same, or to clear every mute or every solo at once |
 | LEVEL | -inf to 0 dB | Fader scaled in decibels, with the meter inside its track |
 
 ## What the modulators trace
@@ -425,7 +425,9 @@ LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulati
 
 **Hovering over a strip** shows the partial it belongs to: the harmonic number, the interval that harmonic makes with the fundamental, how many semitones above the played note its tempered position is, and how far the exact ratio is from that in cents. It is that channel's row in [the table of the series](https://benjamindehli.github.io/overtonium/tuning/), shown in the mixer. The mute and solo buttons show which harmonic they would silence.
 
-**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click clears every mute or every solo at once instead.
+**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click offers to mute or solo only that channel, or to clear every mute or every solo at once, instead.
+
+**Option-click or Alt-click** on M or S mutes or solos only that channel, and turns the switch off on every other channel, the noise channel included. Doing it again on the channel that is already alone turns it off, so the same click goes in and out of hearing one partial. Either way it is a single step to undo.
 
 ## Reading the mixer
 

@@ -342,19 +342,19 @@ That leaves colour with one job, which it does at full strength. Every knob on a
 
 Each of the 32 strips has, top to bottom:
 
-| Control                         | Range                                                           | Notes                                                                               |
-| ------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| TUNE                            | equal to just                                                   | Readout shows the resulting cent offset                                             |
-| PITCH MOD shape, rate and depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents                    | Per-partial vibrato, or a trill at any interval up to an octave                     |
-| DRIFT                           | 0 to 25 cents                                                   | Smooth random pitch wander. See below                                               |
-| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE aims key velocity at the front of it. See below           |
-| KEY OFF swell, level, release   | 0 to 5 s, 0 to 100%, 1 ms to 20 s                               | A second envelope for letting go. See below                                         |
-| AMP MOD shape, rate and depth   | Seven shapes, 0.01 to 30 Hz, 0 to 100%                          | Per-partial tremolo                                                                 |
-| VELOCITY                        | -100 to +100%                                                   | How much key velocity scales this partial. Negative inverts it                      |
-| AFTERTOUCH                      | -100 to +100%                                                   | How much key pressure moves this partial. Negative fades it out                     |
-| PAN                             | hard left to hard right                                         | Where this partial sits in the field. Equal power, so the level holds as it crosses |
-| M and S                         |                                                                 | Mute wins over solo. Right-click either to clear them across the mixer              |
-| LEVEL                           | -inf to 0 dB                                                    | Fader spaced by decibels, with the meter filling its track                          |
+| Control                         | Range                                                           | Notes                                                                                                                   |
+| ------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| TUNE                            | equal to just                                                   | Readout shows the resulting cent offset                                                                                 |
+| PITCH MOD shape, rate and depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents                    | Per-partial vibrato, or a trill at any interval up to an octave                                                         |
+| DRIFT                           | 0 to 25 cents                                                   | Smooth random pitch wander. See below                                                                                   |
+| ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. STRIKE aims key velocity at the front of it. See below                                               |
+| KEY OFF swell, level, release   | 0 to 5 s, 0 to 100%, 1 ms to 20 s                               | A second envelope for letting go. See below                                                                             |
+| AMP MOD shape, rate and depth   | Seven shapes, 0.01 to 30 Hz, 0 to 100%                          | Per-partial tremolo                                                                                                     |
+| VELOCITY                        | -100 to +100%                                                   | How much key velocity scales this partial. Negative inverts it                                                          |
+| AFTERTOUCH                      | -100 to +100%                                                   | How much key pressure moves this partial. Negative fades it out                                                         |
+| PAN                             | hard left to hard right                                         | Where this partial sits in the field. Equal power, so the level holds as it crosses                                     |
+| M and S                         |                                                                 | Mute wins over solo. Option-click either to switch only that channel. Right-click either to clear them across the mixer |
+| LEVEL                           | -inf to 0 dB                                                    | Fader spaced by decibels, with the meter filling its track                                                              |
 
 **Clearing them.** Right-clicking an M or an S offers to clear either switch across the whole mixer, and shows how many there are to clear before you do. Thirty-three strips give a solo many places to be left on, and finding it by eye means reading thirty-three pairs of buttons four pixels apart. The entries stay in the menu, greyed out, when there is nothing to clear, because the count also answers the question that made you open the menu.
 
