@@ -774,7 +774,7 @@ void OvertoniumProcessor::setStateInformation(const void *data,
             tree.getProperty(macroChannelsProperty(m)).toString()));
 
       // A session saved before a parameter existed gets the value it was made
-      // with, not whatever the last patch left in it.
+      // with, where that is not the parameter's default.
       for (const auto &entry : older)
         entry.first->setValueNotifyingHost(
             entry.first->convertTo0to1(entry.second));

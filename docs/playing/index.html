@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 851 parameters, macros and MIDI Learn."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 884 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 851 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 884 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 851 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 884 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 851 parameters, macros and MIDI Learn.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 884 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -701,8 +701,8 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and fifty-one parameters reach the host: forty-five global ones, twenty-three on each of the 32 partials,
-                        twenty-two on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with
+                        Eight hundred and eighty-four parameters reach the host: forty-five global ones, twenty-four on each of the 32 partials,
+                        twenty-three on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with
                         the globals first, then each channel in turn, and the noise channel last.
                     </p>
 
@@ -746,7 +746,7 @@
                     </div>
 
                     <p>
-                        The noise channel has twenty-two instead of twenty-three because it has no tuning, pitch modulation, drift or glide, and has
+                        The noise channel has twenty-three instead of twenty-four because it has no tuning, pitch modulation, drift or glide, and has
                         COLOUR and the four knobs of its string instead.
                     </p>
 
@@ -770,7 +770,7 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 851 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 884 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
@@ -1065,7 +1065,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <p><strong>On every partial</strong>, twenty-three controls, each one on all 32 partials.</p>
+                        <p><strong>On every partial</strong>, twenty-four controls, each one on all 32 partials.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -1215,10 +1215,16 @@
                                         <td>-inf dB to 0.0 dB</td>
                                         <td>Differs by channel, 0.0 dB on H1 to -inf dB on H32</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>H1 Keyboard to H32 Keyboard</code></td>
+                                        <td><code>h01_keyboard to h32_keyboard</code></td>
+                                        <td>24 dB/oct above C-1 to 24 dB/oct below C9</td>
+                                        <td>0 dB/oct</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <p><strong>On the noise channel</strong>, twenty-two of them.</p>
+                        <p><strong>On the noise channel</strong>, twenty-three of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -1362,6 +1368,12 @@
                                         <td>0 % to 100 %</td>
                                         <td>25 %</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>Noise Keyboard</code></td>
+                                        <td><code>noise_keyboard</code></td>
+                                        <td>24 dB/oct above C-1 to 24 dB/oct below C9</td>
+                                        <td>0 dB/oct</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1388,7 +1400,7 @@
                                         <td><code>macro1_row to macro8_row</code></td>
                                         <td>
                                             None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
-                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
+                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level, Keyboard
                                         </td>
                                         <td>None</td>
                                     </tr>
@@ -1510,7 +1522,7 @@
 
                     <p>
                         Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the
-                        knob itself, instead of finding <code>H17 AM Rate</code> in a list of 851 parameters, and it works the same way in every host.
+                        knob itself, instead of finding <code>H17 AM Rate</code> in a list of 884 parameters, and it works the same way in every host.
                     </p>
 
                     <p>

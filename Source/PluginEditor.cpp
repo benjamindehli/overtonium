@@ -1967,7 +1967,8 @@ void OvertoniumEditor::timerCallback() {
     strip.setActivity(
         plugin().getPartialEnvelope(i), plugin().getPartialTremolo(i),
         plugin().getPartialPitch(i), plugin().getPartialVelocity(i),
-        plugin().getPartialPressure(i), stripLamps);
+        plugin().getPartialKeyboard(i), plugin().getPartialPressure(i),
+        stripLamps);
 
     for (const auto &band : stripLamps)
       lampRegions.add(content.getLocalArea(&strip, band));
@@ -1979,7 +1980,8 @@ void OvertoniumEditor::timerCallback() {
 
   noiseStrip.setActivity(
       plugin().getNoiseEnvelope(), plugin().getNoiseTremolo(),
-      plugin().getNoiseVelocity(), plugin().getNoisePressure(), stripLamps);
+      plugin().getNoiseVelocity(), plugin().getNoiseKeyboard(),
+      plugin().getNoisePressure(), stripLamps);
 
   for (const auto &band : stripLamps)
     lampRegions.add(content.getLocalArea(&noiseStrip, band));

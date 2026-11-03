@@ -458,6 +458,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // AmDepth
     15, // OutputHeading
     30, // Velocity
+    30, // Keyboard
     30, // Aftertouch
     30, // Pan
     20, // MuteSolo
@@ -544,6 +545,7 @@ Section sectionOf(Row r) {
 
   case Row::OutputHeading:
   case Row::Velocity:
+  case Row::Keyboard:
   case Row::Aftertouch:
   case Row::Pan:
     return Section::Output;
@@ -717,6 +719,7 @@ bool rowHasControl(Row r) {
   case Row::AmShape:
   case Row::AmDepth:
   case Row::Velocity:
+  case Row::Keyboard:
   case Row::Aftertouch:
   case Row::Pan:
   case Row::MuteSolo:
@@ -874,6 +877,8 @@ const char *rowLabel(Row r) {
     return "OUTPUT";
   case Row::Velocity:
     return "velocity";
+  case Row::Keyboard:
+    return "keyboard";
   case Row::Aftertouch:
     return "aftertouch";
   case Row::Pan:
@@ -974,6 +979,13 @@ juce::String rowHelp(Row r) {
     return "How much key velocity scales the level. Positive makes soft notes "
            "quieter, negative makes hard notes quieter. The dB switch beside "
            "it spreads the change evenly in decibels.";
+  case Row::Keyboard:
+    return "How the level follows the key played. Up to 100% it tilts around "
+           "middle C, which never changes: positive turns down the keys below "
+           "it, negative the keys above it, up to 24 dB per octave. Past 100% "
+           "the slope stays at 24 and the turn moves away from middle C, an "
+           "octave for every 20%, until only the top or the bottom of the "
+           "keyboard is left.";
   case Row::Aftertouch:
     return "How much key pressure moves the level. Negative fades the partial "
            "out as you press.";
@@ -1277,6 +1289,8 @@ const char *roleLabel(Role r) {
     return "pan";
   case Role::Volume:
     return "level";
+  case Role::Keyboard:
+    return "keyboard amount";
 
   // Listed rather than defaulted, so a new role has to be given a name before
   // it will build.
@@ -1338,6 +1352,8 @@ const char *roleSuffix(Role r) {
     return params::panSuffix;
   case Role::Volume:
     return params::volumeSuffix;
+  case Role::Keyboard:
+    return params::keySuffix;
 
   case Role::NumRoles:
   default:
@@ -1401,6 +1417,9 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::Velocity:
     out = Role::Velocity;
+    return true;
+  case Row::Keyboard:
+    out = Role::Keyboard;
     return true;
   case Row::Aftertouch:
     out = Role::Aftertouch;

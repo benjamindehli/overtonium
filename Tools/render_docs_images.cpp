@@ -192,6 +192,7 @@ int main(int argc, char **argv) {
     strip.setMeterLevel(plugin.getPartialLevel(i));
     strip.setActivity(plugin.getPartialEnvelope(i), plugin.getPartialTremolo(i),
                       plugin.getPartialPitch(i), plugin.getPartialVelocity(i),
+                      plugin.getPartialKeyboard(i),
                       plugin.getPartialPressure(i), lamps);
     lamps.clearQuick();
   }
@@ -199,7 +200,8 @@ int main(int argc, char **argv) {
   noise.front()->setMeterLevel(plugin.getNoiseLevel());
   noise.front()->setActivity(
       plugin.getNoiseEnvelope(), plugin.getNoiseTremolo(),
-      plugin.getNoiseVelocity(), plugin.getNoisePressure(), lamps);
+      plugin.getNoiseVelocity(), plugin.getNoiseKeyboard(),
+      plugin.getNoisePressure(), lamps);
 
   bars.front()->setOutputLevels(plugin.getOutputLevelLeft(),
                                 plugin.getOutputLevelRight());

@@ -137,6 +137,7 @@ inline constexpr const char *amDepthSuffix = "amDepth";
 inline constexpr const char *amShapeSuffix = "amShape";
 inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *atSuffix = "aftertouch";
+inline constexpr const char *keySuffix = "keyboard";
 inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
@@ -153,12 +154,13 @@ inline constexpr int kNumMacros = 8;
 
 /// The rows a macro can drive, in the order the panel reads them. The same
 /// rows LINK can gang. The UI names these again as ui::Role, and a test keeps
-/// the two in step.
+/// the two in step. A macro stores its row as a place in this list, so a new
+/// row goes on the end.
 inline constexpr const char *kMacroRows[] = {
     tuneSuffix,   glideSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
     strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
     swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
-    velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
+    velSuffix,    atSuffix,       panSuffix,     volumeSuffix,  keySuffix};
 
 inline constexpr int kNumMacroRows =
     (int)(sizeof(kMacroRows) / sizeof(kMacroRows[0]));
@@ -318,6 +320,17 @@ float defaultVolumeFor(int index0);
 ///                      zero only the percentage comes back.
 juce::String strikeRangeText(float amount, float delay, float attack);
 
+/// A MIDI key's name, middle C (60) being C4.
+juce::String keyName(int key);
+
+/// What a KEYBOARD amount comes to: the slope and the key it starts from, as
+/// "6.0 dB/oct below C4", or "0 dB/oct" for none. The host gets it too.
+juce::String keyboardText(float amount, int maximumLength = 0);
+
+/// The other way, for a host that lets you type a value. Reads the readout
+/// back, or a percentage of the knob's travel when given one.
+float keyboardValue(const juce::String &text);
+
 /// Cached atomic pointers, resolved once so the audio thread never does a
 /// string lookup.
 struct Cache {
@@ -341,6 +354,7 @@ struct Cache {
     std::atomic<float> *amShape = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
+    std::atomic<float> *key = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
@@ -364,6 +378,7 @@ struct Cache {
     std::atomic<float> *amShape = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
+    std::atomic<float> *key = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
@@ -490,17 +505,18 @@ inline const std::array<const char *, 15> kSessionParamIds{
     oneVoicePerKeyId, phaseResetId,      lookaheadId,   legatoId,
     adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
 
-/// Whether `id` is one of those.
 /// What a parameter reads as when a saved session or preset file comes from
-/// before the parameter existed, where that is not its default.
+/// before the parameter existed.
 ///
-/// JUCE leaves a parameter that a restored state does not name where it was,
-/// and a preset file is read the same way, so without this an old project
-/// would take whatever the last patch left behind. The velocity curve is the
-/// one so far: every patch made before it existed was made on Classic, and a
-/// new one starts on dB. Returns a plain value.
+/// Without this a restored session puts a parameter it does not name at its
+/// default, and a preset file leaves it at whatever the last patch set. The
+/// velocity curve reads as Classic, since every patch made before it existed
+/// was made on Classic and a new one starts on dB. The KEYBOARD rows read as
+/// zero, so an old preset file is level across the keys. Returns a plain
+/// value.
 std::optional<float> valueInOlderFiles(juce::StringRef id);
 
+/// Whether `id` is one of those.
 inline bool isSessionParam(juce::StringRef id) {
   for (auto *session : kSessionParamIds)
     if (id == juce::StringRef(session))

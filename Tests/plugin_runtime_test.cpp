@@ -627,6 +627,182 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
 /// made before it, whether that arrives as a factory preset, a saved session or
 /// a preset file, and a click that converts every channel's amount so a medium
 /// note keeps its level.
+/// The KEYBOARD row as the host and the panel see it: 33 parameters on the
+/// end, a readout naming the slope and the centre, older files reading as
+/// zero, and a macro that can drive it.
+void testKeyboardRowParameters(OvertoniumProcessor &p) {
+  section("The keyboard row");
+
+  using namespace ovt::params;
+
+  const auto amountOf = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr ? param->convertFrom0to1(param->getValue()) : 99.0f;
+  };
+
+  const auto setAmount = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  std::vector<juce::String> ids;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    ids.push_back(oscParamId(keySuffix, i));
+  ids.push_back(noiseParamId(keySuffix));
+
+  // On the end of the list, so automation already written keeps its place.
+  const auto &all = p.getParameters();
+  int onTheEnd = 0;
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    const auto at = all.size() - (int)ids.size() + (int)i;
+    auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(all[at]);
+
+    if (ranged != nullptr && ranged->paramID == ids[i] &&
+        std::abs(ranged->convertFrom0to1(ranged->getDefaultValue())) <
+            1.0e-6f &&
+        std::abs(ranged->getNormalisableRange().start + 2.0f) < 1.0e-6f &&
+        std::abs(ranged->getNormalisableRange().end - 2.0f) < 1.0e-6f)
+      ++onTheEnd;
+  }
+
+  check(onTheEnd == 33, "33 keyboard parameters on the end of the list, each "
+                        "from -200% to 200% and starting at zero (" +
+                            std::to_string(onTheEnd) + ")");
+
+  check(all[all.size() - 33]->getName(64) == "H1 Keyboard" &&
+            all[all.size() - 1]->getName(64) == "Noise Keyboard",
+        "named after their channels, as the host lists them");
+
+  // The readout.
+  const std::pair<float, const char *> readings[] = {
+      {0.0f, "0 dB/oct"},
+      {0.25f, "1.5 dB/oct below C4"},
+      {0.5f, "6.0 dB/oct below C4"},
+      {-1.0f, "24 dB/oct above C4"},
+      {1.2f, "24 dB/oct below C5"},
+      {-1.5f, "24 dB/oct above F#1"},
+      {2.0f, "24 dB/oct below C9"},
+      {-2.0f, "24 dB/oct above C-1"}};
+
+  juce::String wrong;
+  for (const auto &[amount, text] : readings)
+    if (keyboardText(amount, 0) != text)
+      wrong << amount << " reads " << keyboardText(amount, 0) << ". ";
+
+  check(wrong.isEmpty(), "the readout names the slope and the key it starts "
+                         "from (" +
+                             wrong.toStdString() + ")");
+
+  int roundTrips = 0;
+  for (const auto &[amount, text] : readings)
+    roundTrips += std::abs(keyboardValue(text) - amount) < 1.0e-3f ? 1 : 0;
+
+  check(roundTrips == (int)std::size(readings) &&
+            std::abs(keyboardValue("-150 %") + 1.5f) < 1.0e-6f,
+        "and a typed value reads back to the same amount, as a reading or a "
+        "percentage (" +
+            std::to_string(roundTrips) + ")");
+
+  // A session and a preset file from before the row existed are level across
+  // the keys, whatever the instance had. A session gets there by the default,
+  // and a preset file, which leaves what it does not name alone, by
+  // params::valueInOlderFiles.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  check(std::abs(amountOf(ids[0])) < 1.0e-6f &&
+            std::abs(amountOf(ids[32])) < 1.0e-6f,
+        "the factory presets leave the row at zero");
+
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  const auto stripKeyboard = [&ids](juce::XmlElement &xml) {
+    std::vector<juce::XmlElement *> gone;
+
+    for (auto *child : xml.getChildIterator())
+      for (const auto &id : ids)
+        if (child->getStringAttribute("id") == id)
+          gone.push_back(child);
+
+    for (auto *child : gone)
+      xml.removeChildElement(child, true);
+
+    return (int)gone.size();
+  };
+
+  auto xml = juce::AudioProcessor::getXmlFromBinary(saved.getData(),
+                                                    (int)saved.getSize());
+  const auto removed = xml != nullptr ? stripKeyboard(*xml) : 0;
+
+  check(removed == 33, "an old session can be made from a new one");
+
+  juce::MemoryBlock older;
+  if (xml != nullptr)
+    juce::AudioProcessor::copyXmlToBinary(*xml, older);
+
+  for (const auto &id : ids)
+    setAmount(id, 1.3f);
+
+  p.setStateInformation(older.getData(), (int)older.getSize());
+
+  int levelled = 0;
+  for (const auto &id : ids)
+    levelled += std::abs(amountOf(id)) < 1.0e-6f ? 1 : 0;
+
+  check(levelled == 33, "a session from before the row loads with it at zero, "
+                        "though the instance had it set (" +
+                            std::to_string(levelled) + ")");
+
+  for (const auto &id : ids)
+    setAmount(id, -0.4f);
+
+  if (auto file = ovt::presets::capture(p.apvts, "Then")) {
+    auto oldFile = std::make_unique<juce::XmlElement>(*file);
+    stripKeyboard(*oldFile);
+
+    for (const auto &id : ids)
+      setAmount(id, 1.3f);
+
+    ovt::presets::restore(p.apvts, *oldFile);
+
+    int fromFile = 0;
+    for (const auto &id : ids)
+      fromFile += std::abs(amountOf(id)) < 1.0e-6f ? 1 : 0;
+
+    check(fromFile == 33, "so does a preset file from before it (" +
+                              std::to_string(fromFile) + ")");
+
+    ovt::presets::restore(p.apvts, *file);
+
+    check(std::abs(amountOf(ids[4]) + 0.4f) < 1.0e-4f &&
+              std::abs(amountOf(ids[32]) + 0.4f) < 1.0e-4f,
+          "and one that names the row loads what it names");
+  } else {
+    check(false, "a preset can be captured");
+  }
+
+  // A macro can drive it, as the last row in its list.
+  check(juce::String(macroRowName(kNumMacroRows)) == "Keyboard" &&
+            juce::String(kMacroRows[kNumMacroRows - 1]) == keySuffix,
+        "Keyboard is the last row a macro can drive, so saved macros keep "
+        "theirs");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setAmount(macroRowId(1), (float)kNumMacroRows);
+  setAmount(macroAmountId(1), 0.25f);
+
+  ovt::SynthParams played;
+  p.parameters().snapshot(played, 0.0f);
+
+  check(std::abs(played.osc[3].keyAmount - 1.0f) < 1.0e-3f,
+        "and a macro at 25% moves it a quarter of its travel, to 100% (" +
+            std::to_string(played.osc[3].keyAmount) + ")");
+
+  setAmount(macroAmountId(1), 0.0f);
+  setAmount(macroRowId(1), 0.0f);
+}
+
 void testVelocityCurveSwitch(OvertoniumProcessor &p) {
   section("The velocity curve");
 
@@ -1102,9 +1278,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   //
   // And six for each macro: the amount, the row it reaches, the channels it
   // reaches, how it is shared out, the channel a taper leans on, and its
-  // colour. Then the velocity curve.
+  // colour. Then the velocity curve, and the keyboard row on every channel and
+  // on noise.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6 + 1;
+                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6 + 1 +
+                       ovt::kNumHarmonics + 1;
 
   // No stack defaults to on. Asked of the parameter rather than of the tree, so
   // the answer does not depend on what an earlier test left behind.
@@ -2867,11 +3045,11 @@ void testActivityLamps(OvertoniumProcessor &p) {
     juce::Array<juce::Rectangle<int>> bands;
 
     // First call has everything to say, since the lamps start dark.
-    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
     const auto first = bands.size();
 
     bands.clearQuick();
-    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
     check(bands.isEmpty(), "and the same values again ask for nothing (" +
@@ -2880,82 +3058,83 @@ void testActivityLamps(OvertoniumProcessor &p) {
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
-                      0.0f, 0.0f, bands);
+                      0.0f, 0.0f, 0.0f, bands);
 
     check(bands.isEmpty(), "nor does a change smaller than one step");
 
     // A move of a whole step does.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
-                      0.0f, 0.0f, bands);
+                      0.0f, 0.0f, 0.0f, bands);
 
     check(!bands.isEmpty(), "a change of a whole step does");
 
     // ---- the two envelope lamps never both light --------------------------
     bands.clearQuick();
-    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
-    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     // Reading the lamps back is not possible from here, so this is checked by
     // the shape of the request instead: flipping the sign has to move both
     // lamps, one out and one in, and nothing else.
     bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
           "one in (" +
               std::to_string(bands.size()) + ")");
 
-    // ---- the two output lamps are gated on the note like the rest --------
+    // ---- the output lamp: one slot, a part for each row --------------------
     //
-    // The velocity half needs the gate most: it reads full when the row is
-    // taking nothing, so ungated it would sit lit on every channel of a silent
-    // mixer.
+    // Read back part by part, since the slot is one component and asks for
+    // one repaint whichever part moved.
+    const auto &out = strip.getOutputLamp();
+    const auto parts = [&out] {
+      return std::to_string(out.stepOf(0)) + " " +
+             std::to_string(out.stepOf(1)) + " " +
+             std::to_string(out.stepOf(2));
+    };
+    constexpr int kFull = ActivityLamp::kSteps;
+
+    // Gated on the note like the rest. The velocity and keyboard parts need it
+    // most: they read full when their rows take nothing, so ungated they would
+    // sit lit on every channel of a silent mixer.
     bands.clearQuick();
-    strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, bands);
 
+    check(out.stepOf(0) == 0 && out.stepOf(1) == 0 && out.stepOf(2) == 0,
+          "a strip with nothing sounding keeps every part of the output lamp "
+          "dark, the velocity and keyboard ones included (" +
+              parts() + ")");
+
+    // With a note under it each row lights its own part and only its own, in
+    // the order of the rows.
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
     bands.clearQuick();
-    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, bands);
 
-    check(bands.isEmpty(),
-          "a strip with nothing sounding keeps both output lamps dark, the "
-          "velocity one included (" +
-              std::to_string(bands.size()) + " bands)");
+    check(out.stepOf(0) == kFull && out.stepOf(1) == 0 && out.stepOf(2) == 0 &&
+              bands.size() == 1,
+          "with a note under it the velocity row lights the left part and "
+          "nothing else, in one repaint (" +
+              parts() + ")");
 
-    // With a note under it each row moves its own lamp and only its own.
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
 
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
+    check(out.stepOf(0) == 0 && out.stepOf(1) == kFull && out.stepOf(2) == 0,
+          "the keyboard row the middle one (" + parts() + ")");
 
-    check(bands.size() == 1,
-          "with a note under it the velocity row moves exactly one lamp (" +
-              std::to_string(bands.size()) + ")");
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, bands);
 
-    // Which one, not just how many. The velocity lamp is the left half of the
-    // rule and the pressure lamp the right, and swapping what they are fed
-    // would leave every count above right.
-    const auto velocityBand = bands.getFirst();
+    check(out.stepOf(0) == 0 && out.stepOf(1) == 0 && out.stepOf(2) == kFull,
+          "and the pressure row the right one (" + parts() + ")");
 
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
-
-    check(bands.size() == 1,
-          "and the pressure row moves exactly the other one (" +
-              std::to_string(bands.size()) + ")");
-
-    const auto pressureBand = bands.getFirst();
-    const auto middle = strip.getWidth() / 2;
-
-    check(velocityBand.getCentreX() < middle &&
-              pressureBand.getCentreX() > middle,
-          "with velocity on the left of the rule and aftertouch on the right "
-          "(" +
-              std::to_string(velocityBand.getCentreX()) + " and " +
-              std::to_string(pressureBand.getCentreX()) + " about " +
-              std::to_string(middle) + ")");
+    // It spans the rule, so a glow is never cut where a lamp's bounds end.
+    check(out.getWidth() >= strip.getWidth() - 2 * ovt::ui::kStripPadX,
+          "the slot runs the width of the strip (" +
+              std::to_string(out.getWidth()) + " of " +
+              std::to_string(strip.getWidth()) + ")");
   }
 }
 
@@ -13507,6 +13686,7 @@ int main(int argc, char **argv) {
   testClearMuteAndSolo(processor);
   testOnlyThisChannel(processor);
   testVelocityCurveSwitch(processor);
+  testKeyboardRowParameters(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

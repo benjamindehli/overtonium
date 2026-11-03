@@ -1283,6 +1283,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &pitches = v.getPartialPitches();
     const auto &velocities = v.getPartialVelocities();
     const auto &pressures = v.getPartialPressures();
+    const auto &keyboards = v.getPartialKeyboards();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
       // A voice that reaches here is sounding, so it reports this partial even
@@ -1301,6 +1302,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.pitches[i] = pitches[i];
       into.velocities[i] = velocities[i];
       into.pressures[i] = pressures[i];
+      into.keyboards[i] = keyboards[i];
     }
 
     if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak ||
@@ -1313,6 +1315,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.noiseTremolo = v.getNoiseTremolo();
       into.noiseVelocity = v.getNoiseVelocity();
       into.noisePressure = v.getNoisePressure();
+      into.noiseKeyboard = v.getNoiseKeyboard();
     }
   }
 
@@ -1428,6 +1431,7 @@ void SynthEngine::publish(const Activity &a) noexcept {
     partialPitches[i].store(a.pitches[i], std::memory_order_relaxed);
     partialVelocities[i].store(a.velocities[i], std::memory_order_relaxed);
     partialPressures[i].store(a.pressures[i], std::memory_order_relaxed);
+    partialKeyboards[i].store(a.keyboards[i], std::memory_order_relaxed);
   }
 
   noiseLevel.store(a.noisePeak, std::memory_order_relaxed);
@@ -1435,6 +1439,7 @@ void SynthEngine::publish(const Activity &a) noexcept {
   noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
   noiseVelocity.store(a.noiseVelocity, std::memory_order_relaxed);
   noisePressure.store(a.noisePressure, std::memory_order_relaxed);
+  noiseKeyboard.store(a.noiseKeyboard, std::memory_order_relaxed);
 }
 
 void SynthEngine::renderVoices(float *left, float *right, int numSamples,

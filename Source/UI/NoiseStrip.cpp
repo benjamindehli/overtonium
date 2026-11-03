@@ -41,10 +41,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       soloButton(state, "S", params::noiseParamId(params::soloSuffix),
                  params::soloSuffix),
       meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
-      pressureLamp(kNoiseColour) {
-  for (auto *lamp :
-       {&envLamp, &keyOffLamp, &tremoloLamp, &velocityLamp, &pressureLamp})
+      tremoloLamp(kNoiseColour), outputLamp(kNoiseColour) {
+  addAndMakeVisible(outputLamp);
+
+  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -78,6 +78,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
   setUpKnob(velocity, params::velSuffix, colour,
             "How much key velocity scales the noise. Negative inverts it.");
+  setUpKnob(keyboard, params::keySuffix, colour,
+            "How the noise follows the key played. Up to 100% it tilts around "
+            "middle C, up to 24 dB per octave. Past 100% the turn moves away "
+            "from middle C, an octave for every 20%.");
   setUpKnob(aftertouch, params::atSuffix, colour,
             "How much key pressure moves the noise. Negative fades it out.");
 
@@ -103,6 +107,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
 
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
+  keyboard.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
   pan.getProperties().set("bipolar", true);
 
@@ -155,8 +160,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   volume.onValueChange = [this] { updateLevelReadout(); };
   updateLevelReadout();
 
-  setTooltip("Noise channel. Same envelope, tremolo, velocity and aftertouch "
-             "as a partial, and a string it can strike, tuned to the note.");
+  setTooltip("Noise channel. Same envelope, tremolo, velocity, keyboard and "
+             "aftertouch as a partial, and a string it can strike, tuned to "
+             "the note.");
 }
 
 void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
@@ -418,7 +424,7 @@ void NoiseStrip::updateLevelReadout() {
 }
 
 void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
-                             float pressure,
+                             float keyGain, float pressure,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -433,8 +439,10 @@ void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 
   // One for each row, as on a numbered channel. See ChannelStrip::setActivity.
-  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
-  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
+  const auto on = level > 0.0f;
+
+  refresh(outputLamp, outputLamp.push({on ? velGain : 0.0f, on ? keyGain : 0.0f,
+                                       on ? pressure : 0.0f}));
 }
 
 void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
@@ -496,6 +504,7 @@ void NoiseStrip::resized() {
   placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
+  placeRow(keyboard, Row::Keyboard, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
 
@@ -561,17 +570,9 @@ void NoiseStrip::resized() {
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
-    // Two on the one rule, as on a numbered channel. See ChannelStrip.
-    {
-      auto row = rows[rowIndex(Row::OutputHeading)];
-      const auto half = row.removeFromLeft(row.getWidth() / 2);
-
-      velocityLamp.setBounds(half);
-      velocityLamp.setBackdrop(at(half.getCentreY()));
-
-      pressureLamp.setBounds(row);
-      pressureLamp.setBackdrop(at(row.getCentreY()));
-    }
+    // One slot for the three rows under it, as on a numbered channel.
+    outputLamp.setBounds(rows[rowIndex(Row::OutputHeading)]);
+    outputLamp.setBackdrop(at(outputLamp.getBounds().getCentreY()));
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

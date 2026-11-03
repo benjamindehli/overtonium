@@ -208,6 +208,16 @@ public:
     return noisePressure.load(std::memory_order_relaxed);
   }
 
+  /// What the KEYBOARD row leaves of this partial on the key being shown. See
+  /// Voice::getPartialKeyboards.
+  float getPartialKeyboard(int index0) const noexcept {
+    return partialKeyboards[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  float getNoiseKeyboard() const noexcept {
+    return noiseKeyboard.load(std::memory_order_relaxed);
+  }
+
   /// Peak of the finished output per channel, after master gain and the
   /// output stage, so it reports what actually leaves the plugin.
   float getOutputLevelLeft() const noexcept {
@@ -268,6 +278,7 @@ private:
     std::array<float, kNumHarmonics> pitches{};
     std::array<float, kNumHarmonics> velocities{};
     std::array<float, kNumHarmonics> pressures{};
+    std::array<float, kNumHarmonics> keyboards{};
 
     /// Whether any voice has reported this partial yet in this pass. A partial
     /// can sound at a peak of zero, so a peak above zero cannot stand in for
@@ -285,6 +296,7 @@ private:
     float noiseTremolo = 0.0f;
     float noiseVelocity = 0.0f;
     float noisePressure = 0.0f;
+    float noiseKeyboard = 0.0f;
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
@@ -493,10 +505,12 @@ private:
   std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
   std::array<std::atomic<float>, kNumHarmonics> partialVelocities{};
   std::array<std::atomic<float>, kNumHarmonics> partialPressures{};
+  std::array<std::atomic<float>, kNumHarmonics> partialKeyboards{};
   std::atomic<float> noiseLevel{0.0f};
   std::atomic<float> noiseEnvelope{0.0f};
   std::atomic<float> noiseTremolo{0.0f};
   std::atomic<float> noiseVelocity{0.0f};
+  std::atomic<float> noiseKeyboard{0.0f};
   std::atomic<float> noisePressure{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};

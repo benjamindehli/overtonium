@@ -7,6 +7,7 @@
 #include "Envelope.h"
 #include "Harmonics.h"
 #include "KarplusString.h"
+#include "Keyboard.h"
 #include "Lfo.h"
 #include "Params.h"
 #include "Velocity.h"
@@ -286,6 +287,15 @@ public:
   float getNoiseVelocity() const noexcept { return noiseVelocity; }
   float getNoisePressure() const noexcept { return noisePressure; }
 
+  /// What the KEYBOARD row has left of each partial on this note's key, 0 to
+  /// 1, following the key while a glide carries the note to a new one. Full
+  /// is a partial the row has not reduced.
+  const std::array<float, kNumHarmonics> &getPartialKeyboards() const noexcept {
+    return partialKeyboards;
+  }
+
+  float getNoiseKeyboard() const noexcept { return noiseKeyboard; }
+
   /// Roughly how loud this voice was during the last render, for choosing
   /// which one to steal. The loudest partial, as the channel meters use.
   float lastLevel() const noexcept {
@@ -330,6 +340,11 @@ private:
     /// the delay and the attack. Latched at note-on like the gain.
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+
+    /// What the KEYBOARD row leaves of the level, and the amount and key it
+    /// was worked out for, so it is worked out again only when one of them
+    /// moves: when the knob turns or a glide carries the note to a new key.
+    KeyboardCache keyboard;
 
     /// The attack time the knob and that velocity come to, and the knob value
     /// it was worked out for, so it is recomputed only when the knob moves.
@@ -384,6 +399,7 @@ private:
     float velGain = 1.0f;
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+    KeyboardCache keyboard;
     float lastGain = 0.0f;
     bool gainPrimed = false;
   };
@@ -398,6 +414,7 @@ private:
   std::array<float, kNumHarmonics> partialPitches{};
   std::array<float, kNumHarmonics> partialVelocities{};
   std::array<float, kNumHarmonics> partialPressures{};
+  std::array<float, kNumHarmonics> partialKeyboards{};
 
   Noise noise;
 
@@ -418,6 +435,7 @@ private:
   float noiseTremolo = 0.0f;
   float noiseVelocity = 0.0f;
   float noisePressure = 0.0f;
+  float noiseKeyboard = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

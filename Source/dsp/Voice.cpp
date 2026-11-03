@@ -120,6 +120,7 @@ void Voice::reset() noexcept {
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
   noisePressure = 0.0f;
+  noiseKeyboard = 0.0f;
 
   active = false;
   released = false;
@@ -519,11 +520,13 @@ void Voice::render(float *left, float *right, int numSamples,
   partialPitches.fill(0.0f);
   partialVelocities.fill(0.0f);
   partialPressures.fill(0.0f);
+  partialKeyboards.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
   noisePressure = 0.0f;
+  noiseKeyboard = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -610,6 +613,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // is exact too. The remaining glide for the needle is taken before this
       // block's step so it matches the pitch the block plays at.
       const double glideCents = (pt.glideSemis + retuneSemis) * 100.0;
+
+      // The key the KEYBOARD row reads, which a glide carries smoothly from
+      // the last note's key to this one. The key number rather than the
+      // pitch, so bend, TUNE, the temperament and drift leave the level alone.
+      // Read before this block's step, with the pitch.
+      const float keyGain =
+          pt.keyboard.at(op.keyAmount, (double)midiNote + pt.glideSemis);
 
       if (!exactly(pt.glideSemis, 0.0)) {
         const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
@@ -743,10 +753,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // Aftertouch adds to the fader instead of scaling it, so a strip at zero
       // can be brought in by pressure alone, and a negative amount is floored
       // at silence by the clamp. Velocity only scales the fader's own part.
+      // The keyboard scales the lot, so pressure cannot bring a partial back
+      // on keys the row has faded it out of.
       const float level =
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
-                     0.0f, 1.0f);
+                     0.0f, 1.0f) *
+          keyGain;
       // The lamp and the unit's level error join the fader, the tracking and
       // the Nyquist fade here, so they ride the same per-sample ramp.
       const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
@@ -803,6 +816,7 @@ void Voice::render(float *left, float *right, int numSamples,
       partialVelocities[(size_t)i] = pt.velGain;
       partialPressures[(size_t)i] =
           std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
+      partialKeyboards[(size_t)i] = keyGain;
 
       if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
@@ -1007,10 +1021,16 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float amEnd = tremoloGain(
       shared.amp != nullptr ? shared.amp[at + 1] : ownEnd, np.amDepth);
 
+  // The noise has no pitch of its own, so it takes its key from the first
+  // partial's, glide and all, as the resonator does.
+  const float keyGain = noise.keyboard.at(
+      np.keyAmount, (double)midiNote + partials[0].glideSemis);
+
   const float level =
       std::clamp(np.volume * noise.velGain +
                      std::clamp(np.atAmount, -1.0f, 1.0f) * pressure,
-                 0.0f, 1.0f);
+                 0.0f, 1.0f) *
+      keyGain;
   const float gEnd = (np.audible ? level : 0.0f) * amEnd;
 
   if (!noise.gainPrimed) {
@@ -1034,6 +1054,7 @@ void Voice::renderNoise(float *left, float *right, int len,
     noiseTremolo = 1.0f - amEnd;
     noiseVelocity = noise.velGain;
     noisePressure = std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure);
+    noiseKeyboard = keyGain;
   }
 
   if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {

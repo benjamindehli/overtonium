@@ -177,6 +177,7 @@ enum class Row {
   AmDepth,
   OutputHeading,
   Velocity,
+  Keyboard,
   Aftertouch,
   Pan,
   MuteSolo,
@@ -351,6 +352,9 @@ enum class Role {
   Aftertouch,
   Pan,
   Volume,
+  /// After the rest, since a role is also a macro's row and a macro stores
+  /// its row by place. See params::kMacroRows.
+  Keyboard,
   NumRoles
 };
 

@@ -315,6 +315,44 @@ private:
   int step = 0;
 };
 
+/// One long lamp across a rule, in a slot like the needle's, split into a part
+/// for each row under the rule and in the same order. For the OUTPUT rule,
+/// whose three rows would leave three round lamps too little room each for
+/// their glow.
+///
+/// Each part is lit on its own, quantised like an ActivityLamp.
+class SplitLamp : public juce::Component {
+public:
+  static constexpr int kParts = 3;
+
+  explicit SplitLamp(juce::Colour litColour) : colour(litColour) {
+    setInterceptsMouseClicks(false, false);
+  }
+
+  /// See LevelMeter::setBackdrop.
+  void setBackdrop(juce::Colour);
+
+  /// @param brightness  0 to 1 for each part, left to right.
+  /// @returns true when any part moved a step and needs repainting.
+  bool push(const std::array<float, kParts> &brightness);
+
+  /// How many steps a part is lit, 0 to ActivityLamp::kSteps, for reading
+  /// back what the lamp shows.
+  int stepOf(int part) const noexcept {
+    return part >= 0 && part < kParts ? steps[(size_t)part] : 0;
+  }
+
+  void paint(juce::Graphics &) override;
+
+  /// The margin the slot leaves itself inside the component, each side, so a
+  /// lit outer part has room for its glow.
+  static constexpr float kSlotInset = 2.0f;
+
+private:
+  juce::Colour colour, backdrop;
+  std::array<int, kParts> steps{};
+};
+
 /// A needle on a rule, showing where pitch modulation, drift and a glide still
 /// on its way have this partial.
 ///
@@ -439,7 +477,11 @@ public:
   /// coordinates, for the editor to merge with the meter bands. Too many
   /// separate invalidations make the window redraw their whole bounding box.
   void setActivity(float envelope, float tremolo, float pitch, float velGain,
-                   float pressure, juce::Array<juce::Rectangle<int>> &into);
+                   float keyGain, float pressure,
+                   juce::Array<juce::Rectangle<int>> &into);
+
+  /// The lamp on the OUTPUT rule, for reading back what it shows.
+  const SplitLamp &getOutputLamp() const noexcept { return outputLamp; }
 
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
@@ -522,7 +564,7 @@ private:
 
   LinkableSlider tune, glide, pmRate, pmDepth, drift, strike, delay, attack,
       decay, sustain, swell, offLevel, release, amRate, amDepth, velocity,
-      aftertouch, pan, volume;
+      keyboard, aftertouch, pan, volume;
   /// What each modulator traces.
   ShapeButton pmShape, amShape;
 
@@ -532,7 +574,10 @@ private:
   LevelMeter meter;
 
   ActivityNeedle pitchLamp;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+
+  /// VELOCITY, KEYBOARD and AFTERTOUCH, in one slot on the OUTPUT rule.
+  SplitLamp outputLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
