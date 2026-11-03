@@ -123,60 +123,7 @@ jobs:
       # argument with the component registrar that is not worth having here.
       - name: Fetch pluginval
         shell: bash
-        env:
-          PLUGINVAL_VERSION: v1.0.4
-        run: |
-          base="https://github.com/Tracktion/pluginval/releases/download"
-
-          # Each archive's SHA-256, taken from the v1.0.4 release. Moving to
-          # another version means taking all three again.
-          case "$RUNNER_OS" in
-            macOS)
-              asset=pluginval_macOS.zip
-              expected=3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f ;;
-            Windows)
-              asset=pluginval_Windows.zip
-              expected=c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab ;;
-            Linux)
-              asset=pluginval_Linux.zip
-              expected=c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352 ;;
-          esac
-
-          # --fail so a wrong tag or a renamed asset fails here. Without it
-          # curl writes the 404 page into the zip and the first complaint
-          # comes from unzip, about a file that looks like it downloaded.
-          curl -sSL --fail --retry 3 -o pluginval.zip \
-            "$base/$PLUGINVAL_VERSION/$asset"
-
-          # A release asset can be replaced after the fact, and this one is run
-          # against the plugin, so it has to be the file that was checked.
-          # shasum is the one every macOS has, and sha256sum the one the other
-          # two have.
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            actual=$(shasum -a 256 pluginval.zip | cut -d ' ' -f 1)
-          else
-            actual=$(sha256sum pluginval.zip | cut -d ' ' -f 1)
-          fi
-
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::$asset has SHA-256 $actual, expected $expected"
-            exit 1
-          fi
-
-          # The bash on the Windows runners is the one Git ships and it has no
-          # unzip, the same reason the release workflow archives with pwsh.
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            powershell -Command "Expand-Archive -Force pluginval.zip ."
-          else
-            unzip -q -o pluginval.zip
-            # The archive does not reliably carry the executable bit through.
-            chmod +x pluginval 2>/dev/null || true
-            chmod +x pluginval.app/Contents/MacOS/pluginval 2>/dev/null || true
-          fi
-
-          # Printed so that a layout that differs from the one expected below
-          # reads as a wrong path rather than a mysteriously missing command.
-          ls -l
+        run: bash .github/scripts/fetch_pluginval.sh
 
       # The seed is pinned on a push and left to chance on the weekly run.
       #
@@ -237,14 +184,43 @@ jobs:
           # $_exitcode is gdb's own variable holding what the program returned,
           # so the step still fails for the reason the program failed rather
           # than reporting gdb's own success.
+          #
+          # A crash after SUCCESS is let through with a warning, on Linux only.
+          # Three times a run here passed every test and then died in
+          # pluginval's own shutdown, with glibc reporting heap corruption from
+          # thread-local storage, the run loop and XCloseDisplay in turn, and
+          # each time a re-run was green. The plugin was then run through
+          # pluginval ten times built with the address and undefined
+          # behaviour sanitizers, which stop at the first bad write rather
+          # than at the free that notices it, and nothing was reported. So
+          # that crash is pluginval and Xlib shutting down, and the weekly
+          # sanitized-pluginval job below is what keeps checking that our own
+          # code is not the cause. A failed test, or a crash before SUCCESS,
+          # still fails the step.
           if [ "$RUNNER_OS" = "Linux" ]; then
+            set +e
             xvfb-run -a gdb --batch --return-child-result \
               -ex "handle SIGPIPE nostop noprint pass" \
               -ex run \
               -ex "echo \n==== the crash, every thread ====\n" \
               -ex "thread apply all bt" \
               --args ./pluginval --strictness-level 8 --random-seed "$seed" \
-                --validate "$vst3"
+                --validate "$vst3" 2>&1 | tee pluginval.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            # pluginval prints SUCCESS on a line of its own once every test
+            # has passed. Its failures read "!!! Test", "*** FAILED", "FAILURE"
+            # or "tests failed". Its warnings also start with "!!!", so that
+            # alone is not taken as a failure.
+            if [ "$status" -ne 0 ] && grep -qx "SUCCESS" pluginval.log &&
+              ! grep -qE '^!!! Test |\*\*\* FAILED|^FAILURE|tests failed' \
+                pluginval.log; then
+              echo "::warning::pluginval passed every test and then exited with $status while shutting down. See the stack above. The weekly sanitized pluginval run checks that this is not the plugin."
+              exit 0
+            fi
+
+            exit "$status"
           else
             "${run[@]}" --strictness-level 8 --random-seed "$seed" \
               --validate "$vst3"
@@ -460,6 +436,105 @@ jobs:
       - name: Fail on anything the sanitizers reported
         run: |
           if grep -nE "runtime error:|ERROR: AddressSanitizer|ERROR: LeakSanitizer|SUMMARY: (Address|Undefined)" sanitizer.log; then
+            echo "::error::the sanitizers reported the lines above"
+            exit 1
+          fi
+
+          echo "clean"
+
+  sanitized-pluginval:
+    name: pluginval, sanitized
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # The plugin built with the address and undefined behaviour sanitizers,
+    # loaded by pluginval. The sanitizers job runs our own suites, which drive
+    # the processor directly. This one has a host misuse it, editor and all,
+    # and a sanitized build stops at the first bad write instead of at the free
+    # that later notices it.
+    #
+    # It is the check that lets the build job pass a crash in pluginval's own
+    # shutdown. That crash is reported by glibc long after the write that
+    # caused it, so it cannot say whose write it was. This job can.
+    #
+    # Weekly and by hand only. The sanitized plugin and JUCE take most of the
+    # hour to build, and a failure here is information rather than a blocked
+    # merge.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        run: |
+          for attempt in 1 2 3; do
+            if sudo apt-get update; then
+              break
+            fi
+
+            echo "apt-get update failed on attempt $attempt, retrying"
+            sleep 10
+          done
+
+          sudo apt-get install --no-install-recommends -y \
+            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
+            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
+            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
+            libxi-dev libegl-dev xvfb
+
+      # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
+      # which covers the two test programs. JUCE compiles into the plugin, so
+      # this instruments it too, and a bad write inside the framework on our
+      # behalf is caught as well.
+      #
+      # juceaide, the tool JUCE builds and runs to make the binary data, picks
+      # the flags up as well. Leak checks are off while it runs, so a leak in
+      # JUCE's own tool cannot fail the build. They are on for pluginval below.
+      - name: Configure
+        env:
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          LDFLAGS: -fsanitize=address,undefined
+          ASAN_OPTIONS: detect_leaks=0
+        run: >
+          cmake -B build-san-vst3
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+
+      - name: Build
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: cmake --build build-san-vst3 --parallel 2 --target Overtonium_VST3
+
+      - name: Fetch pluginval
+        run: bash .github/scripts/fetch_pluginval.sh
+
+      # Twice, with the seed the build job pins and with one nobody chose.
+      #
+      # pluginval itself is not instrumented, so the sanitizer runtime is
+      # preloaded into it alone. The plugin will not load without it. Given to
+      # xvfb-run as well, it would report the leaks in Xvfb and xauth and stop
+      # before pluginval starts.
+      - name: Validate the sanitized VST3
+        run: |
+          vst3=build-san-vst3/Overtonium_artefacts/RelWithDebInfo/VST3/Overtonium.vst3
+          asan=$(gcc -print-file-name=libasan.so)
+
+          for seed in 0x63cc70f 0; do
+            echo "random seed: $seed"
+
+            xvfb-run -a env LD_PRELOAD="$asan" \
+              ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 \
+              UBSAN_OPTIONS=print_stacktrace=1 \
+              ./pluginval --strictness-level 8 --random-seed "$seed" \
+                --validate "$vst3" 2>&1 | tee -a pluginval-sanitized.log
+          done
+
+      # The log as well as the exit status, since UBSan reports and carries on.
+      - name: Fail on anything the sanitizers reported
+        run: |
+          if grep -nE "runtime error:|ERROR: AddressSanitizer|ERROR: LeakSanitizer|SUMMARY: (Address|Undefined)" pluginval-sanitized.log; then
             echo "::error::the sanitizers reported the lines above"
             exit 1
           fi
