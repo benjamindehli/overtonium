@@ -8,7 +8,7 @@ By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). For how t
 
 ## Before a pull request
 
-CI runs six jobs on every push and pull request: the build and both test suites on all three platforms, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. Each one can be run locally, and this section says how.
+CI runs six jobs on every push and pull request: the build and both test suites on all three platforms, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. A seventh, pluginval against a sanitized plugin, runs weekly and when started by hand. Each one can be run locally, and this section says how.
 
 **The tests pass.** `ctest --test-dir build --build-config Release` runs both suites.
 
@@ -44,6 +44,8 @@ pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtoni
 
 pluginval picks random parameter values. CI fixes the seed on a push and leaves it random on a weekly scheduled run. A failure prints the seed it used, and passing that seed back with `--random-seed` reproduces it exactly. For some failures that is the only way to reproduce them at all.
 
+On Linux, pluginval has sometimes passed every test and then crashed while shutting down, with glibc reporting heap corruption. A re-run has always been green, and the sanitized run below has never found anything in the plugin. So on Linux a crash after pluginval prints `SUCCESS` passes the job with a warning that shows the stack. A failed test, or a crash before `SUCCESS`, still fails it.
+
 **The VST3 validator.** This is Steinberg's own conformance suite, which is different from pluginval. It checks the VST3 contracts instead of misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target from [the SDK](https://github.com/steinbergmedia/vst3sdk) with the flags CI uses, `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF -DSMTG_CREATE_PLUGIN_LINK=OFF`, which skip the parts it does not link. Without the hosting examples switched off, the SDK wants GTK 3 on Linux. Point the result at a built `.vst3`.
 
 **Sanitizers.** Both suites run again on Linux with the address and undefined behaviour sanitizers on. The checks above test whether the plugin does the right thing. This one tests whether it does so without reading past the end of an array or relying on behaviour the standard leaves undefined. The other checks cannot see either problem. A read one byte past the end of a buffer returns a plausible number and passes.
@@ -55,6 +57,20 @@ ctest --test-dir build-san --output-on-failure
 ```
 
 This is off by default, and best kept in a build tree of its own. The build is instrumented throughout, and the result runs several times slower than a plugin you would want to listen to. The sanitizers are set to report everything instead of stopping at the first problem, so a run can find a fault and still exit with zero. For that reason CI reads the log, and a leak counts the same as an overflow.
+
+**pluginval, sanitized.** Once a week, and when started by hand, CI builds the VST3 with the same two sanitizers across the plugin and JUCE and runs pluginval against it twice, with the pinned seed and with a random one. The suites drive the processor directly, so this is the check that has a host misuse a sanitized plugin, editor included. It stops at the first bad write, where a plain build only notices damage later, when the memory is freed. It is also what makes it safe for the build job to pass a crash in pluginval's own shutdown. On Linux:
+
+```sh
+CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+CXXFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+LDFLAGS="-fsanitize=address,undefined" \
+  cmake -B build-san-vst3 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+cmake --build build-san-vst3 --target Overtonium_VST3
+xvfb-run -a env LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
+  pluginval --strictness-level 8 --validate build-san-vst3/Overtonium_artefacts/RelWithDebInfo/VST3/Overtonium.vst3
+```
+
+pluginval itself is not built with the sanitizers, so their runtime has to be preloaded into it, and the plugin will not load without it. Preload it into pluginval alone. Given to `xvfb-run` as well, it reports the leaks in Xvfb and stops before pluginval starts.
 
 **The DSP core on its own.** A separate job compiles `Source/dsp/` and its tests with a bare compiler and `-Werror`, so the claim that the core needs no build system and no JUCE is checked, not just stated. The command is under [Tests](#tests). The same job runs the lambda scan below.
 
