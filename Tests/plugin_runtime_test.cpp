@@ -5396,6 +5396,187 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 /// A global switch reached from a per-channel menu, so this checks that the
 /// pitch button and the amplitude button reach different switches. Both menus
 /// would still tick and untick if they did not.
+/// The two entries in a shape menu that set every channel at once. "Set every
+/// channel to" lists every shape, so a shape can be given to all channels
+/// without choosing it on one channel first, and either entry comes back in one
+/// undo step. Driven through the ids the menu carries, since opening it needs a
+/// window.
+void testSetEveryChannelTo(OvertoniumProcessor &p) {
+  section("Set every channel to a shape");
+
+  using namespace ovt::ui;
+  using ovt::params::amShapeSuffix;
+  using ovt::params::pmShapeSuffix;
+
+  auto &undo = p.undo();
+
+  const auto shapeOf = [&p](const juce::String &id) {
+    auto *value = p.apvts.getRawParameterValue(id);
+    return value != nullptr ? juce::roundToInt(value->load()) : -1;
+  };
+
+  // Written with no gesture, as automation writes, so none of it is undone.
+  const auto put = [&p](const juce::String &id, int index) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1((float)index));
+  };
+
+  // Every channel the menu reaches, the noise channel last where it has one.
+  const auto idsFor = [&p](const char *suffix) {
+    std::vector<juce::String> ids;
+
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      ids.push_back(ovt::params::oscParamId(suffix, i));
+
+    const auto noise = ovt::params::noiseParamId(suffix);
+
+    if (p.apvts.getParameter(noise) != nullptr)
+      ids.push_back(noise);
+
+    return ids;
+  };
+
+  // A different shape on each channel, so a step that misses one shows.
+  const auto spread = [&](const std::vector<juce::String> &ids, int count) {
+    for (size_t i = 0; i < ids.size(); ++i)
+      put(ids[i], (int)i % count);
+  };
+
+  const auto allAre = [&](const std::vector<juce::String> &ids, int index) {
+    int matching = 0;
+
+    for (const auto &id : ids)
+      matching += shapeOf(id) == index ? 1 : 0;
+
+    return matching == (int)ids.size();
+  };
+
+  const auto stillSpread = [&](const std::vector<juce::String> &ids,
+                               int count) {
+    int matching = 0;
+
+    for (size_t i = 0; i < ids.size(); ++i)
+      matching += shapeOf(ids[i]) == (int)i % count ? 1 : 0;
+
+    return matching == (int)ids.size();
+  };
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  ShapeButton pitch(p.apvts, ovt::params::oscParamId(pmShapeSuffix, 0),
+                    pmShapeSuffix, ovt::params::kPitchShapes,
+                    ovt::params::pitchShapeNames());
+
+  ShapeButton amp(p.apvts, ovt::params::oscParamId(amShapeSuffix, 0),
+                  amShapeSuffix, ovt::params::kAmpShapes,
+                  ovt::params::ampShapeNames());
+
+  // The two entries, read off the menu. The submenu's ids are kept in the
+  // order it lists them.
+  struct Entries {
+    int thisOne = -1;
+    bool submenuAfterIt = false;
+    juce::StringArray names;
+    std::vector<int> ids;
+  };
+
+  const auto entriesOf = [](const ShapeButton &button) {
+    Entries found;
+    auto menu = button.buildMenu();
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.text == "Set every channel to this")
+        found.thisOne = item.itemID;
+
+      if (item.text == "Set every channel to" && item.subMenu != nullptr) {
+        found.submenuAfterIt = found.thisOne > 0;
+
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu);
+             sub.next();) {
+          found.names.add(sub.getItem().text);
+          found.ids.push_back(sub.getItem().itemID);
+        }
+      }
+    }
+
+    return found;
+  };
+
+  const auto pitchEntries = entriesOf(pitch);
+  const auto ampEntries = entriesOf(amp);
+
+  check(pitchEntries.thisOne > 0 && pitchEntries.submenuAfterIt,
+        "the pitch shape menu offers both entries, the submenu after the one "
+        "that copies this channel");
+
+  check(pitchEntries.names == ovt::params::pitchShapeNames(),
+        "and its submenu lists every pitch shape in order (" +
+            pitchEntries.names.joinIntoString(", ").toStdString() + ")");
+
+  check(ampEntries.names == ovt::params::ampShapeNames(),
+        "and the amplitude menu's lists every amplitude shape in order");
+
+  const auto pitchIds = idsFor(pmShapeSuffix);
+  const auto ampIds = idsFor(amShapeSuffix);
+  const auto pitchCount = (int)ovt::params::kPitchShapes.size();
+  const auto ampCount = (int)ovt::params::kAmpShapes.size();
+
+  check(pitchIds.size() == (size_t)ovt::kNumHarmonics &&
+            ampIds.size() == (size_t)ovt::kNumHarmonics + 1,
+        "pitch reaches the 32 channels and amplitude the noise channel too");
+
+  // The last shape, which channel 1 is not set to, so nothing is chosen on a
+  // channel first.
+  spread(pitchIds, pitchCount);
+  spread(ampIds, ampCount);
+  undo.clearUndoHistory();
+
+  const auto lastPitch = pitchCount - 1;
+
+  check(shapeOf(pitchIds[0]) != lastPitch,
+        "channel 1 starts on a different pitch shape from the one picked");
+
+  pitch.chooseFromMenu(pitchEntries.ids.back());
+
+  check(allAre(pitchIds, lastPitch),
+        "picking the last pitch shape sets it on all 32 channels");
+
+  check(stillSpread(ampIds, ampCount),
+        "and leaves every amplitude shape as it was");
+
+  check(undo.undo() && stillSpread(pitchIds, pitchCount),
+        "one undo puts every channel's pitch shape back");
+
+  check(!undo.canUndo(), "which was the whole change, not the first of 32");
+
+  // The amplitude menu, which reaches the noise channel as well.
+  undo.clearUndoHistory();
+  amp.chooseFromMenu(ampEntries.ids[2]);
+
+  check(allAre(ampIds, 2),
+        "picking an amplitude shape sets it on all 32 channels and noise");
+
+  check(undo.undo() && stillSpread(ampIds, ampCount) && !undo.canUndo(),
+        "and one undo puts all 33 back");
+
+  // The entry that was there before, copying this channel's own shape, is one
+  // step now as well.
+  put(ampIds[0], 3);
+  undo.clearUndoHistory();
+  amp.chooseFromMenu(ampEntries.thisOne);
+
+  check(allAre(ampIds, 3),
+        "\"Set every channel to this\" copies channel 1's shape everywhere");
+
+  check(undo.undo() && shapeOf(ampIds[1]) == 1 && !undo.canUndo(),
+        "and is one undo step too");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+}
+
 void testModulatorsInPhase(OvertoniumProcessor &p) {
   section("Modulators in phase across the keyboard");
 
@@ -12779,6 +12960,7 @@ int main(int argc, char **argv) {
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
+  testSetEveryChannelTo(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);
