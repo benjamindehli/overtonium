@@ -15,7 +15,7 @@
 namespace ovt::ui {
 
 namespace {
-constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
+constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
 
 /// The space round the edges of the bar: the margin on the left and the
 /// right, which is also the space between the four buttons, and the padding

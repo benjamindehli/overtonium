@@ -10046,7 +10046,8 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   if (bar == nullptr)
     return;
 
-  const auto ticked = [bar]() {
+  // By reference, since the bar is found again when the editor reopens below.
+  const auto ticked = [&bar]() {
     // Named rather than iterated off the call, since the iterator keeps a
     // reference to it. Whatever is ticked, so two ticks fail as loudly as none.
     auto menu = bar->buildSettingsMenu();
@@ -10067,7 +10068,7 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   };
 
   // Every zoom the menu offers, in turn, ending at 100% for whatever runs next.
-  for (const auto factor : {1.25f, 0.75f, 1.5f, 1.0f}) {
+  for (const auto factor : {1.25f, 0.75f, 2.0f, 1.5f, 1.75f, 1.0f}) {
     const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
 
     bar->onZoomChanged(factor);
@@ -10075,6 +10076,59 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     check(ticked() == reads,
           "the window at " + reads + " ticks " + reads + " (" + ticked() + ")");
   }
+
+  // At every zoom the window still goes down to the smallest it goes at 100%,
+  // scaled by the zoom, so a large zoom never leaves it stuck at a size.
+  const auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "the editor has resize limits");
+  if (limits == nullptr)
+    return;
+
+  const auto floorWidth = limits->getMinimumWidth();
+  const auto floorHeight = limits->getMinimumHeight();
+
+  for (const auto factor : {0.75f, 1.25f, 1.5f, 1.75f, 2.0f}) {
+    bar->onZoomChanged(factor);
+
+    const auto width = limits->getMinimumWidth();
+    const auto height = limits->getMinimumHeight();
+
+    std::printf("  smallest window at %d%%: %d x %d\n",
+                juce::roundToInt(factor * 100.0f), width, height);
+
+    const auto wantWidth = juce::roundToInt((float)floorWidth * factor);
+    const auto wantHeight = juce::roundToInt((float)floorHeight * factor);
+
+    check(std::abs(width - wantWidth) <= 1 &&
+              std::abs(height - wantHeight) <= 1,
+          "the smallest window at " +
+              std::to_string(juce::roundToInt(factor * 100.0f)) +
+              "% is the one at 100% scaled by the zoom");
+  }
+
+  // A window left at 200% opens again at 200% and the same size.
+  const auto leftWidth = editor->getWidth();
+  const auto leftHeight = editor->getHeight();
+
+  base.reset();
+  base.reset(p.createEditor());
+  editor = dynamic_cast<OvertoniumEditor *>(base.get());
+
+  check(editor != nullptr, "the editor opens again");
+  if (editor == nullptr)
+    return;
+
+  bar = findTopBar(*editor);
+
+  check(bar != nullptr && ticked() == "200%" &&
+            editor->getWidth() == leftWidth &&
+            editor->getHeight() == leftHeight,
+        "a window closed at 200% opens again at 200% and the same size");
+
+  // Back to 100% for whatever runs next, since the zoom is kept in the state.
+  if (bar != nullptr)
+    bar->onZoomChanged(1.0f);
 }
 
 /// That every word the bar has to say fits in the button that says it.
