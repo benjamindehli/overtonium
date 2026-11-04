@@ -4247,10 +4247,18 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
       }
     }
 
-    // params::atSuffix is the one constant not named after the id it makes.
+    // params::atSuffix and params::keySuffix are the two constants not named
+    // after the id they make.
     const auto suffixOf = [](const juce::String &constant) {
       const auto stem = constant.upToFirstOccurrenceOf("Suffix", false, false);
-      return stem == "at" ? juce::String("aftertouch") : stem;
+
+      if (stem == "at")
+        return juce::String(ovt::params::atSuffix);
+
+      if (stem == "key")
+        return juce::String(ovt::params::keySuffix);
+
+      return stem;
     };
 
     for (const auto &statement : statements) {
