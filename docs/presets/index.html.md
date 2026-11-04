@@ -1,10 +1,10 @@
-Page: Overtonium presets: the forty-one that ship, and saving your own
+Page: Overtonium presets: the forty-three that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-31
+Last changed: 2026-11-04
 
 # Overtonium presets
 
-Forty-one presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-three presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -30,11 +30,11 @@ Straight to one of them:
 
 ## What ships
 
-Forty-one presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-three presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-six of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-eight of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -148,6 +148,10 @@ Every even partial is silent, which gives the hollow tone of a stopped pipe. Vel
 
 The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two
 
+**Pendulum**
+
+Every partial has its own tremolo and pitch movement, faster the higher it sits, and the fast ones die away first, so the movement slows as the note rings, like a pendulum coming to rest. It is on the 6581 character, with the partials spread left and right
+
 **Shimmer**
 
 Every partial rises and falls in level at its own rate, so the spectrum never repeats
@@ -155,6 +159,10 @@ Every partial rises and falls in level at its own rate, so the spectrum never re
 **Slow Pad**
 
 Staggered envelope delays, so the spectrum builds up gradually instead of starting at once, with mirrored pans across the series
+
+**Soft Trio**
+
+A Karplus-Strong string from the noise channel, plucked like a clavichord or a guitar, over the first two partials on the Wheel character. Pressure or the mod wheel brings in a vibraphone, with faint partials behind it that swell slowly and wander in pitch. The clip is played without it. Everything sits hard right, and a short digital echo answers on the left at the same level, which doubles it into stereo
 
 **Space Cowboy**
 
