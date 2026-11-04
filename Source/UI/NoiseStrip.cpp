@@ -455,12 +455,7 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
+  const auto header = rows[rowIndex(Row::Header)];
 
   // A noise trace where a numbered channel has its number, as tall and as wide
   // as a two-digit number in the same font and in the same place, so it lines

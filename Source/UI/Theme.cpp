@@ -433,7 +433,7 @@ namespace {
 // The two text rows are tall enough for seven-segment digits, which are as wide
 // as they are tall, to stay legible.
 constexpr int kRowHeights[kNumRows] = {
-    26, // Header
+    22, // Header
     38, // TuneKnob
     16, // TuneText
     15, // PitchModHeading

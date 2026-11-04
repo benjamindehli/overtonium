@@ -1817,12 +1817,7 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
-  auto header = rows[rowIndex(Row::Header)];
-
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
-
-  header.removeFromTop(1);
+  const auto header = rows[rowIndex(Row::Header)];
 
   // Accent when the pointer is on this channel, and mixed towards the accent
   // by how much of a LINK drag the channel would take.
