@@ -90,7 +90,7 @@ struct Applier {
     allOsc(params::amRateSuffix, [](int) { return 4.0; });
     allOsc(params::amShapeSuffix, [](int) { return 0.0; });
     allOsc(params::amDepthSuffix, [](int) { return 0.0; });
-    allOsc(params::velSuffix, [](int) { return 0.7; });
+    allOsc(params::velSuffix, [](int) { return 0.5; });
     allOsc(params::atSuffix, [](int) { return 0.0; });
     allOsc(params::keySuffix, [](int) { return 0.0; });
     allOsc(params::muteSuffix, [](int) { return 0.0; });
@@ -113,7 +113,7 @@ struct Applier {
     set(params::noiseParamId(params::amRateSuffix), 4.0f);
     set(params::noiseParamId(params::amShapeSuffix), 0.0f);
     set(params::noiseParamId(params::amDepthSuffix), 0.0f);
-    set(params::noiseParamId(params::velSuffix), 0.7f);
+    set(params::noiseParamId(params::velSuffix), 0.5f);
     set(params::noiseParamId(params::atSuffix), 0.0f);
     set(params::noiseParamId(params::keySuffix), 0.0f);
     set(params::noiseParamId(params::muteSuffix), 0.0f);
@@ -125,9 +125,8 @@ struct Applier {
     set(params::noiseParamId(params::stringDampSuffix), 0.4f);
     set(params::noiseParamId(params::stringPointSuffix), 0.25f);
 
-    // Every factory preset was voiced on the Classic velocity curve, so each
-    // keeps it until it is voiced again on dB.
-    set(params::velocityCurveId, (float)VelocityCurve::Classic);
+    // Every factory preset is voiced on the dB velocity curve.
+    set(params::velocityCurveId, (float)VelocityCurve::Decibels);
 
     // Everything global that is part of the sound rather than the setup.
     // Nothing here may write a session parameter, see kSessionParamIds.
@@ -686,16 +685,16 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_drift", 1.911f);
     ap.set("h01_pan", -0.7987f);
     ap.set("h01_sustain", 0.5087f);
-    ap.set("h01_vel", 0.0003f);
+    ap.set("h01_vel", 0.0001f);
     ap.set("h01_volume", 0.9967f);
     ap.set("h02_pan", 0.7985f);
-    ap.set("h02_vel", 0.0017f);
+    ap.set("h02_vel", 0.0004f);
     ap.set("h02_volume", 0.4468f);
     ap.set("h03_aftertouch", 1.0f);
     ap.set("h03_drift", 1.1388f);
     ap.set("h03_pan", -0.7971f);
     ap.set("h03_sustain", 0.5084f);
-    ap.set("h03_vel", 0.0021f);
+    ap.set("h03_vel", 0.0005f);
     ap.set("clipType", 4.0f); // Fold
     ap.set("echoAge", 0.3247f);
     ap.set("echoFeedback", 0.057f);
@@ -749,7 +748,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_pmShape", 7.0f);
     ap.set("h01_swell", 0.0009f);
     ap.set("h01_tune", 0.0f);
-    ap.set("h01_vel", -0.0018f);
+    ap.set("h01_vel", -0.0004f);
     ap.set("h01_volume", 1.0f);
     ap.set("h02_amDepth", 0.3962f);
     ap.set("h02_amRate", 4.1725f);
@@ -766,7 +765,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h02_sustain", 0.6886f);
     ap.set("h02_swell", 0.0023f);
     ap.set("h02_tune", 0.0f);
-    ap.set("h02_vel", -0.0041f);
+    ap.set("h02_vel", -0.0009f);
     ap.set("h02_volume", 1.0f);
     ap.set("h03_amDepth", 0.399f);
     ap.set("h03_amRate", 5.0219f);
@@ -783,7 +782,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_sustain", 0.3976f);
     ap.set("h03_swell", 0.0026f);
     ap.set("h03_tune", 0.0f);
-    ap.set("h03_vel", 0.0031f);
+    ap.set("h03_vel", 0.0007f);
     ap.set("h03_volume", 1.0f);
     ap.set("h08_amDepth", 0.5999f);
     ap.set("h08_amRate", 4.8256f);
@@ -800,7 +799,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h08_sustain", 0.1115f);
     ap.set("h08_swell", 0.0004f);
     ap.set("h08_tune", 0.0f);
-    ap.set("h08_vel", 0.0034f);
+    ap.set("h08_vel", 0.0007f);
     ap.set("h08_volume", 0.5468f);
     ap.set("h16_amDepth", 0.7821f);
     ap.set("h16_amRate", 7.6294f);
@@ -814,7 +813,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_pmRate", 6.9391f);
     ap.set("h16_pmShape", 7.0f);
     ap.set("h16_sustain", 0.1611f);
-    ap.set("h16_vel", -0.0004f);
+    ap.set("h16_vel", -0.0001f);
     ap.set("h16_volume", 0.2081f);
     ap.character(Character::Diode);
     ap.set("clipType", 2.0f); // Asymmetric
@@ -829,7 +828,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_release", 0.0152f);
     ap.set("noise_sustain", 0.0425f);
     ap.set("noise_swell", 0.0003f);
-    ap.set("noise_vel", 0.3126f);
+    ap.set("noise_vel", 0.3867f);
     ap.set("noise_volume", 0.2012f);
     ap.set("track", 6.0f);
     ap.set("wobble", 0.0757f);
@@ -849,7 +848,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.003; });
-    ap.allOsc(params::velSuffix, [](int) { return -0.0011; });
+    ap.allOsc(params::velSuffix, [](int) { return -0.0002; });
     ap.set("h01_volume", 1.0f);
     ap.set("h03_volume", 0.3395f);
     ap.set("h05_volume", 0.1961f);
@@ -873,7 +872,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_attack", 0.003f);
     ap.set("noise_colour", 0.1509f);
     ap.set("noise_release", 0.003f);
-    ap.set("noise_vel", 0.0002f);
+    ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
     break;
@@ -887,7 +886,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.003; });
-    ap.allOsc(params::velSuffix, [](int) { return -0.0011; });
+    ap.allOsc(params::velSuffix, [](int) { return -0.0002; });
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.4992f, 0.3283f, 0.2423f, 0.1961f, 0.1661f, 0.1394f,
                  0.1231f, 0.1107f, 0.0983f, 0.0874f, 0.0799f, 0.0736f, 0.0693f,
@@ -901,7 +900,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_attack", 0.003f);
     ap.set("noise_colour", 0.1509f);
     ap.set("noise_release", 0.003f);
-    ap.set("noise_vel", 0.0002f);
+    ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
     break;
@@ -916,7 +915,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::decaySuffix, [](int) { return 0.0539; });
     ap.allOsc(params::sustainSuffix, [](int) { return 0.8222; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.003; });
-    ap.allOsc(params::velSuffix, [](int) { return -0.0011; });
+    ap.allOsc(params::velSuffix, [](int) { return -0.0002; });
     ap.set("h01_volume", 1.0f);
     ap.set("h02_volume", 0.0271f);
     ap.set("h03_volume", 0.1218f);
@@ -947,7 +946,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_attack", 0.003f);
     ap.set("noise_colour", 0.1509f);
     ap.set("noise_release", 0.003f);
-    ap.set("noise_vel", 0.0002f);
+    ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
     break;
@@ -1016,10 +1015,7 @@ void apply(APVTS &apvts, int index) {
                  0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f, 0.3434f,
                  0.3434f, 0.3434f, 0.3434f, 0.3434f});
     ap.oscTable(params::velSuffix,
-                {0.0951f, 0.4111f, 0.6952f, 0.7995f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f});
+                {0.3341f, 0.4128f, 0.4984f, 0.5346f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::atSuffix,
                 {-1.0f, 0.3388f, 0.3418f, 0.0199f, 0.0009f, 0.0288f, 0.0009f,
                  0.0017f, 0.0009f, 0.0009f, 0.0009f, 0.0034f, 0.0009f, 0.0009f,
@@ -1097,7 +1093,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_stringDecay", 10.0f);
     ap.set("noise_stringPoint", 0.3944f);
     ap.set("noise_sustain", 0.172f);
-    ap.set("noise_vel", 0.9898f);
+    ap.set("noise_vel", 0.6095f);
     ap.set("noise_volume", 0.1079f);
     ap.set("resonatorDamp", 0.1319f);
     ap.set("resonatorDecay", 2.714f);
@@ -1148,11 +1144,7 @@ void apply(APVTS &apvts, int index) {
                  0.3794f, 0.4768f, 1.1093f, 0.4142f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.3399; });
     ap.oscTable(params::velSuffix,
-                {-0.0138f, 0.0202f, 0.0544f, 0.0887f, 0.1234f, 0.1584f,
-                 0.1937f, 0.2294f, 0.2656f, 0.3023f, 0.3395f, 0.344f, 0.3496f,
-                 0.3818f, 0.4145f, 0.4478f, 0.4816f, 0.516f, 0.551f, 0.5868f,
-                 0.6233f, 0.6606f, 0.6987f, 0.7377f, 0.7776f, 0.8185f, 0.8605f,
-                 0.9035f, 0.9476f, 0.993f, 1.0f, 1.0f});
+                {-0.003f, 0.3173f, 0.3249f, 0.3326f, 0.3406f, 0.3487f, 0.3572f, 0.3658f, 0.3748f, 0.3841f, 0.3937f, 0.3949f, 0.3964f, 0.4049f, 0.4138f, 0.423f, 0.4326f, 0.4425f, 0.4529f, 0.4637f, 0.4751f, 0.487f, 0.4996f, 0.5128f, 0.5267f, 0.5415f, 0.5572f, 0.5739f, 0.5918f, 0.6109f, 0.6139f, 0.6139f});
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
     ap.oscTable(params::panSuffix,
                 {-0.1097f, 0.3008f, 0.6037f, -0.5251f, 0.0844f, 0.8891f, -1.0f,
@@ -1275,7 +1267,7 @@ void apply(APVTS &apvts, int index) {
                  0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f,
                  0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f, 0.0354f,
                  0.0354f, 0.0354f, 0.0354f, 0.0354f});
-    ap.allOsc(params::velSuffix, [](int) { return 0.0021; });
+    ap.allOsc(params::velSuffix, [](int) { return 0.0005; });
     ap.oscTable(params::atSuffix,
                 {-0.0033f, 0.6455f, 0.5988f, 0.498f, 0.0996f, 0.3967f, 0.0979f,
                  0.2953f, -0.0029f, -0.0029f, -0.0029f, -0.0029f, -0.0029f,
@@ -1335,7 +1327,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_stringPoint", 0.0f);
     ap.set("noise_sustain", 0.0f);
     ap.set("noise_swell", 0.0064f);
-    ap.set("noise_vel", -0.2824f);
+    ap.set("noise_vel", -0.0661f);
     ap.set("noise_volume", 0.2221f);
     ap.set("pmInPhase", 1.0f);
     ap.set("reverbDamp", 0.0694f);
@@ -1416,11 +1408,7 @@ void apply(APVTS &apvts, int index) {
                  0.6581f, 0.6632f, 0.6682f, 0.6733f, 0.6783f, 0.6834f, 0.6884f,
                  0.6935f, 0.6985f, 0.7036f, 0.7086f});
     ap.oscTable(params::velSuffix,
-                {0.1063f, 0.1599f, 0.2144f, 0.2689f, 0.3235f, 0.378f, 0.4325f,
-                 0.487f, 0.5416f, 0.5961f, 0.6506f, 0.7051f, 0.7597f, 0.8142f,
-                 0.8687f, 0.8949f, 0.9015f, 0.908f, 0.9146f, 0.9212f, 0.9277f,
-                 0.9343f, 0.9409f, 0.9475f, 0.954f, 0.9606f, 0.9672f, 0.9737f,
-                 0.9803f, 0.9869f, 0.9934f, 0.9998f});
+                {0.3366f, 0.3491f, 0.3622f, 0.3756f, 0.3895f, 0.4039f, 0.4187f, 0.4341f, 0.4501f, 0.4666f, 0.4838f, 0.5017f, 0.5204f, 0.5399f, 0.5604f, 0.5705f, 0.5731f, 0.5757f, 0.5784f, 0.581f, 0.5836f, 0.5863f, 0.589f, 0.5917f, 0.5944f, 0.5972f, 0.5999f, 0.6027f, 0.6055f, 0.6083f, 0.6111f, 0.6139f});
     ap.allOsc(params::volumeSuffix, [](int) { return 1.0; });
     ap.set("h02_pan", 0.2531f);
     ap.set("h03_pan", -0.5048f);
@@ -1469,7 +1457,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_release", 3.5761f);
     ap.set("noise_sustain", 0.0388f);
     ap.set("noise_swell", 0.0045f);
-    ap.set("noise_vel", 0.4984f);
+    ap.set("noise_vel", 0.4374f);
     ap.set("noise_volume", 0.3251f);
     ap.set("reverbDamp", 0.0214f);
     ap.set("reverbDecay", 3.9958f);
@@ -1530,11 +1518,7 @@ void apply(APVTS &apvts, int index) {
                  0.5319f, 0.5319f, 0.5827f, 0.5319f, 0.5319f, 0.5319f, 0.5319f,
                  0.5319f, 0.5319f, 0.5319f, 0.5319f});
     ap.oscTable(params::velSuffix,
-                {0.0401f, 0.1531f, 0.2946f, 0.2554f, 0.3661f, 0.4129f, 0.4663f,
-                 0.4896f, 0.5789f, 0.6194f, 0.6788f, 0.7382f, 0.7976f, 0.8468f,
-                 0.8936f, 0.8594f, 0.9096f, 0.9136f, 0.9161f, 0.9172f, 0.925f,
-                 0.9266f, 0.9377f, 0.945f, 0.9468f, 0.9585f, 0.9553f, 0.9703f,
-                 0.9795f, 0.9864f, 1.0f, 0.9622f});
+                {0.3217f, 0.3475f, 0.3821f, 0.3722f, 0.4007f, 0.4133f, 0.4282f, 0.4349f, 0.4613f, 0.4739f, 0.493f, 0.513f, 0.5339f, 0.552f, 0.57f, 0.5568f, 0.5764f, 0.578f, 0.579f, 0.5794f, 0.5825f, 0.5832f, 0.5877f, 0.5907f, 0.5914f, 0.5963f, 0.595f, 0.6012f, 0.6051f, 0.6081f, 0.6139f, 0.5978f});
     ap.oscTable(params::volumeSuffix,
                 {0.9995f, 0.1429f, 0.3142f, 0.2962f, 0.1049f, 0.0767f, 0.0283f,
                  0.0102f, 0.0042f, 0.0039f, 0.0041f, 0.0033f, 0.321f, 0.0066f,
@@ -1614,7 +1598,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_decay", 1.6672f);
     ap.set("noise_release", 0.3174f);
     ap.set("noise_sustain", 0.0165f);
-    ap.set("noise_vel", 0.8135f);
+    ap.set("noise_vel", 0.5397f);
     ap.set("noise_volume", 0.055f);
     ap.set("reverbDamp", 0.186f);
     ap.set("reverbDecay", 0.473f);
@@ -1675,7 +1659,7 @@ void apply(APVTS &apvts, int index) {
                  0.2192f, 0.0653f, 0.031f, 0.1977f, 0.0185f, 0.6338f, 0.7105f,
                  0.0366f, 0.2238f, 0.7394f, 0.6442f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.0563; });
-    ap.allOsc(params::velSuffix, [](int) { return -0.0001; });
+    ap.allOsc(params::velSuffix, [](int) { return -0.0; });
     ap.oscTable(params::volumeSuffix,
                 {0.7117f, 0.708f, 0.4097f, 0.5913f, 0.0f, 0.1717f, 0.0f,
                  0.2271f, 0.0f, 0.0892f, 0.0f, 0.0492f, 0.0f, 0.0f, 0.0f,
@@ -1731,7 +1715,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_pmRate", 1.6165f);
     ap.set("h01_pmShape", 7.0f);
     ap.set("h01_release", 0.0471f);
-    ap.set("h01_vel", 0.3592f);
+    ap.set("h01_vel", 0.3989f);
     ap.set("h01_volume", 1.0f);
     ap.set("h02_aftertouch", -0.0045f);
     ap.set("h02_amDepth", 1.0f);
@@ -1747,7 +1731,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h02_release", 0.0521f);
     ap.set("h02_sustain", 0.1021f);
     ap.set("h02_swell", 0.0018f);
-    ap.set("h02_vel", 0.4222f);
+    ap.set("h02_vel", 0.4159f);
     ap.set("h02_volume", 1.0f);
     ap.set("h03_aftertouch", -0.0045f);
     ap.set("h03_amDepth", 0.4f);
@@ -1762,7 +1746,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pmShape", 5.0f);
     ap.set("h03_release", 0.0067f);
     ap.set("h03_sustain", 0.0082f);
-    ap.set("h03_vel", 0.5986f);
+    ap.set("h03_vel", 0.4674f);
     ap.set("h03_volume", 0.3548f);
     ap.set("h04_aftertouch", -0.0045f);
     ap.set("h04_amDepth", 1.0f);
@@ -1778,7 +1762,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h04_pmShape", 7.0f);
     ap.set("h04_release", 0.0746f);
     ap.set("h04_sustain", 0.0f);
-    ap.set("h04_vel", 0.5489f);
+    ap.set("h04_vel", 0.4522f);
     ap.set("h04_volume", 0.9513f);
     ap.set("h05_aftertouch", -0.0045f);
     ap.set("h05_amDepth", 0.3994f);
@@ -1793,7 +1777,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h05_pmShape", 4.0f);
     ap.set("h05_release", 0.0067f);
     ap.set("h05_sustain", 0.0067f);
-    ap.set("h05_vel", 0.601f);
+    ap.set("h05_vel", 0.4681f);
     ap.set("h05_volume", 0.3536f);
     ap.set("h06_aftertouch", -0.0045f);
     ap.set("h06_amDepth", 1.0f);
@@ -1809,7 +1793,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h06_pmShape", 7.0f);
     ap.set("h06_release", 0.0867f);
     ap.set("h06_sustain", 0.0f);
-    ap.set("h06_vel", 0.6755f);
+    ap.set("h06_vel", 0.4919f);
     ap.set("h06_volume", 0.8196f);
     ap.set("h07_aftertouch", -0.0045f);
     ap.set("h07_sustain", 0.0f);
@@ -1827,7 +1811,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h08_pmShape", 7.0f);
     ap.set("h08_release", 0.1152f);
     ap.set("h08_sustain", 0.0f);
-    ap.set("h08_vel", 0.8021f);
+    ap.set("h08_vel", 0.5355f);
     ap.set("h08_volume", 0.6395f);
     ap.set("h09_aftertouch", -0.0045f);
     ap.set("h09_sustain", 0.0f);
@@ -1845,7 +1829,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h10_pmShape", 7.0f);
     ap.set("h10_release", 0.1229f);
     ap.set("h10_sustain", 0.0f);
-    ap.set("h10_vel", 0.9287f);
+    ap.set("h10_vel", 0.584f);
     ap.set("h10_volume", 0.4519f);
     ap.set("h11_aftertouch", -0.0045f);
     ap.set("h11_sustain", 0.0f);
@@ -1863,7 +1847,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h12_pmShape", 7.0f);
     ap.set("h12_release", 0.1976f);
     ap.set("h12_sustain", 0.0f);
-    ap.set("h12_vel", 0.9441f);
+    ap.set("h12_vel", 0.5903f);
     ap.set("h12_volume", 0.2892f);
     ap.set("h13_aftertouch", -0.0045f);
     ap.set("h13_sustain", 0.0f);
@@ -1881,7 +1865,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h14_pmShape", 7.0f);
     ap.set("h14_release", 0.2743f);
     ap.set("h14_sustain", 0.0f);
-    ap.set("h14_vel", 0.9496f);
+    ap.set("h14_vel", 0.5926f);
     ap.set("h14_volume", 0.1676f);
     ap.set("h15_aftertouch", -0.0045f);
     ap.set("h15_sustain", 0.0f);
@@ -1899,7 +1883,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_pmShape", 7.0f);
     ap.set("h16_release", 0.412f);
     ap.set("h16_sustain", 0.0f);
-    ap.set("h16_vel", 0.9552f);
+    ap.set("h16_vel", 0.5949f);
     ap.set("h16_volume", 0.088f);
     ap.set("h17_aftertouch", -0.0045f);
     ap.set("h17_sustain", 0.0f);
@@ -1917,7 +1901,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h18_pmShape", 7.0f);
     ap.set("h18_release", 0.6609f);
     ap.set("h18_sustain", 0.0f);
-    ap.set("h18_vel", 0.9608f);
+    ap.set("h18_vel", 0.5972f);
     ap.set("h18_volume", 0.0418f);
     ap.set("h19_aftertouch", -0.0045f);
     ap.set("h19_sustain", 0.0f);
@@ -1935,7 +1919,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h20_pmShape", 7.0f);
     ap.set("h20_release", 0.9506f);
     ap.set("h20_sustain", 0.0f);
-    ap.set("h20_vel", 0.9664f);
+    ap.set("h20_vel", 0.5996f);
     ap.set("h20_volume", 0.018f);
     ap.set("h21_aftertouch", -0.0045f);
     ap.set("h21_sustain", 0.0f);
@@ -1953,7 +1937,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h22_pmShape", 7.0f);
     ap.set("h22_release", 1.5378f);
     ap.set("h22_sustain", 0.0f);
-    ap.set("h22_vel", 0.972f);
+    ap.set("h22_vel", 0.602f);
     ap.set("h22_volume", 0.007f);
     ap.set("h23_aftertouch", -0.0045f);
     ap.set("h23_sustain", 0.0f);
@@ -1971,7 +1955,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h24_pmShape", 7.0f);
     ap.set("h24_release", 1.7307f);
     ap.set("h24_sustain", 0.0f);
-    ap.set("h24_vel", 0.9776f);
+    ap.set("h24_vel", 0.6043f);
     ap.set("h24_volume", 0.0025f);
     ap.set("h25_aftertouch", -0.0045f);
     ap.set("h25_sustain", 0.0f);
@@ -1989,7 +1973,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h26_pmShape", 7.0f);
     ap.set("h26_release", 2.4301f);
     ap.set("h26_sustain", 0.0f);
-    ap.set("h26_vel", 0.9832f);
+    ap.set("h26_vel", 0.6067f);
     ap.set("h26_volume", 0.0008f);
     ap.set("h27_aftertouch", -0.0045f);
     ap.set("h27_sustain", 0.0f);
@@ -2007,7 +1991,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h28_pmShape", 7.0f);
     ap.set("h28_release", 4.0194f);
     ap.set("h28_sustain", 0.0f);
-    ap.set("h28_vel", 0.9888f);
+    ap.set("h28_vel", 0.6091f);
     ap.set("h28_volume", 0.0002f);
     ap.set("h29_aftertouch", -0.0045f);
     ap.set("h29_sustain", 0.0f);
@@ -2025,7 +2009,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h30_pmShape", 7.0f);
     ap.set("h30_release", 6.5957f);
     ap.set("h30_sustain", 0.0f);
-    ap.set("h30_vel", 0.9944f);
+    ap.set("h30_vel", 0.6115f);
     ap.set("h30_volume", 0.0001f);
     ap.set("h31_sustain", 0.0f);
     ap.set("h32_aftertouch", -0.0045f);
@@ -2041,7 +2025,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_pmShape", 7.0f);
     ap.set("h32_release", 8.3862f);
     ap.set("h32_sustain", 0.0f);
-    ap.set("h32_vel", 0.9999f);
+    ap.set("h32_vel", 0.6139f);
     ap.set("h32_volume", 0.0f);
     ap.set("echoAge", 0.4733f);
     ap.set("echoFeedback", 0.95f);
@@ -2057,7 +2041,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_attack", 0.1436f);
     ap.set("noise_colour", 0.6355f);
     ap.set("noise_decay", 1.5975f);
-    ap.set("noise_vel", 0.8518f);
+    ap.set("noise_vel", 0.5539f);
     ap.set("noise_volume", 0.0161f);
     ap.set("reverbDamp", 0.2123f);
     ap.set("reverbDecay", 2.9992f);
@@ -2126,11 +2110,7 @@ void apply(APVTS &apvts, int index) {
                  0.1675f, 0.1675f, 0.1675f, 0.1675f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 1.0; });
     ap.oscTable(params::velSuffix,
-                {-0.0103f, 0.2514f, 0.4978f, 0.2438f, 0.2763f, 0.3087f, 0.3412f,
-                 0.3737f, 0.4062f, 0.4387f, 0.4712f, 0.5037f, 0.5362f, 0.5687f,
-                 0.6012f, 0.6337f, 0.6661f, 0.6986f, 0.7311f, 0.7636f, 0.7961f,
-                 0.8286f, 0.8611f, 0.8936f, 0.9261f, 0.9586f, 0.9911f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f});
+                {-0.0022f, 0.3713f, 0.4372f, 0.3694f, 0.3775f, 0.3857f, 0.3941f, 0.4027f, 0.4115f, 0.4205f, 0.4296f, 0.4389f, 0.4485f, 0.4582f, 0.4682f, 0.4784f, 0.4888f, 0.4995f, 0.5105f, 0.5218f, 0.5334f, 0.5452f, 0.5575f, 0.57f, 0.583f, 0.5963f, 0.6101f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.8316f, 0.8701f, 0.0001f, 0.0001f, 0.0003f, 0.0005f,
                  0.0009f, 0.0016f, 0.0027f, 0.0046f, 0.0075f, 0.0121f, 0.0191f,
@@ -2264,7 +2244,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
-    ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
+    ap.allOsc(params::velSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
     ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
@@ -2330,10 +2310,7 @@ void apply(APVTS &apvts, int index) {
                  0.5799f, 0.6044f, 0.6289f, 0.6534f, 0.6779f, 0.7024f, 0.7269f,
                  0.7513f, 0.7758f, 0.8003f, 0.8244f});
     ap.oscTable(params::velSuffix,
-                {-0.0154f, 0.9429f, 0.946f, 0.962f, 0.9768f, 0.9893f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+                {-0.0034f, 0.5898f, 0.5911f, 0.5977f, 0.604f, 0.6093f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.5898f, 0.3532f, 0.394f, 0.3633f, 0.4792f, 0.2375f,
                  0.3199f, 0.2007f, 0.1309f, 0.0884f, 0.0774f, 0.0835f, 0.0472f,
@@ -2488,10 +2465,7 @@ void apply(APVTS &apvts, int index) {
                  0.7683f, 0.7818f, 0.7953f, 0.8088f, 0.8222f, 0.8357f, 0.8492f,
                  0.8627f, 0.8762f, 0.8897f, 0.9032f});
     ap.oscTable(params::velSuffix,
-                {0.0026f, 0.1881f, 0.322f, 0.456f, 0.5899f, 0.8416f, 0.9293f,
-                 0.9917f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+                {0.0006f, 0.3558f, 0.3892f, 0.4253f, 0.4647f, 0.5501f, 0.5843f, 0.6104f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {0.9998f, 0.9412f, 0.886f, 0.8339f, 0.7849f, 0.7388f, 0.6954f,
                  0.6545f, 0.6161f, 0.5799f, 0.5458f, 0.5138f, 0.4836f, 0.4552f,
@@ -2558,7 +2532,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_decay", 2.0169f);
     ap.set("noise_strike", 1.0f);
     ap.set("noise_sustain", 0.0f);
-    ap.set("noise_vel", 0.9817f);
+    ap.set("noise_vel", 0.6061f);
     ap.set("noise_volume", 0.1951f);
     ap.set("reverbDamp", 0.0f);
     ap.set("reverbDecay", 4.4853f);
@@ -2606,11 +2580,7 @@ void apply(APVTS &apvts, int index) {
                  0.3115f, 0.3356f, 0.3883f, 0.3507f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.2584; });
     ap.oscTable(params::velSuffix,
-                {0.9857f, 0.8279f, 0.8231f, 0.482f, 0.7595f, 0.7745f, 0.7896f,
-                 0.8046f, 0.8196f, 0.8347f, 0.8497f, 0.8647f, 0.8798f, 0.8948f,
-                 0.9098f, 0.9249f, 0.9399f, 0.9549f, 0.9699f, 0.985f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f});
+                {0.6078f, 0.545f, 0.5432f, 0.4327f, 0.5203f, 0.5256f, 0.531f, 0.5364f, 0.5419f, 0.5475f, 0.5531f, 0.5588f, 0.5646f, 0.5705f, 0.5764f, 0.5825f, 0.5886f, 0.5948f, 0.6011f, 0.6075f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {0.0015f, 0.0026f, 0.0097f, 1.0f, 0.0094f, 0.0059f, 0.0073f,
                  0.0116f, 0.0228f, 0.0099f, 0.999f, 0.0184f, 0.02f, 0.0071f,
@@ -2707,7 +2677,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_strike", 0.2594f);
     ap.set("noise_sustain", 0.0f);
     ap.set("noise_swell", 0.0f);
-    ap.set("noise_vel", 0.8787f);
+    ap.set("noise_vel", 0.5642f);
     ap.set("noise_volume", 0.1686f);
     ap.set("reverbDamp", 0.1863f);
     ap.set("reverbDecay", 1.1888f);
@@ -2742,7 +2712,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::swellSuffix, [](int) { return 0.0; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
-    ap.allOsc(params::velSuffix, [](int) { return 0.0009; });
+    ap.allOsc(params::velSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::volumeSuffix, [](int n) { return 1.0 / n; });
     ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
@@ -2772,7 +2742,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_strike", 0.5285f);
     ap.set("h01_sustain", 0.0f);
     ap.set("h01_swell", 0.0045f);
-    ap.set("h01_vel", 0.509f);
+    ap.set("h01_vel", 0.4405f);
     ap.set("h01_volume", 1.0f);
     ap.set("character", 3.0f);
     ap.set("clipType", 7.0f); // Print
@@ -2794,7 +2764,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_stringPoint", 0.4773f);
     ap.set("noise_sustain", 0.0f);
     ap.set("noise_swell", 0.0f);
-    ap.set("noise_vel", 1.0f);
+    ap.set("noise_vel", 0.6139f);
     ap.set("noise_volume", 1.0f);
     ap.set("resonatorDamp", 0.4846f);
     ap.set("resonatorDecay", 0.7712f);
@@ -2855,11 +2825,7 @@ void apply(APVTS &apvts, int index) {
                  0.4538f, 0.4538f, 0.4538f, 0.4538f, 0.4538f, 0.4538f, 0.4538f,
                  0.4538f, 0.4538f, 0.4538f, 0.4538f});
     ap.oscTable(params::velSuffix,
-                {0.1802f, 0.5089f, 0.8207f, 0.4095f, 0.4241f, 0.4393f, 0.455f,
-                 0.4713f, 0.4882f, 0.5057f, 0.5238f, 0.5425f, 0.562f, 0.5821f,
-                 0.603f, 0.6246f, 0.647f, 0.6702f, 0.6943f, 0.7192f, 0.745f,
-                 0.7718f, 0.7995f, 0.8282f, 0.8579f, 0.8888f, 0.9207f, 0.9538f,
-                 0.9881f, 1.0f, 1.0f, 1.0f});
+                {0.3539f, 0.4404f, 0.5423f, 0.4124f, 0.4164f, 0.4206f, 0.425f, 0.4296f, 0.4344f, 0.4395f, 0.4448f, 0.4503f, 0.4562f, 0.4623f, 0.4687f, 0.4755f, 0.4826f, 0.4902f, 0.4981f, 0.5065f, 0.5153f, 0.5247f, 0.5346f, 0.5451f, 0.5562f, 0.5682f, 0.5808f, 0.5943f, 0.6088f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.7056f, 0.3536f, 0.1045f, 0.0426f, 0.0719f, 0.0443f,
                  0.1099f, 0.0462f, 0.0472f, 0.0482f, 0.0794f, 0.0505f, 0.0517f,
@@ -2942,10 +2908,7 @@ void apply(APVTS &apvts, int index) {
                  5.3563f, 7.6005f, 0.4627f, 0.1292f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.0165; });
     ap.oscTable(params::velSuffix,
-                {-0.1614f, 0.5684f, 0.5848f, 0.7705f, 0.8185f, 0.8707f, 0.8878f,
-                 0.9822f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+                {-0.0365f, 0.4581f, 0.4631f, 0.5242f, 0.5415f, 0.5611f, 0.5678f, 0.6063f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.9505f, 0.3854f, 0.8446f, 0.5784f, 0.8864f, 0.4661f,
                  0.9818f, 1.0f, 0.2028f, 0.3564f, 0.4916f, 0.4501f, 0.5157f,
@@ -3077,11 +3040,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.439f, 0.0f, 0.752f, 0.0f, 0.8888f, 0.9166f,
                  0.0f, 0.0f});
     ap.oscTable(params::velSuffix,
-                {0.4105f, 0.4179f, 0.4256f, 0.4361f, 0.4418f, 0.4504f, 0.6963f,
-                 0.4684f, 0.4779f, 0.4878f, 0.498f, 0.5085f, 0.5195f, 0.5308f,
-                 0.5426f, 0.5547f, 0.5674f, 0.5804f, 0.594f, 0.608f, 0.6226f,
-                 0.6376f, 0.6532f, 0.6694f, 0.6861f, 0.7035f, 0.7215f, 0.7401f,
-                 0.5555f, 0.5773f, 0.8002f, 0.8216f});
+                {0.4127f, 0.4147f, 0.4168f, 0.4197f, 0.4213f, 0.4237f, 0.4988f, 0.4288f, 0.4315f, 0.4343f, 0.4373f, 0.4403f, 0.4435f, 0.4469f, 0.4504f, 0.454f, 0.4578f, 0.4618f, 0.466f, 0.4703f, 0.4749f, 0.4796f, 0.4846f, 0.4899f, 0.4954f, 0.5012f, 0.5072f, 0.5136f, 0.4542f, 0.4608f, 0.5348f, 0.5427f});
     ap.oscTable(params::volumeSuffix,
                 {0.0206f, 0.0246f, 0.0207f, 1.0f, 0.0179f, 0.0173f, 0.0174f,
                  0.0238f, 0.017f, 0.0048f, 0.0111f, 0.1709f, 0.0468f, 0.0452f,
@@ -3178,10 +3137,7 @@ void apply(APVTS &apvts, int index) {
                  0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f, 0.3447f,
                  0.3447f, 0.3447f, 0.3447f, 0.3447f});
     ap.oscTable(params::velSuffix,
-                {-0.0187f, 0.0835f, 0.1861f, 0.2888f, 0.3914f, 0.494f, 0.5966f,
-                 0.6992f, 0.8019f, 0.9045f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+                {-0.0041f, 0.3314f, 0.3553f, 0.3806f, 0.4075f, 0.4361f, 0.4668f, 0.4997f, 0.5355f, 0.5743f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.set("h01_volume", 0.096f);
     ap.set("h02_delay", 0.0008f);
     ap.set("h02_volume", 1.0f);
@@ -3261,7 +3217,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_offLevel", 0.3948f);
     ap.set("noise_release", 0.0029f);
     ap.set("noise_sustain", 0.0f);
-    ap.set("noise_vel", 0.4097f);
+    ap.set("noise_vel", 0.4125f);
     ap.set("noise_volume", 0.1882f);
     ap.set("reverbDamp", 0.2438f);
     ap.set("reverbDecay", 0.4754f);
@@ -3283,10 +3239,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::attackSuffix, [](int) { return 0.0002; });
     ap.allOsc(params::releaseSuffix, [](int) { return 0.001; });
     ap.oscTable(params::velSuffix,
-                {0.3f, 0.35f, 0.4f, 0.45f, 0.5f, 0.55f, 0.6f, 0.65f, 0.7f,
-                 0.75f, 0.8f, 0.85f, 0.9f, 0.95f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f});
+                {0.3835f, 0.3965f, 0.4098f, 0.4236f, 0.4379f, 0.4526f, 0.4678f, 0.4836f, 0.5f, 0.517f, 0.5348f, 0.5532f, 0.5726f, 0.5928f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.0f, 0.3333f, 0.0f, 0.2f, 0.0f, 0.1429f, 0.0f, 0.1111f,
                  0.0f, 0.0909f, 0.0f, 0.0769f, 0.0f, 0.0667f, 0.0f, 0.0588f,
@@ -3326,7 +3279,7 @@ void apply(APVTS &apvts, int index) {
                  2.6913f, 0.4514f, 1.4237f, 0.491f, 4.3752f, 0.2557f, 2.579f,
                  1.2267f, 4.5499f, 2.6531f, 1.2223f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.0208; });
-    ap.allOsc(params::velSuffix, [](int) { return 0.0021; });
+    ap.allOsc(params::velSuffix, [](int) { return 0.0005; });
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.3038f, 0.2582f, 0.14f, 0.1476f, 0.1f, 0.1088f, 0.0726f,
                  0.0757f, 0.0657f, 0.0556f, 0.0454f, 0.0491f, 0.0368f, 0.0349f,
@@ -3459,7 +3412,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_release", 0.6325f);
     ap.set("h01_strike", 0.834f);
     ap.set("h01_sustain", 0.3339f);
-    ap.set("h01_vel", 0.0044f);
+    ap.set("h01_vel", 0.001f);
     ap.set("h01_volume", 1.0f);
     ap.set("h02_attack", 0.1151f);
     ap.set("h02_decay", 5.3991f);
@@ -3468,7 +3421,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h02_pmRate", 2.26f);
     ap.set("h02_release", 0.2956f);
     ap.set("h02_sustain", 0.4589f);
-    ap.set("h02_vel", 0.4585f);
+    ap.set("h02_vel", 0.426f);
     ap.set("h02_volume", 0.5655f);
     ap.set("h03_attack", 0.1907f);
     ap.set("h03_decay", 5.4621f);
@@ -3476,7 +3429,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pmDepth", 6.6182f);
     ap.set("h03_pmRate", 1.7645f);
     ap.set("h03_sustain", 0.277f);
-    ap.set("h03_vel", 0.6106f);
+    ap.set("h03_vel", 0.4711f);
     ap.set("h03_volume", 0.2202f);
     ap.set("h04_amDepth", 1.0f);
     ap.set("h04_amRate", 0.5094f);
@@ -3490,7 +3443,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h04_pmRate", 1.2572f);
     ap.set("h04_pmShape", 5.0f);
     ap.set("h04_sustain", 0.0f);
-    ap.set("h04_vel", 1.0f);
+    ap.set("h04_vel", 0.6139f);
     ap.set("h04_volume", 0.5426f);
     ap.set("h05_aftertouch", 0.4814f);
     ap.set("h05_amDepth", 1.0f);
@@ -3503,7 +3456,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h05_pmRate", 30.0f);
     ap.set("h05_pmShape", 7.0f);
     ap.set("h05_sustain", 0.0f);
-    ap.set("h05_vel", 0.7508f);
+    ap.set("h05_vel", 0.5173f);
     ap.set("h05_volume", 0.0005f);
     ap.set("h06_amDepth", 1.0f);
     ap.set("h06_amRate", 0.3081f);
@@ -3516,7 +3469,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h06_pmRate", 0.8396f);
     ap.set("h06_pmShape", 4.0f);
     ap.set("h06_sustain", 0.0f);
-    ap.set("h06_vel", 1.0f);
+    ap.set("h06_vel", 0.6139f);
     ap.set("h06_volume", 0.5408f);
     ap.set("h07_amDepth", 0.5934f);
     ap.set("h07_amRate", 2.4788f);
@@ -3528,7 +3481,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h07_pmRate", 4.3377f);
     ap.set("h07_release", 1.1107f);
     ap.set("h07_sustain", 0.0f);
-    ap.set("h07_vel", 0.7915f);
+    ap.set("h07_vel", 0.5317f);
     ap.set("h07_volume", 0.0701f);
     ap.set("h08_aftertouch", 0.4983f);
     ap.set("h08_attack", 0.6802f);
@@ -3538,7 +3491,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h08_pmRate", 3.5749f);
     ap.set("h08_release", 1.1213f);
     ap.set("h08_sustain", 0.0672f);
-    ap.set("h08_vel", 0.7983f);
+    ap.set("h08_vel", 0.5341f);
     ap.set("h08_volume", 0.5506f);
     ap.set("h09_amDepth", 0.5947f);
     ap.set("h09_amRate", 1.6213f);
@@ -3550,7 +3503,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h09_pmRate", 5.8457f);
     ap.set("h09_release", 1.2474f);
     ap.set("h09_sustain", 0.0f);
-    ap.set("h09_vel", 0.7979f);
+    ap.set("h09_vel", 0.534f);
     ap.set("h09_volume", 0.0658f);
     ap.set("h14_volume", 0.0f);
     ap.set("h16_aftertouch", 1.0f);
@@ -3564,7 +3517,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_pmRate", 3.8561f);
     ap.set("h16_release", 2.0369f);
     ap.set("h16_sustain", 0.1058f);
-    ap.set("h16_vel", 0.9525f);
+    ap.set("h16_vel", 0.5938f);
     ap.set("h16_volume", 0.2191f);
     ap.set("h20_volume", 0.0f);
     ap.set("h24_aftertouch", 1.0f);
@@ -3578,7 +3531,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h24_pmRate", 4.8729f);
     ap.set("h24_release", 2.0547f);
     ap.set("h24_sustain", 0.1107f);
-    ap.set("h24_vel", 1.0f);
+    ap.set("h24_vel", 0.6139f);
     ap.set("h24_volume", 0.2187f);
     ap.set("character", 5.0f);
     ap.set("clipType", 5.0f); // Console
@@ -3605,7 +3558,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_stringDecay", 4.8938f);
     ap.set("noise_stringPoint", 0.132f);
     ap.set("noise_sustain", 0.0103f);
-    ap.set("noise_vel", 1.0f);
+    ap.set("noise_vel", 0.6139f);
     ap.set("noise_volume", 1.0f);
     ap.set("resonatorDamp", 0.1697f);
     ap.set("resonatorDecay", 4.5139f);
@@ -3656,11 +3609,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::releaseSuffix, [](int) { return 0.008; });
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.4792; });
     ap.oscTable(params::velSuffix,
-                {-0.126f, -0.0906f, -0.0543f, -0.0179f, 0.0184f, 0.0548f,
-                 0.0911f, 0.1275f, 0.1638f, 0.2002f, 0.2365f, 0.2729f, 0.3093f,
-                 0.3456f, 0.382f, 0.4183f, 0.4547f, 0.491f, 0.5274f, 0.5637f,
-                 0.6001f, 0.6365f, 0.6728f, 0.7092f, 0.7455f, 0.7819f, 0.8182f,
-                 0.8546f, 0.8909f, 0.9273f, 0.9636f, 0.9999f});
+                {-0.0283f, -0.0201f, -0.012f, -0.0039f, 0.3169f, 0.325f, 0.3332f, 0.3415f, 0.35f, 0.3587f, 0.3676f, 0.3766f, 0.3859f, 0.3953f, 0.405f, 0.4148f, 0.4249f, 0.4353f, 0.4459f, 0.4567f, 0.4678f, 0.4793f, 0.491f, 0.5031f, 0.5155f, 0.5283f, 0.5414f, 0.555f, 0.569f, 0.5835f, 0.5984f, 0.6139f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.0409f, 0.332f, 0.0138f, 0.1832f, 0.0228f, 0.1528f,
                  0.015f, 0.1055f, 0.04f, 0.0774f, 0.0549f, 0.106f, 0.0466f,
@@ -3734,7 +3683,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_colour", 0.1192f);
     ap.set("noise_decay", 0.1374f);
     ap.set("noise_sustain", 0.2331f);
-    ap.set("noise_vel", 0.8135f);
+    ap.set("noise_vel", 0.5397f);
     ap.set("noise_volume", 0.1882f);
     ap.set("reverbDamp", 0.0716f);
     ap.set("reverbDecay", 3.5185f);
@@ -3812,10 +3761,7 @@ void apply(APVTS &apvts, int index) {
                  0.5158f, 0.5244f, 0.533f, 0.5416f, 0.5502f, 0.5588f, 0.5674f,
                  0.576f, 0.5846f, 0.5932f, 0.6017f});
     ap.oscTable(params::velSuffix,
-                {-0.0043f, 0.8134f, 0.8071f, 0.6666f, 0.9766f, 0.9808f, 0.9994f,
-                 0.9429f, 0.9665f, 0.9777f, 0.9819f, 0.9838f, 0.9815f, 0.9857f,
-                 0.9905f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
-                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+                {-0.0009f, 0.5396f, 0.5373f, 0.489f, 0.6039f, 0.6057f, 0.6137f, 0.5898f, 0.5996f, 0.6044f, 0.6062f, 0.607f, 0.606f, 0.6078f, 0.6098f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
     // Levels with the fundamental at 0 dB.
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.5189f, 0.289f, 0.7048f, 0.1465f, 0.0362f, 0.0064f,
@@ -3942,7 +3888,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_release", 0.0313f);
     ap.set("noise_strike", 0.1113f);
     ap.set("noise_sustain", 0.0162f);
-    ap.set("noise_vel", 0.9162f);
+    ap.set("noise_vel", 0.579f);
     ap.set("noise_volume", 0.6927f);
     ap.set("reverbDamp", 0.0466f);
     ap.set("reverbDecay", 3.9637f);
@@ -3971,7 +3917,7 @@ void apply(APVTS &apvts, int index) {
                  1.4916f, 1.4916f, 1.4916f, 1.4916f});
     ap.set("h01_attack", 0.2625f);
     ap.set("h01_pan", 0.0034f);
-    ap.set("h01_vel", -0.0019f);
+    ap.set("h01_vel", -0.0004f);
     ap.set("h01_volume", 0.6595f);
     ap.set("h02_amDepth", 1.0f);
     ap.set("h02_amRate", 0.2552f);
@@ -3980,7 +3926,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h02_pmDepth", 700.2922f);
     ap.set("h02_pmRate", 0.5538f);
     ap.set("h02_pmShape", 5.0f);
-    ap.set("h02_vel", 0.7979f);
+    ap.set("h02_vel", 0.534f);
     ap.set("h02_volume", 0.1407f);
     ap.set("h03_amDepth", 1.0f);
     ap.set("h03_amRate", 0.2087f);
@@ -3989,7 +3935,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pmDepth", 1200.0f);
     ap.set("h03_pmRate", 0.5859f);
     ap.set("h03_pmShape", 5.0f);
-    ap.set("h03_vel", 0.9379f);
+    ap.set("h03_vel", 0.5878f);
     ap.set("h03_volume", 0.0972f);
     ap.set("h04_amDepth", 1.0f);
     ap.set("h04_amRate", 0.0749f);
@@ -3998,7 +3944,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h04_pmDepth", 1200.0f);
     ap.set("h04_pmRate", 1.109f);
     ap.set("h04_pmShape", 5.0f);
-    ap.set("h04_vel", 0.9355f);
+    ap.set("h04_vel", 0.5868f);
     ap.set("h04_volume", 0.0976f);
     ap.set("h05_tune", 0.0f);
     ap.set("h06_amDepth", 1.0f);
@@ -4008,7 +3954,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h06_pmDepth", 1200.0f);
     ap.set("h06_pmRate", 1.8755f);
     ap.set("h06_pmShape", 4.0f);
-    ap.set("h06_vel", 1.0f);
+    ap.set("h06_vel", 0.6139f);
     ap.set("h06_volume", 0.0763f);
     ap.set("h07_pan", 0.0034f);
     ap.set("h07_pmRate", 0.5031f);
@@ -4019,7 +3965,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h08_pmDepth", 700.2922f);
     ap.set("h08_pmRate", 0.6141f);
     ap.set("h08_pmShape", 4.0f);
-    ap.set("h08_vel", 1.0f);
+    ap.set("h08_vel", 0.6139f);
     ap.set("h08_volume", 0.0765f);
     ap.set("h09_attack", 0.0186f);
     ap.set("h09_pan", 0.0034f);
@@ -4036,7 +3982,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h12_pmDepth", 1200.0f);
     ap.set("h12_pmRate", 0.6991f);
     ap.set("h12_pmShape", 5.0f);
-    ap.set("h12_vel", 0.9771f);
+    ap.set("h12_vel", 0.6041f);
     ap.set("h12_volume", 0.0471f);
     ap.set("h13_pan", 0.0034f);
     ap.set("h13_pmRate", 0.5031f);
@@ -4052,7 +3998,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_pan", -1.0f);
     ap.set("h16_pmRate", 0.5031f);
     ap.set("h16_sustain", 0.0f);
-    ap.set("h16_vel", 0.7018f);
+    ap.set("h16_vel", 0.5006f);
     ap.set("h16_volume", 0.1972f);
     ap.set("h17_pan", 0.0034f);
     ap.set("h17_pmRate", 0.5031f);
@@ -4076,7 +4022,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h24_pmDepth", 1200.0f);
     ap.set("h24_pmRate", 0.9425f);
     ap.set("h24_pmShape", 4.0f);
-    ap.set("h24_vel", 0.9754f);
+    ap.set("h24_vel", 0.6034f);
     ap.set("h24_volume", 0.0472f);
     ap.set("h25_pan", 0.0034f);
     ap.set("h25_pmRate", 0.5031f);
@@ -4158,8 +4104,7 @@ void apply(APVTS &apvts, int index) {
               [](int n) { return 6.0 / (1.0 + 0.35 * (n - 1)); });
     // Strike it harder and the upper partials arrive, the way a real bar or
     // string brightens with force.
-    ap.allOsc(params::velSuffix,
-              [](int n) { return std::min(1.0, 0.2 + 0.06 * (n - 1)); });
+    ap.oscTable(params::velSuffix, {0.3587f, 0.3734f, 0.3886f, 0.4044f, 0.4208f, 0.4379f, 0.4556f, 0.4741f, 0.4934f, 0.5136f, 0.5348f, 0.557f, 0.5805f, 0.6053f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f, 0.6139f});
 
     // Op-amp hardens the top of the series as the pitch climbs.
     ap.character(Character::Opamp);
@@ -4281,11 +4226,7 @@ void apply(APVTS &apvts, int index) {
                  0.6791f, 0.7089f, 0.7386f, 0.7683f, 0.7981f, 0.8278f, 0.8576f,
                  0.8873f, 0.917f, 0.9468f, 0.9765f});
     ap.oscTable(params::velSuffix,
-                {0.1178f, 0.8489f, 0.8947f, 0.9152f, 0.9594f, 0.9503f, 0.9585f,
-                 0.9668f, 0.968f, 0.9658f, 0.9758f, 0.9751f, 0.9777f, 0.9807f,
-                 0.9784f, 0.9753f, 0.9893f, 0.9842f, 0.9905f, 0.9911f, 0.9944f,
-                 0.9878f, 0.9871f, 0.988f, 1.0f, 1.0f, 0.9993f, 0.9993f, 1.0f,
-                 1.0f, 0.9974f, 0.9999f});
+                {0.3393f, 0.5528f, 0.5705f, 0.5786f, 0.5967f, 0.5929f, 0.5963f, 0.5998f, 0.6003f, 0.5993f, 0.6036f, 0.6033f, 0.6044f, 0.6056f, 0.6047f, 0.6033f, 0.6093f, 0.6071f, 0.6098f, 0.6101f, 0.6115f, 0.6087f, 0.6084f, 0.6088f, 0.6139f, 0.6139f, 0.6136f, 0.6136f, 0.6139f, 0.6139f, 0.6128f, 0.6139f});
     ap.oscTable(params::atSuffix,
                 {0.2469f, 0.293f, 0.2446f, 0.2736f, 0.2253f, 0.2543f, 0.2059f,
                  0.2349f, 0.1866f, 0.2156f, 0.1672f, 0.1962f, 0.1478f, 0.1768f,
@@ -4425,7 +4366,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_decay", 2.7863f);
     ap.set("noise_strike", 0.9973f);
     ap.set("noise_sustain", 0.4616f);
-    ap.set("noise_vel", 0.5576f);
+    ap.set("noise_vel", 0.4549f);
     ap.set("noise_volume", 0.0754f);
     ap.set("reverbDamp", 0.2763f);
     ap.set("reverbDecay", 2.9417f);
@@ -4454,7 +4395,7 @@ void apply(APVTS &apvts, int index) {
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.22; });
     ap.allOsc(params::amRateSuffix, [](int n) { return 0.4 + 0.09 * n; });
     ap.allOsc(params::driftSuffix, [](int) { return 14.0; });
-    ap.allOsc(params::velSuffix, [](int) { return 0.4; });
+    ap.allOsc(params::velSuffix, [](int) { return 0.4098; });
 
     // Voices thin out at the top of their range.
     ap.series(0.0f, 3.5f);
@@ -4485,7 +4426,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h01_pmDepth", 0.9653f);
     ap.set("h01_release", 0.0341f);
     ap.set("h01_sustain", 0.0152f);
-    ap.set("h01_vel", 0.0853f);
+    ap.set("h01_vel", 0.3318f);
     ap.set("h01_volume", 1.0f);
     ap.set("h02_amDepth", 0.9355f);
     ap.set("h02_attack", 0.002f);
@@ -4496,7 +4437,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h02_pmDepth", 7.6426f);
     ap.set("h02_release", 0.0526f);
     ap.set("h02_sustain", 0.0138f);
-    ap.set("h02_vel", 0.5486f);
+    ap.set("h02_vel", 0.4522f);
     ap.set("h02_volume", 0.2479f);
     ap.set("h03_amDepth", 0.8039f);
     ap.set("h03_amRate", 3.1049f);
@@ -4510,7 +4451,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h03_pmRate", 3.2085f);
     ap.set("h03_pmShape", 7.0f);
     ap.set("h03_sustain", 0.0218f);
-    ap.set("h03_vel", 0.9502f);
+    ap.set("h03_vel", 0.5928f);
     ap.set("h03_volume", 0.0112f);
     ap.set("h04_amDepth", 0.8007f);
     ap.set("h04_amRate", 3.6247f);
@@ -4524,7 +4465,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h04_pmRate", 3.3156f);
     ap.set("h04_pmShape", 7.0f);
     ap.set("h04_sustain", 0.0206f);
-    ap.set("h04_vel", 0.9543f);
+    ap.set("h04_vel", 0.5945f);
     ap.set("h04_volume", 0.0112f);
     ap.set("h05_pmDepth", 0.421f);
     ap.set("h06_amDepth", 0.8521f);
@@ -4539,7 +4480,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h06_pmRate", 3.9164f);
     ap.set("h06_pmShape", 7.0f);
     ap.set("h06_sustain", 0.0733f);
-    ap.set("h06_vel", 0.9678f);
+    ap.set("h06_vel", 0.6002f);
     ap.set("h06_volume", 0.0089f);
     ap.set("h08_amDepth", 0.8468f);
     ap.set("h08_amRate", 3.8708f);
@@ -4553,7 +4494,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h08_pmRate", 4.0094f);
     ap.set("h08_pmShape", 7.0f);
     ap.set("h08_sustain", 0.0684f);
-    ap.set("h08_vel", 0.9672f);
+    ap.set("h08_vel", 0.5999f);
     ap.set("h08_volume", 0.0089f);
     ap.set("h12_amDepth", 0.8987f);
     ap.set("h12_amRate", 4.8256f);
@@ -4567,7 +4508,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h12_pmRate", 4.5722f);
     ap.set("h12_pmShape", 7.0f);
     ap.set("h12_sustain", 0.0903f);
-    ap.set("h12_vel", 1.0f);
+    ap.set("h12_vel", 0.6139f);
     ap.set("h12_volume", 0.007f);
     ap.set("h16_amDepth", 0.8992f);
     ap.set("h16_amRate", 4.4977f);
@@ -4581,7 +4522,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h16_pmRate", 4.4662f);
     ap.set("h16_pmShape", 7.0f);
     ap.set("h16_sustain", 0.0874f);
-    ap.set("h16_vel", 1.0f);
+    ap.set("h16_vel", 0.6139f);
     ap.set("h16_volume", 0.0071f);
     ap.set("h24_amDepth", 0.948f);
     ap.set("h24_amRate", 6.0511f);
@@ -4595,7 +4536,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h24_pmRate", 5.1291f);
     ap.set("h24_pmShape", 7.0f);
     ap.set("h24_sustain", 0.1519f);
-    ap.set("h24_vel", 1.0f);
+    ap.set("h24_vel", 0.6139f);
     ap.set("h24_volume", 0.006f);
     ap.set("h32_amDepth", 0.9515f);
     ap.set("h32_amRate", 5.9638f);
@@ -4607,7 +4548,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("h32_pan", 1.0f);
     ap.set("h32_pmDepth", 18.6527f);
     ap.set("h32_sustain", 0.1466f);
-    ap.set("h32_vel", 1.0f);
+    ap.set("h32_vel", 0.6139f);
     ap.set("h32_volume", 0.006f);
     ap.set("amInPhase", 1.0f);
     ap.set("character", 10.0f);
@@ -4633,7 +4574,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_stringPoint", 0.6507f);
     ap.set("noise_sustain", 0.0f);
     ap.set("noise_swell", 0.0045f);
-    ap.set("noise_vel", 1.0f);
+    ap.set("noise_vel", 0.6139f);
     ap.set("noise_volume", 1.0f);
     ap.set("resonatorDamp", 0.2818f);
     ap.set("resonatorDecay", 0.3407f);
@@ -4683,10 +4624,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f});
     ap.oscTable(params::velSuffix,
-                {0.602f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 1.0f,
-                 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f,
-                 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f, 0.7f,
-                 0.7f, 0.7f});
+                {0.4684f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.6139f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f});
     ap.oscTable(params::volumeSuffix,
                 {1.0f, 0.0f, 0.0f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.25f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
@@ -4763,11 +4701,7 @@ void apply(APVTS &apvts, int index) {
                  5.6956f, 5.6956f, 5.6956f, 5.6956f});
     ap.allOsc(params::amDepthSuffix, [](int) { return 0.4893; });
     ap.oscTable(params::velSuffix,
-                {-0.4489f, 0.0005f, 0.1726f, 0.3963f, 0.6886f, 0.8068f,
-                 0.8628f, 0.887f, 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f,
-                 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f,
-                 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f,
-                 0.9467f, 0.9467f, 0.9467f, 0.9467f, 0.9467f});
+                {-0.1104f, 0.0001f, 0.3521f, 0.4088f, 0.4962f, 0.5372f, 0.5581f, 0.5674f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f, 0.5914f});
     ap.oscTable(params::volumeSuffix,
                 {0.9984f, 0.4176f, 0.5227f, 0.1632f, 0.2148f, 0.0923f, 0.2002f,
                  0.0691f, 0.1642f, 0.0579f, 0.1238f, 0.0218f, 0.0976f, 0.0353f,

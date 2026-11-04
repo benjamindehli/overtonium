@@ -293,7 +293,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-03
+Last changed: 2026-11-04
 
 # Overtonium controls
 
@@ -358,7 +358,7 @@ Both controls go either side of zero. A positive amount makes harder or heavier 
 
 **The dB switch** beside the VELOCITY caption picks how velocity becomes level, for every channel at once. Lit, each step of velocity takes the same number of decibels off. At 100% a medium note is 20 dB down and the softest note 40 dB down, and at 50% each of those is half as much. Dark is the Classic curve, which takes velocity off as a fraction of the level. Even at 100% it leaves a medium note only 6 dB down, and most of what it does happens on the softest notes, so it only starts to sound like much near the top of the knob.
 
-Patches made before the switch existed keep Classic, so a saved project and a saved preset sound as they did. Every factory preset uses Classic too. Clicking the switch converts every channel's amount with it, so a medium note keeps its level and only the soft and loud ends move. Classic at 100% becomes about 30% on dB. Both the switch and the conversion are a single step to undo.
+Patches made before the switch existed keep Classic, so a saved project and a saved preset sound as they did. The factory presets use dB. Clicking the switch converts every channel's amount with it, so a medium note keeps its level and only the soft and loud ends move. Classic at 100% becomes about 30% on dB. Both the switch and the conversion are a single step to undo.
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity. A strip with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
 

@@ -623,10 +623,6 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
   legato->setValueNotifyingHost(0.0f);
 }
 
-/// The velocity curve switch: dB for anything new and Classic for everything
-/// made before it, whether that arrives as a factory preset, a saved session or
-/// a preset file, and a click that converts every channel's amount so a medium
-/// note keeps its level.
 /// The KEYBOARD row as the host and the panel see it: 33 parameters on the
 /// end, a readout naming the slope and the centre, older files reading as
 /// zero, and a macro that can drive it.
@@ -803,6 +799,9 @@ void testKeyboardRowParameters(OvertoniumProcessor &p) {
   setAmount(macroRowId(1), 0.0f);
 }
 
+/// The velocity curve switch: dB for anything new and for the factory
+/// presets, Classic for a saved session or preset file made before it, and a
+/// click that converts every channel's amount so a medium note keeps its level.
 void testVelocityCurveSwitch(OvertoniumProcessor &p) {
   section("The velocity curve");
 
@@ -843,17 +842,17 @@ void testVelocityCurveSwitch(OvertoniumProcessor &p) {
                 noiseVelocity->getDefaultValue())) < 1.0e-6f,
         "and the VELOCITY row starts at zero on a channel and on noise");
 
-  // Every factory preset was voiced on Classic, from any curve before it.
-  int classic = 0;
+  // Every factory preset is voiced on dB, from any curve before it.
+  int onDecibels = 0;
 
   for (int i = 0; i < ovt::presets::names().size(); ++i) {
-    setDecibels(true);
+    setDecibels(false);
     ovt::presets::apply(p.apvts, i);
-    classic += isDecibels() ? 0 : 1;
+    onDecibels += isDecibels() ? 1 : 0;
   }
 
-  check(classic == ovt::presets::names().size(),
-        "every factory preset loads on Classic (" + std::to_string(classic) +
+  check(onDecibels == ovt::presets::names().size(),
+        "every factory preset loads on dB (" + std::to_string(onDecibels) +
             " of " + std::to_string(ovt::presets::names().size()) + ")");
 
   // A session saved before the switch existed does not name it.
