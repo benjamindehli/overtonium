@@ -3614,10 +3614,12 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Big Saw", "BIG SAW  "},
       {"Lo-fi", "LO-FI    "},
       {"Init", "INIT     "},
+      {"Pendulum", "PENDULUM "},
 
       // Exactly nine, which is the case that must not be touched.
       {"Cathedral", "CATHEDRAL"},
       {"Equal Saw", "EQUAL SAW"},
+      {"Soft Trio", "SOFT TRIO"},
 
       // The space goes and nothing else has to.
       {"Tape Choir", "TAPECHOIR"},
