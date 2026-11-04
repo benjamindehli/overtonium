@@ -2,6 +2,7 @@
 #include "LearnMenu.h"
 
 #include <cmath>
+#include <iterator>
 
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
@@ -461,15 +462,45 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
 
   header.removeFromTop(1);
 
+  // A noise trace where a numbered channel has its number, as tall and as wide
+  // as a two-digit number in the same font and in the same place, so it lines
+  // up with the numbers across the strips.
+  juce::GlyphArrangement digits;
+  digits.addFittedText(makeFont(14.0f, true), "88", (float)header.getX(),
+                       (float)header.getY(), (float)header.getWidth(),
+                       (float)header.getHeight(), juce::Justification::centred,
+                       1);
+  // The outline's bounds rather than the glyphs', which are the font's full
+  // line height. Inset by half the stroke, so the line stays within the ink.
+  juce::Path outline;
+  digits.createPath(outline);
+
+  constexpr float stroke = 1.6f;
+  const auto area = outline.getBounds().reduced(0.0f, stroke * 0.5f);
+
+  // A fixed sequence, so the trace stays the same on every repaint.
+  static constexpr float kTrace[] = {0.1f,  -0.5f, 0.75f,  -0.2f, 0.4f,
+                                     -1.0f, 0.9f,  -0.35f, 0.2f,  -0.7f,
+                                     1.0f,  -0.4f, 0.55f,  -0.1f};
+  constexpr int steps = (int)std::size(kTrace) - 1;
+
+  juce::Path trace;
+
+  for (int i = 0; i <= steps; ++i) {
+    const juce::Point<float> p(
+        area.getX() + area.getWidth() * (float)i / (float)steps,
+        area.getCentreY() - kTrace[i] * area.getHeight() * 0.5f);
+
+    if (i == 0)
+      trace.startNewSubPath(p);
+    else
+      trace.lineTo(p);
+  }
+
   // Accent when hovered, the same as a numbered channel. See ChannelStrip.
   g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(11.0f, true));
-  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
-             false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("noise", header, juce::Justification::centred, false);
+  g.strokePath(trace, juce::PathStrokeType(stroke, juce::PathStrokeType::curved,
+                                           juce::PathStrokeType::rounded));
 }
 
 void NoiseStrip::resized() {

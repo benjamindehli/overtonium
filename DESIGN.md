@@ -637,7 +637,7 @@ It takes the quietest, preferring one already releasing. Taking the oldest is th
 
 ### The noise channel
 
-A noise channel marked NZ is pinned on the right, after the series, since it is not part of it. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and solo works on it the same way. It has no place in the series, so it has no tuning, pitch modulation or drift of its own.
+A noise channel, marked with a noise trace where the others have a number, is pinned on the right, after the series, since it is not part of it. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and solo works on it the same way. It has no place in the series, so it has no tuning, pitch modulation or drift of its own.
 
 COLOUR takes the place of the tuning row. It tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is truly flat, not just less filtered. There the two halves of a complementary one-pole pair are summed at unity, which gives back the original white noise exactly. The tests measure a high to low band ratio of 0.13 dark, 1.06 flat and 4.35 bright.
 

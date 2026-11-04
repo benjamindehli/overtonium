@@ -486,7 +486,7 @@ Clicking a section heading in the caption gutter folds that group of rows away o
 
 ## The noise channel
 
-A noise channel marked NZ sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
+A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
 
 COLOUR tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is fully flat, not just less filtered. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
 
