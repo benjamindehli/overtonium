@@ -1224,12 +1224,16 @@ void OvertoniumEditor::applyPreset(int index) {
 
 void OvertoniumEditor::complain(const juce::String &title,
                                 const juce::String &detail) {
-  juce::NativeMessageBox::showAsync(
+  // The one button is both the default and the way out, so Return and Escape
+  // both close it, whichever platform draws the box.
+  juce::NativeMessageBox::showForOptionsAsync(
       juce::MessageBoxOptions()
           .withIconType(juce::MessageBoxIconType::NoIcon)
           .withTitle(title)
           .withMessage(detail)
-          .withButton("OK")
+          .withButton(juce::MessageBoxButtonOptions("OK", 0)
+                          .withRole(juce::MessageBoxButtonRole::cancel)
+                          .withPreferredAction())
           .withAssociatedComponent(this),
       nullptr);
 }
