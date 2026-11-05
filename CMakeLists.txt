@@ -27,7 +27,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # By default JUCE is downloaded at configure time. Point -DJUCE_PATH=/path/to/JUCE at a
 # local checkout to skip the download (useful offline or for CI caching).
 #
-# JUCE 9.0.4, fetched as the archive of the commit its tag points to and checked against
+# JUCE 9.0.5, fetched as the archive of the commit its tag points to and checked against
 # that archive's hash. A tag can be moved and a commit cannot, and the hash fails the
 # configure if what arrives is not what was checked.
 # ------------------------------------------------------------------------------------------
@@ -45,8 +45,8 @@ else()
 
     include(FetchContent)
     FetchContent_Declare(JUCE
-        URL      https://github.com/juce-framework/JUCE/archive/3fb5cbc0340758596dac39f7c8de47d562b4896e.tar.gz
-        URL_HASH SHA256=2bb7095497a7bb7269dbdf841a7c6aa0939eaeb2a2bc9724ac4758d3ae3565a7)
+        URL      https://github.com/juce-framework/JUCE/archive/d60b7a78030661574a615b586d9325ba7a7fa7dd.tar.gz
+        URL_HASH SHA256=8237b2976871982eb9107fd67b576d95bf02355d99540a0127c4e7c001ecd9f5)
     FetchContent_MakeAvailable(JUCE)
 endif()
 
@@ -236,9 +236,9 @@ target_link_libraries(Overtonium
 # else CMake builds for the framework's own purposes. It does not spare JUCE
 # itself: a module's sources are compiled into the target that links it, so
 # they are built with these options too. That was read the other way round here
-# for a while. It has never fired, because the runners compile JUCE clean at
-# this warning level, but if a JUCE release ever warns then the switch below is
-# the way past it, since nothing in this repository could fix it.
+# for a while. When a JUCE release warns, nothing in this repository can fix
+# the warning, so it is silenced for the one JUCE file and the one check, as
+# below the function for JUCE 9.0.5, and our own code keeps it.
 # ------------------------------------------------------------------------------------------
 option(OVERTONIUM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
@@ -255,6 +255,20 @@ function(overtonium_set_warnings_as_errors target)
 endfunction()
 
 overtonium_set_warnings_as_errors(Overtonium)
+
+# JUCE 9.0.5's alert window code takes a reference to the first button in a Span
+# that getButtons() returns by value. The reference points into the options
+# object, not the Span, so it is sound, but GCC 13's dangling-reference check
+# warns about any reference that comes through a temporary. Silenced for that
+# one JUCE file and on GCC only, since the warning is GCC's, and our own code
+# keeps the check. Source properties belong to the directory, so this covers
+# every target here that compiles the file.
+if(OVERTONIUM_WARNINGS_AS_ERRORS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
+   AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 13)
+    set_source_files_properties(
+        "${JUCE_MODULES_DIR}/juce_gui_basics/juce_gui_basics_2.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-dangling-reference")
+endif()
 
 # ------------------------------------------------------------------------------------------
 # Sanitizers
