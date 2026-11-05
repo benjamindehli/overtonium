@@ -5946,6 +5946,7 @@ void testSostenutoPedal() {
     render(2);
 
     // Channel 2's zone has its sustain pedal down, channel 3's has not.
+    engine.setZoneSustainDepth(1u << 2, 1.0f);
     engine.setSostenutoPedal(false, 1u << 2);
     settle();
     check(held(60) && !held(64) && sounding() == 1,
@@ -5956,6 +5957,7 @@ void testSostenutoPedal() {
     settle();
     check(held(60), "and another zone's pedal coming up does not touch it");
 
+    engine.setZoneSustainDepth(1u << 2, 0.0f);
     engine.releaseHeldBySustain(1u << 2);
     settle();
     check(!held(60) && sounding() == 0, "while its own zone's does");
@@ -6053,6 +6055,353 @@ void testSostenutoPedal() {
     engine.setSostenutoPedal(false);
     engine.setPolyphony(16);
     engine.allSoundOff();
+  }
+}
+
+/// Half-pedalling. A note the sustain pedal holds fades at a share of its
+/// release rate set by how far down the pedal is, between holding, at the
+/// bottom of the pedal's travel, and its own release, at the top. The
+/// resonator's dampers rest on their strings as far as the pedal is up.
+void testHalfPedal() {
+  section("Half-pedalling");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 512;
+  using Strings = SympatheticStrings;
+
+  // The pedal's travel: 0 and 127 are up and down exactly, as an on/off
+  // pedal sends them, and between the ends it rises evenly.
+  check(exactly(SynthEngine::sustainDepthFor(0), 0.0f) &&
+            exactly(SynthEngine::sustainDepthFor(SynthEngine::kPedalUpTo),
+                    0.0f) &&
+            SynthEngine::sustainDepthFor(SynthEngine::kPedalUpTo + 1) > 0.0f &&
+            std::abs(SynthEngine::sustainDepthFor(64) - 0.5f) < 1.0e-6f &&
+            exactly(SynthEngine::sustainDepthFor(SynthEngine::kPedalDownFrom),
+                    1.0f) &&
+            exactly(SynthEngine::sustainDepthFor(127), 1.0f),
+        "CC 64 at 0 is up and at 127 all the way down, with 64 half way");
+
+  check(exactly(SynthEngine::pedalFadeRate(1.0f), 0.0f) &&
+            exactly(SynthEngine::pedalFadeRate(0.0f), 1.0f) &&
+            SynthEngine::pedalFadeRate(0.75f) <
+                SynthEngine::pedalFadeRate(0.25f),
+        "all the way down holds, and the less it is down the faster a note "
+        "fades, up to its own release");
+
+  // One partial, held at full sustain, released over 100 ms.
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  for (auto &o : p.osc)
+    o.release = 0.1f;
+  p.noise.release = 0.1f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  // Each block's peak, from a note struck and let go under a pedal at
+  // `depth`, `blocks` long after its key comes up.
+  const auto afterKeyUp =
+      [&](float depth, int blocks,
+          const std::function<void(SynthEngine &, int)> &during = {}) {
+        const auto owner = std::make_unique<SynthEngine>();
+        auto &e = *owner;
+        e.prepare(sr);
+        std::vector<float> l(kBlock), r(kBlock);
+        std::vector<float> peaks;
+
+        const auto block = [&] {
+          e.render(l.data(), r.data(), kBlock, p);
+          float peak = 0.0f;
+          for (int n = 0; n < kBlock; ++n)
+            peak = std::max(peak, std::abs(l[(size_t)n]));
+          return peak;
+        };
+
+        e.noteOn(69, 1.0f, p);
+        for (int b = 0; b < 10; ++b)
+          block();
+
+        if (depth >= 0.0f)
+          e.setSustainDepth(depth);
+        e.noteOff(69);
+
+        for (int b = 0; b < blocks; ++b) {
+          if (during)
+            during(e, b);
+          peaks.push_back(block());
+        }
+
+        return peaks;
+      };
+
+  // When the peaks first fall 40 dB under where they started, in blocks, or
+  // -1 if they never do.
+  const auto fortyDown = [](const std::vector<float> &peaks) {
+    for (size_t b = 0; b < peaks.size(); ++b)
+      if (peaks[b] < peaks[0] * 0.01f)
+        return (int)b;
+    return -1;
+  };
+
+  const auto noPedal = afterKeyUp(-1.0f, 400);
+  const auto upAtNought = afterKeyUp(0.0f, 400);
+  const auto down = afterKeyUp(1.0f, 400);
+
+  check(noPedal == upAtNought,
+        "a pedal at nought lets a note go exactly as no pedal does");
+  check(std::abs(down.back() - down.front()) < down.front() * 1.0e-3f &&
+            down.front() > 0.1f,
+        "all the way down it holds a note at its level, as before (" +
+            std::to_string(down.front()) + " to " +
+            std::to_string(down.back()) + ")");
+
+  // Part way down, it fades over the release time divided by the share of
+  // the release rate the depth gives. 40 dB is 99% of the way, which is what
+  // a release time covers.
+  {
+    const double blockSeconds = kBlock / sr;
+    const int release = fortyDown(noPedal);
+    int last = release;
+    bool slower = true, onTime = true;
+    std::string seen;
+
+    for (const float depth : {0.25f, 0.5f, 0.75f}) {
+      const auto when = fortyDown(afterKeyUp(depth, 2000));
+      const auto expected =
+          0.1 / (double)SynthEngine::pedalFadeRate(depth) / blockSeconds;
+
+      slower &= when > last;
+      onTime &= when > 0 && std::abs((double)when - expected) < 0.1 * expected;
+      last = when;
+      seen += std::to_string(when) + " ";
+    }
+
+    check(release > 0 && slower,
+          "the further down, the longer a note takes to fade, and never "
+          "quicker than its release (" +
+              std::to_string(release) + " blocks with no pedal, then " + seen +
+              ")");
+    check(onTime, "each in the time its depth gives, within a tenth");
+  }
+
+  // Moved while a note fades, it changes the rate from there without a step,
+  // and back all the way down it holds the note where it has got to. A step
+  // shows as one block's fall standing outside the falls either side of it.
+  {
+    const auto moved = afterKeyUp(0.5f, 60, [](SynthEngine &e, int b) {
+      if (b == 10)
+        e.setSustainDepth(0.9f);
+      if (b == 30)
+        e.setSustainDepth(1.0f);
+    });
+
+    const auto fall = [&moved](int b) {
+      return moved[(size_t)b] / moved[(size_t)b - 1];
+    };
+    const auto between = [&](int b) {
+      return fall(b) >= std::min(fall(b - 2), fall(b + 2)) - 0.005f &&
+             fall(b) <= std::max(fall(b - 2), fall(b + 2)) + 0.005f;
+    };
+
+    bool neverUp = true;
+    for (int b = 1; b < 60; ++b)
+      neverUp &= fall(b) <= 1.0001f;
+
+    check(between(10) && between(11) && between(30) && between(31) && neverUp,
+          "moving it while a note fades changes the rate without a step, "
+          "and never brings the note back up (falls " +
+              std::to_string(fall(9)) + ", " + std::to_string(fall(11)) + ", " +
+              std::to_string(fall(13)) + ")");
+    check(fall(20) > fall(5) &&
+              std::abs(moved[59] - moved[40]) < moved[40] * 1.0e-3f,
+          "further down it fades more slowly, and all the way down it holds "
+          "the note where it had got to");
+
+    const auto lifted = afterKeyUp(0.5f, 120, [](SynthEngine &e, int b) {
+      if (b == 10)
+        e.setSustainDepth(0.0f);
+    });
+
+    int gone = -1;
+    for (size_t b = 10; b < lifted.size() && gone < 0; ++b)
+      if (lifted[b] < lifted[9] * 0.01f)
+        gone = (int)b - 10;
+
+    check(lifted[10] <= lifted[9] && gone > 0 &&
+              std::abs(gone - fortyDown(noPedal)) <= 2,
+          "and lifted all the way it lets the note go from where it was, "
+          "over its own release (" +
+              std::to_string(gone) + " blocks against " +
+              std::to_string(fortyDown(noPedal)) + ")");
+  }
+
+  // Sample by sample, the fade is a ramp and never a step. A sine's second
+  // difference is (2 pi f / rate) squared of its amplitude, about 0.3% at
+  // 440 Hz, and a step of a few percent at a block boundary stands far above
+  // that, where a block's peak would not show it.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock), out;
+
+    e.noteOn(69, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    e.setSustainDepth(0.5f);
+    e.noteOff(69);
+
+    for (int b = 0; b < 30; ++b) {
+      if (b == 15)
+        e.setSustainDepth(0.8f);
+      e.render(l.data(), r.data(), kBlock, p);
+      out.insert(out.end(), l.begin(), l.end());
+    }
+
+    float peak = 0.0f, bend = 0.0f;
+    for (size_t n = 2; n < out.size(); ++n) {
+      peak = std::max(peak, std::abs(out[n]));
+      bend = std::max(bend, std::abs(out[n] - 2.0f * out[n - 1] + out[n - 2]));
+    }
+
+    const auto sine = std::pow(6.283185307179586 * 440.0 / sr, 2.0);
+    check(bend < 2.0 * sine * peak,
+          "and sample by sample the fade has no step in it (" +
+              std::to_string(bend / peak) + " of the peak, a sine alone " +
+              std::to_string(sine) + ")");
+  }
+
+  // A note the sostenuto pedal holds is not the sustain pedal's to fade.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(69, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    e.setSostenutoPedal(true);
+    e.setSustainDepth(0.3f);
+    e.noteOff(69);
+    float first = 0.0f, last = 0.0f;
+    for (int b = 0; b < 200; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      float peak = 0.0f;
+      for (float x : l)
+        peak = std::max(peak, std::abs(x));
+      (b == 0 ? first : last) = peak;
+    }
+    check(std::abs(last - first) < first * 1.0e-3f,
+          "a note the sostenuto pedal caught holds under a half pedal");
+  }
+
+  // Under MPE each zone's pedal fades its own notes.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+
+    e.setZoneSustainDepth(1u << 2, 0.5f);
+    e.setZoneSustainDepth(1u << 3, 1.0f);
+    e.noteOnPerNote(2, 60, 1.0f, p);
+    e.noteOnPerNote(3, 64, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+
+    // The parser holds the notes and says so.
+    e.holdByPedal(2, 60, 1.0f);
+    e.holdByPedal(3, 64, 1.0f);
+    for (int b = 0; b < 600; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+
+    check(e.getActiveVoiceCount() == 1 && e.frequencyOfNote(64) > 0.0 &&
+              e.frequencyOfNote(60) <= 0.0,
+          "under MPE a zone's pedal half way down fades its notes, and "
+          "another zone's all the way down holds its own");
+  }
+
+  // ---- the resonator's dampers ----------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+
+    auto q = p;
+    q.resonator.mode = ResonatorMode::Piano;
+    const auto c4 = (size_t)Strings::stringOf(60);
+    const auto a4 = (size_t)Strings::stringOf(69);
+
+    q.pedalDown = true;
+    q.pedalDepth = 1.0f;
+    const auto all = e.planStrings(q);
+    q.pedalDepth = 0.5f;
+    const auto half = e.planStrings(q);
+
+    check(all.free[a4] && exactly(all.rest[a4], 0.0f) && half.free[a4] &&
+              std::abs(half.rest[a4] - 0.5f) < 1.0e-6f,
+          "all the way down every damper is off its string, and half way "
+          "they rest half way");
+
+    // A key that is down has its damper off whatever the pedal does. Its
+    // note held by the pedal has its key up, so its damper follows the pedal.
+    e.setSustainDepth(0.5f);
+    e.noteOn(60, 1.0f, q);
+    e.render(l.data(), r.data(), kBlock, q);
+    const auto keyDown = e.planStrings(q);
+    e.noteOff(60);
+    e.render(l.data(), r.data(), kBlock, q);
+    const auto keyUp = e.planStrings(q);
+
+    check(keyDown.free[c4] && exactly(keyDown.rest[c4], 0.0f) &&
+              keyUp.free[c4] && std::abs(keyUp.rest[c4] - 0.5f) < 1.0e-6f,
+          "a key that is down has its string free, and once the pedal holds "
+          "its note, its damper rests as far as the pedal is up");
+
+    q.pedalDown = false;
+    e.allSoundOff();
+  }
+
+  // A string rings longer the further its damper is off.
+  {
+    float after[3] = {};
+    const float rests[3] = {0.0f, 0.5f, 1.0f};
+
+    for (int k = 0; k < 3; ++k) {
+      const auto owner = std::make_unique<Strings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+
+      Strings::Plan plan;
+      const auto s = (size_t)Strings::stringOf(57); // A3
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.rest[s] = rests[k];
+
+      std::vector<float> l(kBlock), r(kBlock);
+      for (int b = 0; b < 40; ++b) {
+        for (int n = 0; n < kBlock; ++n)
+          l[(size_t)n] = r[(size_t)n] =
+              b < 10 ? 0.3f * (float)std::sin(6.283185307179586 * 220.0 *
+                                              (double)(b * kBlock + n) / sr)
+                     : 0.0f;
+        strings.process(l.data(), r.data(), kBlock, rp, plan);
+      }
+
+      for (int n = 0; n < kBlock; ++n)
+        after[k] = std::max(after[k], std::abs(l[(size_t)n]));
+    }
+
+    check(after[0] > after[1] && after[1] > after[2] && after[2] >= 0.0f,
+          "a string rings on longest free, less with its damper resting "
+          "half way, and least with it settled (" +
+              std::to_string(after[0]) + ", " + std::to_string(after[1]) +
+              ", " + std::to_string(after[2]) + ")");
   }
 }
 
@@ -13667,6 +14016,7 @@ int main() {
   testKarplusString();
   testSympatheticStrings();
   testSostenutoPedal();
+  testHalfPedal();
   testHeldExpression();
   testActivity();
   testLampsFollowNewestNote();

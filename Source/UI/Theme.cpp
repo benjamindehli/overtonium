@@ -225,6 +225,16 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
                                              juce::PathStrokeType::rounded));
 }
 
+void ScreenSwitch::setLevel(float newLevel) {
+  newLevel = newLevel < 0.0f ? -1.0f : juce::jlimit(0.0f, 1.0f, newLevel);
+
+  if (exactly(newLevel, level))
+    return;
+
+  level = newLevel;
+  repaint();
+}
+
 void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
   // Two pixels in from the bounds, so a run of them leaves panel between each.
   const auto area = getLocalBounds().toFloat().reduced(2.0f);
@@ -244,6 +254,17 @@ void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
 
     onIcon(g, glyph, ink);
     return;
+  }
+
+  // A thin bar along the foot of the glass, lit as far as the level, so a
+  // lamp can say how much. Clear of the letters, which keep the middle.
+  if (on && level >= 0.0f) {
+    const auto track =
+        area.reduced(4.0f, 0.0f).removeFromBottom(4.0f).withHeight(1.5f);
+    g.setColour(lamp.withAlpha(0.18f));
+    g.fillRect(track);
+    g.setColour(lamp);
+    g.fillRect(track.withWidth(track.getWidth() * level));
   }
 
   g.setFont(makeFont(10.0f, true));

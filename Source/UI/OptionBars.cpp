@@ -390,8 +390,10 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   sustain.setWantsKeyboardFocus(false);
   sustain.setButtonText("SUSTAIN");
   sustain.setTitle("Sustain pedal");
-  sustain.setTooltip("Lit while a sustain pedal is down. A key it holds still "
-                     "counts as held, for Legato and for Adaptive.");
+  sustain.setTooltip(
+      "Lit while a sustain pedal is down, with a bar for how far. Part way "
+      "down, the notes it holds fade, faster the less it is down. A key it "
+      "holds still counts as held, for Legato and for Adaptive.");
 
   sostenuto.setInterceptsMouseClicks(false, false);
   sostenuto.setWantsKeyboardFocus(false);
@@ -539,6 +541,7 @@ void PlayingBar::showActivity(const PlayingActivity &activity) {
   }
 
   sustain.setToggleState(activity.sustain, juce::dontSendNotification);
+  sustain.setLevel(activity.sustainDepth);
   sostenuto.setToggleState(activity.sostenuto, juce::dontSendNotification);
 
   shown = activity;

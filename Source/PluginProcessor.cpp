@@ -210,6 +210,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   channelPressure = 0.0f;
   modWheel = 0.0f;
   pedalChannels = 0;
+  pedalDepths.fill(0.0f);
 }
 
 bool OvertoniumProcessor::mpeIsOn() const noexcept {
@@ -224,6 +225,7 @@ void OvertoniumProcessor::setMpeEnabled(bool on) {
   mpeInstrument.releaseAllNotes();
   engine.allNotesOff();
   pedalChannels = 0;
+  pedalDepths.fill(0.0f);
 
   if (!on) {
     mpeInstrument.setZoneLayout({});
@@ -282,6 +284,14 @@ void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {
   // The sum of the note's own bend and the master channel's.
   engine.setNoteBend(note.midiChannel, note.initialNote,
                      (float)note.totalPitchbendInSemitones);
+}
+
+void OvertoniumProcessor::noteKeyStateChanged(juce::MPENote note) {
+  // A key come up under its zone's sustain pedal. The parser holds it, and the
+  // engine fades it as far as that pedal is up.
+  if (note.keyState == juce::MPENote::sustained)
+    engine.holdByPedal(note.midiChannel, note.initialNote,
+                       ovt::liftFromVelocity(note.noteOffVelocity.as7BitInt()));
 }
 
 void OvertoniumProcessor::noteReleased(juce::MPENote note) {
@@ -376,10 +386,26 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
       return;
     }
 
+    // A zone's sustain pedal. The engine is told how far down it is, so the
+    // notes it holds fade as far as it is up, and the parser is told only
+    // whether it is down at all, at the engine's own point rather than at 64.
     // Notes the sostenuto pedal handed to the sustain pedal are the engine's
     // to let go of, since the parser released them long ago.
-    if (m.isSustainPedalOff() && mpeInstrument.isMasterChannel(m.getChannel()))
-      engine.releaseHeldBySustain(zoneChannels(m.getChannel()));
+    if (m.isController() && m.getControllerNumber() == 64 &&
+        mpeInstrument.isMasterChannel(m.getChannel())) {
+      const auto channel = m.getChannel();
+      const auto depth =
+          ovt::SynthEngine::sustainDepthFor(m.getControllerValue());
+
+      engine.setZoneSustainDepth(zoneChannels(channel), depth);
+
+      if (depth <= 0.0f)
+        engine.releaseHeldBySustain(zoneChannels(channel));
+
+      mpeInstrument.processNextMidiEvent(juce::MidiMessage::controllerEvent(
+          channel, 64, depth > 0.0f ? 127 : 0));
+      return;
+    }
 
     // With MPE on, the parser takes notes, bend, pressure, the pedal and the
     // layout messages. An ordinary keyboard on the master channel still plays.
@@ -403,18 +429,32 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
 }
 
 void OvertoniumProcessor::followPedal(const juce::MidiMessage &m) noexcept {
-  const auto bit = 1u << (unsigned)juce::jlimit(0, 31, m.getChannel());
+  const auto channel = juce::jlimit(0, 31, m.getChannel());
+  const auto bit = 1u << (unsigned)channel;
 
-  if (m.isSustainPedalOn())
-    pedalChannels |= bit;
-  else if (m.isSustainPedalOff())
-    pedalChannels &= ~bit;
-  else if (m.isAllNotesOff() || m.isAllSoundOff())
+  if (m.isController() && m.getControllerNumber() == 64) {
+    const auto depth =
+        ovt::SynthEngine::sustainDepthFor(m.getControllerValue());
+    pedalDepths[(size_t)channel] = depth;
+
+    if (depth > 0.0f)
+      pedalChannels |= bit;
+    else
+      pedalChannels &= ~bit;
+  } else if (m.isAllNotesOff() || m.isAllSoundOff()) {
     pedalChannels = 0;
+    pedalDepths.fill(0.0f);
+  }
 
+  publishPedal();
+}
+
+void OvertoniumProcessor::publishPedal() noexcept {
   // The engine reads the pedal for the strings' dampers, and under MPE would
-  // otherwise never hear it.
+  // otherwise never hear it. The dampers follow the pedal furthest down.
   currentParams.pedalDown = pedalChannels != 0;
+  currentParams.pedalDepth =
+      *std::max_element(pedalDepths.begin(), pedalDepths.end());
 }
 
 uint32_t OvertoniumProcessor::zoneChannels(int masterChannel) const noexcept {
@@ -454,6 +494,8 @@ void OvertoniumProcessor::publishPlaying() noexcept {
 
   sustainShown.store(pedalChannels != 0, std::memory_order_relaxed);
   sostenutoShown.store(engine.isSostenutoDown(), std::memory_order_relaxed);
+  sustainDepthShown.store(pedalChannels != 0 ? currentParams.pedalDepth : 0.0f,
+                          std::memory_order_relaxed);
   bendShown.store(juce::jlimit(-1.0f, 1.0f, bend), std::memory_order_relaxed);
   wheelShown.store(modWheel, std::memory_order_relaxed);
   // What the keyboard sends, before Aftertouch from is applied.
@@ -485,10 +527,10 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   } else if (m.isAftertouch()) {
     engine.setPolyPressure(m.getNoteNumber(),
                            (float)m.getAfterTouchValue() / 127.0f);
-  } else if (m.isSustainPedalOn()) {
-    engine.setSustainPedal(true);
-  } else if (m.isSustainPedalOff()) {
-    engine.setSustainPedal(false);
+  } else if (m.isController() && m.getControllerNumber() == 64) {
+    // How far down, rather than only whether, for half-pedalling.
+    engine.setSustainDepth(
+        ovt::SynthEngine::sustainDepthFor(m.getControllerValue()));
   } else if (m.isSostenutoPedalOn()) {
     engine.setSostenutoPedal(true);
   } else if (m.isSostenutoPedalOff()) {
@@ -565,7 +607,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     setMpeEnabled(on);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
-  currentParams.pedalDown = pedalChannels != 0;
+  publishPedal();
   updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
   engine.setLegato(paramCache.legatoValue());

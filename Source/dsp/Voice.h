@@ -173,6 +173,11 @@ public:
   /// handed its phrase on and should go quietly.
   void fade(float seconds) noexcept;
 
+  /// How fast the note fades while a sustain pedal part way down holds it, as
+  /// a share of each channel's own release rate. Nought holds it. See
+  /// Envelope::setPedalFade.
+  void setPedalFade(float rate) noexcept;
+
   /// Carries on where another voice is: every envelope at its stage and level,
   /// the modulators and drift mid-cycle, and the phrase's velocity. Called on
   /// a voice that has just been given a note. The pitch is left to

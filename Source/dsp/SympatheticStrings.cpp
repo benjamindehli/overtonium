@@ -127,9 +127,15 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       // A string out of use keeps the pitch it last had while it rings out.
       const auto hz = inUse ? plan.hz[s] : equalHz(keyOf(i));
 
-      // A damper never lets a string ring longer than DECAY would.
-      string.setBlock(hz, free ? decay : std::min(decay, damperSeconds(i)),
-                      damp, -1.0f, len);
+      // A damper never lets a string ring longer than DECAY would. Resting
+      // lightly on it, it lets it ring for a time between the two, spaced
+      // evenly in ratio, since that is how a time is heard.
+      const auto damped = std::min(decay, damperSeconds(i));
+      const auto lift =
+          free ? 1.0 - (double)std::clamp(plan.rest[s], 0.0f, 1.0f) : 0.0;
+      const auto rings =
+          lift >= 1.0 ? decay : damped * std::pow(decay / damped, lift);
+      string.setBlock(hz, rings, damp, -1.0f, len);
 
       float peak = 0.0f;
 
@@ -143,10 +149,12 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
         return 1.0 - std::pow(10.0, -3.0 / (hz * seconds));
       };
       const auto reference = lossAt(kCouplingSeconds);
+      // A damper resting lightly is fed as it rings, and fed less the closer
+      // it is to its string, down to nothing as it settles.
       const auto target =
           free ? (float)(reference *
-                         std::pow(lossAt(decay) / reference, kLossExponent)) *
-                     (plan.pedalled[s] ? kPedalSend : 1.0f)
+                         std::pow(lossAt(rings) / reference, kLossExponent)) *
+                     (plan.pedalled[s] ? kPedalSend : 1.0f) * (float)lift
                : 0.0f;
 
       // Moved across the block rather than stepped at its start. A step in

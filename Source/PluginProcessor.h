@@ -82,6 +82,9 @@ public:
   /// Whether a sustain pedal is down on any channel.
   bool isSustainDown() const noexcept { return sustainShown.load(); }
 
+  /// How far down the sustain pedal furthest down is, nought to one.
+  float getSustainDepth() const noexcept { return sustainDepthShown.load(); }
+
   /// Whether the sostenuto pedal is down, on any channel without MPE and on a
   /// zone's master channel with it.
   bool isSostenutoDown() const noexcept { return sostenutoShown.load(); }
@@ -241,6 +244,7 @@ private:
   void noteTimbreChanged(juce::MPENote note) override;
   void notePitchbendChanged(juce::MPENote note) override;
   void noteReleased(juce::MPENote note) override;
+  void noteKeyStateChanged(juce::MPENote note) override;
 
   /// Folds the channel-wide expression sources into the single value the
   /// per-channel AT amounts read, as the setting says.
@@ -327,6 +331,12 @@ private:
   /// with MPE on the parser takes the pedal and the engine never sees it.
   uint32_t pedalChannels = 0;
 
+  /// How far down each channel's sustain pedal is, nought to one.
+  std::array<float, 32> pedalDepths{};
+
+  /// Hands the engine the pedal furthest down, for the strings' dampers.
+  void publishPedal() noexcept;
+
   void followPedal(const juce::MidiMessage &) noexcept;
 
   /// Under MPE, the channels of every zone whose master channel has its
@@ -336,6 +346,7 @@ private:
   void publishPlaying() noexcept;
 
   std::atomic<bool> sustainShown{false}, sostenutoShown{false};
+  std::atomic<float> sustainDepthShown{0.0f};
   std::atomic<float> bendShown{0.0f}, wheelShown{0.0f}, pressureShown{0.0f};
 
   /// The factory preset the host believes is loaded. Saved with the state so
