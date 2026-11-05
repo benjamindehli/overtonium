@@ -368,6 +368,13 @@ void Voice::noteOff(float lift) noexcept {
   noise.env.noteOff(lift);
 }
 
+void Voice::setPedalFade(float rate) noexcept {
+  for (auto &pt : partials)
+    pt.env.setPedalFade(rate);
+
+  noise.env.setPedalFade(rate);
+}
+
 void Voice::fade(float seconds) noexcept {
   if (!active)
     return;
@@ -566,6 +573,10 @@ void Voice::render(float *left, float *right, int numSamples,
 
       pt.env.configure(op.delay * pt.delayScale, pt.onsetSeconds, op.decay,
                        op.sustain, op.swell, op.offLevel, op.release);
+
+      // The half-pedal's fade, moved once for the block and ridden on the gain
+      // ramp below. It can end the note.
+      const float pedal = pt.env.advancePedal(len);
 
       if (!pt.env.isActive())
         continue;
@@ -767,22 +778,26 @@ void Voice::render(float *left, float *right, int numSamples,
                                     : 0.0f;
       const float gEnd = base * amEnd;
 
+      // What is heard, with the half-pedal's fade, which the meters below
+      // already have in the envelope's level.
+      const float gHeard = gEnd * pedal;
+
       if (!pt.gainPrimed) {
-        pt.lastGain = base * amStart;
+        pt.lastGain = base * amStart * pedal;
         pt.gainPrimed = true;
       }
 
       // Ramping from the previous block's gain to this one covers tremolo,
-      // volume moves, mute/solo and the Nyquist fade with a single
-      // interpolation.
+      // volume moves, mute/solo, the Nyquist fade and the half-pedal with a
+      // single interpolation.
       float g = pt.lastGain;
-      const float gInc = (gEnd - g) / (float)len;
+      const float gInc = (gHeard - g) / (float)len;
 
       // Stepped whatever the depth says, so turning the knob up mid-note joins
       // the motion already under way. The amplitude was stepped above.
       pt.pitchLfo.advance(rng, pmPhaseInc * (double)len, op.pmShape);
 
-      pt.lastGain = gEnd;
+      pt.lastGain = gHeard;
 
       if (wheel || hiss) {
         const double amplitude = (double)(pt.env.getLevel() * gEnd);
@@ -818,7 +833,7 @@ void Voice::render(float *left, float *right, int numSamples,
           std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
       partialKeyboards[(size_t)i] = keyGain;
 
-      if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
+      if ((g <= 1.0e-7f && gHeard <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
         // or decayed to a sustain of nothing. Keep the envelope and phase
         // moving so it picks up in the right place, but skip the oscillator.
@@ -1033,15 +1048,19 @@ void Voice::renderNoise(float *left, float *right, int len,
       keyGain;
   const float gEnd = (np.audible ? level : 0.0f) * amEnd;
 
+  // The half-pedal's fade, as for the partials.
+  const float pedal = noise.env.advancePedal(len);
+  const float gHeard = gEnd * pedal;
+
   if (!noise.gainPrimed) {
-    noise.lastGain = (np.audible ? level : 0.0f) * amStart;
+    noise.lastGain = (np.audible ? level : 0.0f) * amStart * pedal;
     noise.gainPrimed = true;
   }
 
   float g = noise.lastGain;
-  const float gInc = (gEnd - g) / (float)len;
+  const float gInc = (gHeard - g) / (float)len;
 
-  noise.lastGain = gEnd;
+  noise.lastGain = gHeard;
 
   noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);
 
@@ -1057,7 +1076,7 @@ void Voice::renderNoise(float *left, float *right, int len,
     noiseKeyboard = keyGain;
   }
 
-  if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
+  if (g <= 1.0e-7f && gHeard <= 1.0e-7f) {
     for (int n = 0; n < len; ++n)
       noise.env.tick();
 

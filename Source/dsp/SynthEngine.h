@@ -90,7 +90,42 @@ public:
   /// release velocity as a gain. See liftFromVelocity.
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note, float lift = 1.0f) noexcept;
-  void setSustainPedal(bool down) noexcept;
+  void setSustainPedal(bool down) noexcept {
+    setSustainDepth(down ? 1.0f : 0.0f);
+  }
+
+  /// How far down the sustain pedal is, nought to one, for half-pedalling.
+  /// Anything above nought holds a note whose key comes up, and below one it
+  /// fades at a share of its release rate, faster the less the pedal is down.
+  /// Nought lets go of everything it held.
+  void setSustainDepth(float depth) noexcept;
+
+  /// Under MPE, where the parser holds the sustain pedal one zone at a time:
+  /// how far down a zone's pedal is, for these channels, one bit per MIDI
+  /// channel, and which notes it is holding, as the parser marks them.
+  void setZoneSustainDepth(uint32_t channels, float depth) noexcept;
+  void holdByPedal(int channel, int note, float lift) noexcept;
+
+  /// How far down a sustain pedal sending this CC 64 value is. Nought up to
+  /// kPedalUpTo and one from kPedalDownFrom, evenly between. An on/off pedal
+  /// sends 0 and 127, which are up and down exactly as before half-pedalling,
+  /// and a continuous one has an eighth of its travel at each end to rest a
+  /// little off 0 or fall a little short of 127.
+  static constexpr int kPedalUpTo = 16;
+  static constexpr int kPedalDownFrom = 112;
+  static float sustainDepthFor(int value) noexcept {
+    return std::clamp((float)(value - kPedalUpTo) /
+                          (float)(kPedalDownFrom - kPedalUpTo),
+                      0.0f, 1.0f);
+  }
+
+  /// How fast a note the pedal holds fades at a depth, as a share of its
+  /// release rate. Squared, so the pedal's top half keeps a note long and
+  /// the fade only nears the release at the bottom of its travel.
+  static float pedalFadeRate(float depth) noexcept {
+    const auto up = 1.0f - std::clamp(depth, 0.0f, 1.0f);
+    return up * up;
+  }
 
   /// The middle pedal of a piano. Going down, it catches the keys that are down
   /// at that moment, not the ones only the sustain pedal is holding, and holds
@@ -533,6 +568,14 @@ private:
   uint64_t ageCounter = 0;
   bool sustainDown = false;
   bool sostenutoDown = false;
+
+  /// How far down the sustain pedal is for each MIDI channel's notes: nought
+  /// for an ordinary keyboard's, which belong to no channel, and one to
+  /// sixteen for MPE notes, set from their zone's pedal.
+  std::array<float, 17> sustainDepth{};
+  float depthFor(const Voice &v) const noexcept {
+    return sustainDepth[(size_t)std::clamp(v.getChannel(), 0, 16)];
+  }
 
   /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};

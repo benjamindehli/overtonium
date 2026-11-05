@@ -359,9 +359,14 @@ struct SynthParams {
   LofiParams lofi{};
   ResonatorParams resonator{};
 
-  /// Whether a sustain pedal is down on any channel. Set by whoever handles
-  /// the MIDI, since under MPE the pedal never reaches the engine as a pedal.
+  /// Whether a sustain pedal is down on any channel, and how far down the one
+  /// furthest down is, above nought and up to one. Set by whoever handles the
+  /// MIDI, since under MPE the pedal never reaches the engine as a pedal. The
+  /// resonator's dampers follow the depth, which is only read while the pedal
+  /// is down, so a pedal said to be down is all the way down unless the depth
+  /// says otherwise.
   bool pedalDown = false;
+  float pedalDepth = 1.0f;
 };
 
 } // namespace ovt

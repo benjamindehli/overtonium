@@ -127,7 +127,16 @@ public:
   std::function<void(juce::Graphics &, juce::Rectangle<float>, juce::Colour)>
       onIcon;
 
+  /// How far along a bar under the letters is lit, nought to one, for a lamp
+  /// that says how much as well as whether. None while negative, and only
+  /// drawn while the lamp is on. Repaints on a change.
+  void setLevel(float newLevel);
+  float getLevel() const noexcept { return level; }
+
   void paintButton(juce::Graphics &, bool highlighted, bool down) override;
+
+private:
+  float level = -1.0f;
 };
 
 enum class PointerTool : int;

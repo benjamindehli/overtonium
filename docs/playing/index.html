@@ -471,15 +471,15 @@
                     <p>
                         <strong>Playing</strong> has the voice count with IN USE, which shows how many voices are sounding, release tails included.
                         Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows
-                        what your hands are doing. SUSTAIN lights while the sustain pedal is down, and SOSTENUTO under it while the sostenuto pedal
-                        is. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest.
-                        WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed
-                        hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight
-                        <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it controls and turns by the same amount
-                        as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to
-                        edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the temperament, root and reference pitch, and
-                        under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch
-                        for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
+                        what your hands are doing. SUSTAIN lights while the sustain pedal is down, with a bar along its foot for how far, and
+                        SOSTENUTO under it while the sostenuto pedal is. PITCH shows the pitch wheel's position from the centre against the bend
+                        range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own
+                        pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows
+                        it. Last are the eight <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it controls and
+                        turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob
+                        to assign its macro, to edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the temperament, root
+                        and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the
+                        keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
                         <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last are twelve displays, one for each note,
                         showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each
                         setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way
@@ -495,11 +495,20 @@
                         the caught keys' strings stay free too. With MPE on it is read on the zone's master channel, like the sustain pedal.
                     </p>
 
+                    <p>
+                        The <strong>sustain pedal</strong> can be half-pedalled. A continuous pedal sends how far down it is, and the instrument uses
+                        all of it. All the way down it holds notes as it always has. Part way down, a note it holds fades once its key comes up,
+                        faster the less the pedal is down, and at the top of its travel the note fades as quickly as its own release. Moving the pedal
+                        changes the fade from that moment, so you can keep a line connected without blurring it. An on/off pedal, which sends only up
+                        and down, works as it always did. With the resonator in Piano, the dampers rest on the strings as far as the pedal is up, so
+                        the strings ring for less time too.
+                    </p>
+
                     <figure>
                         <img
                             loading="lazy"
                             src="../overtonium-playing-bar.webp"
-                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
+                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with its bar full and SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
                             width="1350"
                             height="66"
                         />

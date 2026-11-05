@@ -35,6 +35,13 @@ public:
     /// held. Fed less, so the pedal blooms under a chord rather than turning
     /// it up. See kPedalSend.
     std::array<bool, kStrings> pedalled{};
+
+    /// How far a free string's damper rests on it, from nought, off the string,
+    /// to one, settled as if damped. A sustain pedal part way down lets the
+    /// dampers rest lightly, so a string rings for a time between its damper
+    /// time and DECAY. Nought unless something sets it, so a string that is
+    /// only marked free is free.
+    std::array<float, kStrings> rest{};
   };
 
   /// The key a string belongs to, and back.

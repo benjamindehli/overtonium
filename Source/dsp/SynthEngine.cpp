@@ -57,6 +57,7 @@ void SynthEngine::reset() noexcept {
   heldBySostenuto.fill(false);
   sustainDown = false;
   sostenutoDown = false;
+  sustainDepth.fill(0.0f);
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
@@ -981,24 +982,37 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
   switch (p.resonator.mode) {
   case ResonatorMode::Piano:
   case ResonatorMode::Open: {
-    // Open is Piano with the sustain pedal always down.
-    const bool pedal = p.pedalDown || p.resonator.mode == ResonatorMode::Open;
+    // Open is Piano with the sustain pedal always down. Part way down, the
+    // dampers rest lightly on the strings whose keys are up.
+    const bool open = p.resonator.mode == ResonatorMode::Open;
+    const bool pedal = p.pedalDown || open;
+    const float depth = open ? 1.0f : std::clamp(p.pedalDepth, 0.0f, 1.0f);
 
     // A held key's string is where that key is sounding, before any bend, as a
     // piano's strings do not follow the wheel. The rest wait where a key struck
-    // into silence would sound.
+    // into silence would sound. A note the sustain pedal holds has its key up,
+    // so its damper follows the pedal. One the sostenuto pedal holds is free.
     std::array<double, kStrings> held{};
-    for (const auto &v : voices) {
+    std::array<float, kStrings> damperLift{};
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
       const auto s = SympatheticStrings::stringOf(v.getNote());
-      if (v.isActive() && !v.isReleasing() && s >= 0 && s < kStrings)
+      if (v.isActive() && !v.isReleasing() && s >= 0 && s < kStrings) {
         held[(size_t)s] = v.getFrequency();
+        damperLift[(size_t)s] = std::max(
+            damperLift[(size_t)s], heldBySustain[i] && !open
+                                       ? std::clamp(depthFor(v), 0.0f, 1.0f)
+                                       : 1.0f);
+      }
     }
 
     for (int s = 0; s < kStrings; ++s) {
       const auto key = SympatheticStrings::keyOf(s);
       const bool isHeld = held[(size_t)s] > 0.0;
+      const float lift = isHeld ? damperLift[(size_t)s] : pedal ? depth : 0.0f;
       set(key, isHeld ? held[(size_t)s] : restingFrequency(key, p),
-          isHeld || pedal);
+          lift > 0.0f);
+      plan.rest[(size_t)s] = lift > 0.0f ? 1.0f - lift : 0.0f;
       plan.pedalled[(size_t)s] = !isHeld && pedal;
     }
     break;
@@ -1082,6 +1096,7 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
         heldBySustain[i] = true;
         heldLift[i] = lift;
       } else {
+        heldBySustain[i] = false;
         letGo(i, lift);
       }
     }
@@ -1093,10 +1108,12 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
-void SynthEngine::setSustainPedal(bool down) noexcept {
-  sustainDown = down;
+void SynthEngine::setSustainDepth(float depth) noexcept {
+  depth = std::clamp(depth, 0.0f, 1.0f);
+  sustainDepth[0] = depth;
+  sustainDown = depth > 0.0f;
 
-  if (down)
+  if (sustainDown)
     return;
 
   for (size_t i = 0; i < voices.size(); ++i) {
@@ -1155,6 +1172,24 @@ void SynthEngine::setSostenutoPedal(bool down,
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
+void SynthEngine::setZoneSustainDepth(uint32_t channels, float depth) noexcept {
+  depth = std::clamp(depth, 0.0f, 1.0f);
+
+  for (int channel = 1; channel <= 16; ++channel)
+    if ((channels & (1u << (unsigned)channel)) != 0)
+      sustainDepth[(size_t)channel] = depth;
+}
+
+void SynthEngine::holdByPedal(int channel, int note, float lift) noexcept {
+  for (size_t i = 0; i < voices.size(); ++i)
+    // A note the sostenuto pedal caught is its to hold, and does not fade.
+    if (matches(voices[i], channel, note) && !voices[i].isReleasing() &&
+        !(sostenutoDown && caughtBySostenuto[i])) {
+      heldBySustain[i] = true;
+      heldLift[i] = lift;
+    }
+}
+
 void SynthEngine::releaseHeldBySustain(uint32_t channels) noexcept {
   bool released = false;
 
@@ -1208,6 +1243,7 @@ void SynthEngine::allNotesOff() noexcept {
 
   sustainDown = false;
   sostenutoDown = false;
+  sustainDepth.fill(0.0f);
 }
 
 void SynthEngine::allSoundOff() noexcept {
@@ -1222,6 +1258,7 @@ void SynthEngine::allSoundOff() noexcept {
   heldBySostenuto.fill(false);
   sustainDown = false;
   sostenutoDown = false;
+  sustainDepth.fill(0.0f);
 }
 
 namespace {
@@ -1348,6 +1385,12 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
 
     if (!v.isActive())
       continue;
+
+    // A note the pedal holds fades as far as the pedal is up. One a key or the
+    // sostenuto pedal holds does not.
+    v.setPedalFade(heldBySustain[index] && !heldBySostenuto[index]
+                       ? pedalFadeRate(depthFor(v))
+                       : 0.0f);
 
     v.render(left, right, numFrames, p, shared);
     rendered[index] = true;

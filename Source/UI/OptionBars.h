@@ -147,6 +147,9 @@ struct PlayingActivity {
   bool sustain = false;
   bool sostenuto = false;
 
+  /// How far down the sustain pedal is, nought to one.
+  float sustainDepth = 0.0f;
+
   /// -1 to 1 against the BEND range.
   float bend = 0.0f;
 

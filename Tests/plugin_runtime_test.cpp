@@ -2586,6 +2586,154 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
 
+/// Half-pedalling over MIDI. The engine's side is in the DSP suite. This checks
+/// that CC 64's value reaches it as a depth with MPE off and on, that 0 and
+/// 127 are what they always were, and the lamp.
+void testHalfPedalOverMidi(OvertoniumProcessor &p) {
+  section("Half-pedalling over MIDI");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // One partial at full sustain, every channel released over 200 ms.
+  const auto setUp = [&] {
+    ovt::presets::apply(p.apvts, presetIndex("Init"));
+    for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+      setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+               i == 0 ? 1.0f : 0.0f);
+      setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+      setParam(ovt::params::oscParamId(ovt::params::releaseSuffix, i), 0.2f);
+    }
+    setParam(ovt::params::noiseParamId(ovt::params::releaseSuffix), 0.2f);
+  };
+  setUp();
+
+  // 512-sample blocks, so about a hundred to the second at 48 kHz.
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages,
+                         int blocks) {
+    juce::MidiBuffer m;
+    for (const auto &message : messages)
+      m.addEvent(message, 0);
+    return renderBlocks(p, blocks, 512, m);
+  };
+  const auto cc = [](int channel, int value) {
+    return juce::MidiMessage::controllerEvent(channel, 64, value);
+  };
+  const auto on = [](int channel, int note) {
+    return juce::MidiMessage::noteOn(channel, note, 1.0f);
+  };
+  const auto off = [](int channel, int note) {
+    return juce::MidiMessage::noteOff(channel, note);
+  };
+  const auto voices = [&p] { return p.getActiveVoiceCount(); };
+
+  // ---- 0 and 127 are up and down, as they always were -----------------------
+  {
+    // The same note let go with and without a pedal at nought, sample for
+    // sample, on two processors made the same way from the same state.
+    juce::MemoryBlock state;
+    p.getStateInformation(state);
+
+    const auto make = [&state] {
+      auto made = std::make_unique<OvertoniumProcessor>();
+      made->setRateAndBufferSizeDetails(48000.0, 512);
+      made->prepareToPlay(48000.0, 512);
+      made->setStateInformation(state.getData(), (int)state.getSize());
+      return made;
+    };
+    const auto withoutOwner = make();
+    const auto withOwner = make();
+
+    bool same = true;
+    juce::AudioBuffer<float> a(2, 512), b(2, 512);
+    for (int block = 0; block < 60; ++block) {
+      juce::MidiBuffer ma, mb;
+      if (block == 0) {
+        ma.addEvent(on(1, 69), 0);
+        mb.addEvent(on(1, 69), 0);
+      }
+      if (block == 10) {
+        ma.addEvent(off(1, 69), 0);
+        mb.addEvent(cc(1, 0), 0);
+        mb.addEvent(off(1, 69), 0);
+      }
+      a.clear();
+      b.clear();
+      withoutOwner->processBlock(a, ma);
+      withOwner->processBlock(b, mb);
+      for (int n = 0; n < 512; ++n)
+        same &= ovt::exactly(a.getSample(0, n), b.getSample(0, n));
+    }
+    check(same, "CC 64 at 0 lets a note go exactly as no pedal does");
+
+    send({on(1, 69)}, 10);
+    send({cc(1, 127)}, 1);
+    const auto held = send({off(1, 69)}, 10).peak;
+    const auto later = send({}, 200).peak;
+    check(voices() == 1 && std::abs(later - held) < held * 1.0e-3f &&
+              p.isSustainDown() && ovt::exactly(p.getSustainDepth(), 1.0f),
+          "and at 127 it holds the note at its level, with the lamp full (" +
+              std::to_string(held) + " to " + std::to_string(later) + ")");
+    send({cc(1, 0)}, 100);
+    check(voices() == 0 && !p.isSustainDown() &&
+              ovt::exactly(p.getSustainDepth(), 0.0f),
+          "and lifted it lets go, and the lamp goes out");
+  }
+
+  // ---- part way down a note outlasts its release, and still ends ------------
+  {
+    send({on(1, 69)}, 10);
+    send({cc(1, 64)}, 1);
+    const bool half = std::abs(p.getSustainDepth() - 0.5f) < 1.0e-6f;
+    send({off(1, 69)}, 60);
+    const auto afterRelease = voices();
+    send({}, 400);
+
+    check(half && afterRelease == 1 && voices() == 0,
+          "at 64 the lamp reads half, and a note outlasts its own release "
+          "and then fades away (" +
+              std::to_string(afterRelease) + " sounding after 0.6 s)");
+    send({cc(1, 0)}, 2);
+  }
+
+  // ---- under MPE, a value below 64 still holds ------------------------------
+  //
+  // The parser holds notes from 64 up. It is told the pedal is down from the
+  // engine's own point instead, so a pedal a quarter down holds.
+  setParam(ovt::params::mpeId, 1.0f);
+  send({}, 2);
+  {
+    send({on(2, 69)}, 10);
+    send({cc(1, 40)}, 1);
+    send({off(2, 69)}, 60);
+    const auto quarter = voices();
+    send({}, 400);
+    const auto later = voices();
+    send({cc(1, 0)}, 50);
+
+    check(quarter == 1 && later == 0,
+          "under MPE a master channel's pedal a quarter down holds a note past "
+          "its release and fades it (" +
+              std::to_string(quarter) + " then " + std::to_string(later) + ")");
+
+    send({on(2, 69)}, 10);
+    send({cc(1, 127)}, 1);
+    send({off(2, 69)}, 60);
+    const auto down = voices();
+    send({cc(1, 0)}, 100);
+    check(down == 1 && voices() == 0,
+          "and all the way down it holds, and lifted it lets go");
+  }
+  setParam(ovt::params::mpeId, 0.0f);
+  send({}, 2);
+
+  p.reset();
+  renderBlocks(p, 4, 512);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
 /// The sostenuto pedal over MIDI, with MPE off and on. The engine's side is in
 /// the DSP suite. This checks the controller reaches it, that under MPE it is
 /// kept apart from the sustain pedal the parser holds, and the lamp.
@@ -9260,6 +9408,11 @@ void testPlayingBar(OvertoniumProcessor &p) {
   const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
                     !sustain.getToggleState();
 
+  bar->showActivity({0, true, false, 0.5f});
+  const bool halfShown = std::abs(sustain.getLevel() - 0.5f) < 1.0e-6f;
+  bar->showActivity({});
+  check(halfShown, "SUSTAIN shows how far down the pedal is");
+
   const auto &sostenuto = bar->sostenutoLamp();
   bar->showActivity({0, false, true});
   const bool sostenutoLit =
@@ -9305,15 +9458,15 @@ void testPlayingBar(OvertoniumProcessor &p) {
     };
     const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
 
-    bar->showActivity({0, false, false, -1.0f, 0.0f, 0.0f});
+    bar->showActivity({0, false, false, 0.0f, -1.0f, 0.0f, 0.0f});
     const bool atRest = pitchMeter.getColumn() == left &&
                         wheelMeter.getColumn() == left &&
                         pressureMeter.getColumn() == left;
-    bar->showActivity({0, false, false, 0.0f, 0.5f, 0.5f});
+    bar->showActivity({0, false, false, 0.0f, 0.0f, 0.5f, 0.5f});
     const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
                          near(wheelMeter.getColumn(), middle(wheelMeter)) &&
                          near(pressureMeter.getColumn(), middle(pressureMeter));
-    bar->showActivity({0, false, false, 1.0f, 1.0f, 1.0f});
+    bar->showActivity({0, false, false, 0.0f, 1.0f, 1.0f, 1.0f});
     const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
                           wheelMeter.getColumn() == right(wheelMeter) &&
                           pressureMeter.getColumn() == right(pressureMeter);
@@ -13764,6 +13917,7 @@ int main(int argc, char **argv) {
   testAftertouchMidi(processor);
   testMpe(processor);
   testSostenutoOverMidi(processor);
+  testHalfPedalOverMidi(processor);
   testMpeSlide();
   testActivityLamps(processor);
   testStrikeReadout();

@@ -326,8 +326,9 @@ int main(int argc, char **argv) {
   playing.front()->refresh();
   playing.front()->showActivity(
       {plugin.getActiveVoiceCount(), plugin.isSustainDown(),
-       plugin.isSostenutoDown(), plugin.getBendPosition(),
-       plugin.getWheelPosition(), plugin.getPressurePosition()});
+       plugin.isSostenutoDown(), plugin.getSustainDepth(),
+       plugin.getBendPosition(), plugin.getWheelPosition(),
+       plugin.getPressurePosition()});
   tuning.front()->refresh();
   tuning.front()->showChord(latest);
 

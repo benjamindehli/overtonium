@@ -2018,8 +2018,9 @@ void OvertoniumEditor::timerCallback() {
   // How the instrument is being played, at the full rate.
   playingBar.showActivity(
       {plugin().getActiveVoiceCount(), plugin().isSustainDown(),
-       plugin().isSostenutoDown(), plugin().getBendPosition(),
-       plugin().getWheelPosition(), plugin().getPressurePosition()});
+       plugin().isSostenutoDown(), plugin().getSustainDepth(),
+       plugin().getBendPosition(), plugin().getWheelPosition(),
+       plugin().getPressurePosition()});
 
   // What Adaptive did to the held chord, at the full rate, and read even
   // while the bar is closed so it opens on the current chord.
