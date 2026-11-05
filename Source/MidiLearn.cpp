@@ -13,6 +13,8 @@ const char *MidiLearn::reservedFor(int controller) noexcept {
     return "the mod wheel";
   case 64:
     return "the sustain pedal";
+  case 66:
+    return "the sostenuto pedal";
   case 74:
     return "the slide axis";
   case 120:

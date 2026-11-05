@@ -5797,6 +5797,265 @@ void testKarplusString() {
 
 /// The strings nobody plays: which ones sound, tuned where, with whose
 /// dampers up, and what they do to the sound.
+/// The sostenuto pedal holds the keys that were down when it went down, and
+/// no others. With the resonator in Piano a string is free while its note is
+/// held, by its key or by a pedal, so the plan shows which notes are held.
+void testSostenutoPedal() {
+  section("Sostenuto pedal");
+
+  constexpr double sr = 48000.0;
+  using Strings = SympatheticStrings;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+
+  // Every release short, since a voice lasts until all its channels have
+  // finished, at any level.
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  for (auto &o : p.osc)
+    o.release = 0.03f;
+  p.noise.release = 0.02f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+  p.resonator.mode = ResonatorMode::Piano;
+
+  std::vector<float> l(512), r(512);
+  const auto render = [&](int blocks) {
+    for (int b = 0; b < blocks; ++b)
+      engine.render(l.data(), r.data(), 512, p);
+  };
+
+  // Long enough for a 30 ms release to finish, with room to spare.
+  const auto settle = [&] { render(20); };
+
+  const auto held = [&](int key) {
+    return (bool)engine.planStrings(p).free[(size_t)Strings::stringOf(key)];
+  };
+  const auto sounding = [&] { return engine.getActiveVoiceCount(); };
+
+  // ---- it holds the key that was down, and not one played after ------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    engine.noteOn(64, 1.0f, p);
+    render(2);
+    engine.noteOff(64);
+    settle();
+
+    check(held(60) && !held(64) && sounding() == 1,
+          "a key down when the pedal goes down holds after it comes up, and "
+          "one played after the pedal does not (" +
+              std::to_string(sounding()) + " sounding)");
+
+    engine.setSostenutoPedal(false);
+    settle();
+    check(!held(60) && sounding() == 0,
+          "and lifting the pedal lets it go and damps its string");
+  }
+
+  // ---- a note only the sustain pedal holds is not caught -------------------
+  {
+    engine.setSustainPedal(true);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    engine.setSostenutoPedal(true);
+    engine.setSustainPedal(false);
+    settle();
+
+    check(!held(60) && sounding() == 0,
+          "a note held only by the sustain pedal is not caught, so it goes "
+          "when that pedal comes up");
+    engine.setSostenutoPedal(false);
+
+    // Where it shows: played again while both pedals are down, then let go
+    // once the sustain pedal is up, a note that was not caught goes, where a
+    // caught one would hold.
+    engine.setSustainPedal(true);
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.noteOff(62);
+    engine.setSostenutoPedal(true);
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.setSustainPedal(false);
+    engine.noteOff(62);
+    settle();
+
+    check(!held(62) && sounding() == 0,
+          "and played again under the sostenuto pedal it still is not");
+    engine.setSostenutoPedal(false);
+    settle();
+  }
+
+  // ---- with both down, lifting the sustain pedal leaves what it caught ------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.setSustainPedal(true);
+    engine.noteOn(64, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    engine.noteOff(64);
+    render(2);
+    engine.setSustainPedal(false);
+    settle();
+
+    check(held(60) && !held(64) && sounding() == 1,
+          "with both pedals down, lifting the sustain pedal lets go of what "
+          "only it held and keeps what the sostenuto pedal caught");
+
+    engine.setSostenutoPedal(false);
+    settle();
+    check(sounding() == 0, "until that comes up too");
+  }
+
+  // ---- the sustain pedal takes over a note when the sostenuto pedal lifts ---
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    render(2);
+    engine.setSustainPedal(true);
+    engine.setSostenutoPedal(false);
+    settle();
+
+    check(held(60) && sounding() == 1,
+          "a caught note whose key is up stays when the sostenuto pedal lifts "
+          "under the sustain pedal");
+
+    engine.setSustainPedal(false);
+    settle();
+    check(!held(60) && sounding() == 0, "and goes when that lifts");
+  }
+
+  // ---- under MPE the processor says which zones are sustained ---------------
+  {
+    engine.noteOnPerNote(2, 60, 1.0f, p);
+    engine.noteOnPerNote(3, 64, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOffPerNote(2, 60);
+    engine.noteOffPerNote(3, 64);
+    render(2);
+
+    // Channel 2's zone has its sustain pedal down, channel 3's has not.
+    engine.setSostenutoPedal(false, 1u << 2);
+    settle();
+    check(held(60) && !held(64) && sounding() == 1,
+          "under MPE a note passes to the sustain pedal only if its own "
+          "zone's is down");
+
+    engine.releaseHeldBySustain(1u << 3);
+    settle();
+    check(held(60), "and another zone's pedal coming up does not touch it");
+
+    engine.releaseHeldBySustain(1u << 2);
+    settle();
+    check(!held(60) && sounding() == 0, "while its own zone's does");
+  }
+
+  // ---- played again under the pedal, a caught key stays caught -------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    render(2);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    const auto once = sounding();
+    engine.noteOff(60);
+    settle();
+
+    check(once == 1 && held(60) && sounding() == 1,
+          "a caught key played again sounds once, and still holds after it "
+          "comes up (" +
+              std::to_string(once) + " voice)");
+
+    engine.setSostenutoPedal(false);
+    settle();
+  }
+
+  // ---- down with nothing held, it catches nothing ---------------------------
+  {
+    engine.setSostenutoPedal(true);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    settle();
+    check(!held(60) && sounding() == 0,
+          "down with no key held, it catches nothing");
+
+    // A continuous pedal sends more values on the way down. They must not
+    // catch again.
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(62);
+    settle();
+    check(!held(62) && sounding() == 0,
+          "and a second value above the middle does not catch again");
+
+    engine.setSostenutoPedal(false);
+  }
+
+  // ---- the panics let go
+  // -----------------------------------------------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    engine.allNotesOff();
+    settle();
+
+    check(!engine.isSostenutoDown() && sounding() == 0,
+          "All Notes Off lets go of what it holds and lifts it");
+
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.allSoundOff();
+    check(!engine.isSostenutoDown() && sounding() == 0,
+          "and so does All Sound Off");
+
+    // Nothing caught before the panic is caught after it.
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.setSostenutoPedal(false);
+    engine.noteOff(60);
+    settle();
+    check(sounding() == 0, "and nothing it caught before is held after");
+  }
+
+  // ---- a stolen voice forgets it was caught ---------------------------------
+  {
+    engine.setPolyphony(1);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOn(64, 1.0f, p); // takes 60's voice
+    render(2);
+    engine.noteOff(64);
+    settle();
+
+    check(!held(64) && sounding() == 0,
+          "a note on a voice taken from a caught one is not caught itself");
+
+    engine.setSostenutoPedal(false);
+    engine.setPolyphony(16);
+    engine.allSoundOff();
+  }
+}
+
 void testSympatheticStrings() {
   section("Sympathetic strings");
 
@@ -13407,6 +13666,7 @@ int main() {
   testPerNoteChannels();
   testKarplusString();
   testSympatheticStrings();
+  testSostenutoPedal();
   testHeldExpression();
   testActivity();
   testLampsFollowNewestNote();

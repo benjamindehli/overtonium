@@ -92,6 +92,23 @@ public:
   void noteOff(int note, float lift = 1.0f) noexcept;
   void setSustainPedal(bool down) noexcept;
 
+  /// The middle pedal of a piano. Going down, it catches the keys that are down
+  /// at that moment, not the ones only the sustain pedal is holding, and holds
+  /// those notes once their keys come up, until it comes up itself. Keys
+  /// pressed after it went down are not caught.
+  ///
+  /// When it comes up, a note it was holding passes to the sustain pedal if
+  /// that is down. Under MPE the parser keeps the sustain pedal, one for each
+  /// zone, so `sustainedChannels` says which channels' zones have theirs down,
+  /// one bit per MIDI channel, and releaseHeldBySustain lets go of them later.
+  void setSostenutoPedal(bool down, uint32_t sustainedChannels = 0) noexcept;
+
+  /// Lets go of the notes on these channels that the sustain pedal took over
+  /// from the sostenuto pedal, as their zone's sustain pedal comes up under
+  /// MPE. One bit per MIDI channel.
+  void releaseHeldBySustain(uint32_t channels) noexcept;
+  bool isSostenutoDown() const noexcept { return sostenutoDown; }
+
   /// Routes polyphonic aftertouch to whichever voices are holding that note.
   void setPolyPressure(int note, float pressure) noexcept;
 
@@ -340,6 +357,24 @@ private:
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
 
+  /// Caught by the sostenuto pedal when it went down, and of those, the ones
+  /// whose keys have since come up, so only the pedal is holding them.
+  std::array<bool, kPoolSize> caughtBySostenuto{};
+  std::array<bool, kPoolSize> heldBySostenuto{};
+
+  /// Held by either pedal rather than by a key. Such a note does not count as
+  /// a key that is down, for a glide or the top line.
+  bool heldByPedal(size_t i) const noexcept {
+    return heldBySustain[i] || heldBySostenuto[i];
+  }
+
+  /// Forgets what the pedals hold on one voice, as it is taken for a new note.
+  void clearPedals(size_t i) noexcept {
+    heldBySustain[i] = false;
+    caughtBySostenuto[i] = false;
+    heldBySostenuto[i] = false;
+  }
+
   // ---- the top line ---------------------------------------------------------
   //
   // When each voice's key went down, on the engine's own sample clock, and
@@ -497,6 +532,7 @@ private:
   double lastNoteFrequency = 0.0;
   uint64_t ageCounter = 0;
   bool sustainDown = false;
+  bool sostenutoDown = false;
 
   /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};

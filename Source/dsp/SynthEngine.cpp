@@ -53,7 +53,10 @@ void SynthEngine::reset() noexcept {
   reverb.reset();
 
   heldBySustain.fill(false);
+  caughtBySostenuto.fill(false);
+  heldBySostenuto.fill(false);
   sustainDown = false;
+  sostenutoDown = false;
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
@@ -266,7 +269,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (latest == nullptr || v.getAge() > latest->getAge())
       latest = &v;
 
-    if (!v.isReleasing() && !heldBySustain[i] &&
+    if (!v.isReleasing() && !heldByPedal(i) &&
         (latestHeld == nullptr || v.getAge() > latestHeld->getAge()))
       latestHeld = &v;
   }
@@ -357,7 +360,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     for (size_t i = 0; i < voices.size(); ++i) {
       const auto &v = voices[i];
 
-      if (!v.isActive() || v.isReleasing() || heldBySustain[i])
+      if (!v.isActive() || v.isReleasing() || heldByPedal(i))
         continue;
 
       if (top < 0 || v.getNote() > voices[(size_t)top].getNote()) {
@@ -429,11 +432,13 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       }
     }
 
-    // A key still down, or held by the pedal, is retriggered where it stands,
+    // A key still down, or held by a pedal, is retriggered where it stands,
     // so the envelope continues from its level and a pedalled note is taken
-    // back off the pedal.
+    // back off the pedal. One the sostenuto pedal caught stays caught, as a
+    // piano's damper stays up for a key played again under it.
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
+      heldBySostenuto[heldIndex] = false;
       pressedAt[heldIndex] = now;
       pressedWithOthers[heldIndex] = withOthers;
       held->noteOn(channel, note, velocity, p,
@@ -467,7 +472,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   }
 
   const auto index = (size_t)std::distance(voices.data(), target);
-  heldBySustain[index] = false;
+  clearPedals(index);
 
   // A fresh note, so not a line yet, and if it was the line's voice the line
   // has gone with it.
@@ -1068,7 +1073,12 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
     auto &v = voices[i];
 
     if (matches(v, channel, note) && !v.isReleasing()) {
-      if (sustainDown) {
+      // The sostenuto pedal first, so lifting the sustain pedal does not let
+      // go of a note it caught.
+      if (sostenutoDown && caughtBySostenuto[i]) {
+        heldBySostenuto[i] = true;
+        heldLift[i] = lift;
+      } else if (sustainDown) {
         heldBySustain[i] = true;
         heldLift[i] = lift;
       } else {
@@ -1101,6 +1111,69 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
+void SynthEngine::setSostenutoPedal(bool down,
+                                    uint32_t sustainedChannels) noexcept {
+  if (down == sostenutoDown)
+    return;
+
+  sostenutoDown = down;
+
+  if (down) {
+    // The keys that are down now. A note only the sustain pedal holds has no
+    // key down, so it is not caught, as on a piano.
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
+      caughtBySostenuto[i] =
+          v.isActive() && !v.isReleasing() && !heldBySustain[i];
+    }
+
+    return;
+  }
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    if (heldBySostenuto[i]) {
+      // Its key is up. The sustain pedal takes it over if that is down,
+      // since its damper would stay up for it too.
+      const auto channel = voices[i].getChannel();
+      const bool zoneSustained =
+          channel > 0 && channel < 32 &&
+          (sustainedChannels & (1u << (unsigned)channel)) != 0;
+
+      if (sustainDown || zoneSustained)
+        heldBySustain[i] = true;
+      else {
+        letGo(i, heldLift[i]);
+        heldLift[i] = 1.0f;
+      }
+    }
+
+    caughtBySostenuto[i] = false;
+    heldBySostenuto[i] = false;
+  }
+
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
+}
+
+void SynthEngine::releaseHeldBySustain(uint32_t channels) noexcept {
+  bool released = false;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto channel = voices[i].getChannel();
+
+    if (heldBySustain[i] && channel > 0 && channel < 32 &&
+        (channels & (1u << (unsigned)channel)) != 0) {
+      letGo(i, heldLift[i]);
+      heldBySustain[i] = false;
+      heldLift[i] = 1.0f;
+      released = true;
+    }
+  }
+
+  if (released && adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
+}
+
 void SynthEngine::setPolyPressure(int note, float pressure) noexcept {
   for (auto &v : voices)
     if (matches(v, 0, note))
@@ -1130,10 +1203,11 @@ void SynthEngine::allNotesOff() noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();
-    heldBySustain[i] = false;
+    clearPedals(i);
   }
 
   sustainDown = false;
+  sostenutoDown = false;
 }
 
 void SynthEngine::allSoundOff() noexcept {
@@ -1144,7 +1218,10 @@ void SynthEngine::allSoundOff() noexcept {
   sympathetic.reset();
 
   heldBySustain.fill(false);
+  caughtBySostenuto.fill(false);
+  heldBySostenuto.fill(false);
   sustainDown = false;
+  sostenutoDown = false;
 }
 
 namespace {

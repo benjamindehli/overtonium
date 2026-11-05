@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-03",
+                "dateModified": "2026-11-05",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -471,14 +471,15 @@
                     <p>
                         <strong>Playing</strong> has the voice count with IN USE, which shows how many voices are sounding, release tails included.
                         Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows
-                        what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel's position from the centre
-                        against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the
-                        keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch
-                        from follows it. Last are the eight <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it
-                        controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number.
-                        Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the
-                        temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch
-                        that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
+                        what your hands are doing. SUSTAIN lights while the sustain pedal is down, and SOSTENUTO under it while the sostenuto pedal
+                        is. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest.
+                        WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed
+                        hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight
+                        <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it controls and turns by the same amount
+                        as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to
+                        edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the temperament, root and reference pitch, and
+                        under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch
+                        for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
                         <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last are twelve displays, one for each note,
                         showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each
                         setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way
@@ -486,11 +487,19 @@
                         rows like the top bar does, and takes the extra height from the mixer.
                     </p>
 
+                    <p>
+                        The <strong>sostenuto pedal</strong>, controller 66 and the middle pedal on a grand piano, holds only the keys that are down
+                        when it goes down. Hold a chord, press the pedal and let go, and the chord keeps sounding while the notes you play over it
+                        stop as your fingers lift. Keys pressed after the pedal went down are not held, and a note held only by the sustain pedal is
+                        not caught. With both pedals down, lifting the sustain pedal leaves the caught notes sounding. With the resonator in Piano,
+                        the caught keys' strings stay free too. With MPE on it is read on the zone's master channel, like the sustain pedal.
+                    </p>
+
                     <figure>
                         <img
                             loading="lazy"
                             src="../overtonium-playing-bar.webp"
-                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
+                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
                             width="1350"
                             height="66"
                         />
@@ -1526,11 +1535,11 @@
                     </p>
 
                     <p>
-                        <strong>Eleven controllers cannot be bound</strong>, because the instrument already uses them and losing them would affect
-                        your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the
-                        easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers
-                        6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then
-                        touch the slide to steady a note, the note is steadied and the knob keeps waiting.
+                        <strong>Twelve controllers cannot be bound</strong>, because the instrument already uses them and losing them would affect
+                        your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is
+                        the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop
+                        notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm
+                        a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
                     </p>
 
                     <p>

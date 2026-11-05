@@ -365,6 +365,22 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
   followPedal(m);
 
   if (mpeWasOn) {
+    // The sostenuto pedal goes to the engine rather than the parser, which
+    // keeps one state for both pedals, so lifting either would let go of
+    // what the other holds. On a zone's master channel, as the parser takes
+    // the sustain pedal, and ignored on a member channel, as that is.
+    if (m.isController() && m.getControllerNumber() == 66) {
+      if (mpeInstrument.isMasterChannel(m.getChannel()))
+        engine.setSostenutoPedal(m.isSostenutoPedalOn(),
+                                 sustainedZoneChannels());
+      return;
+    }
+
+    // Notes the sostenuto pedal handed to the sustain pedal are the engine's
+    // to let go of, since the parser released them long ago.
+    if (m.isSustainPedalOff() && mpeInstrument.isMasterChannel(m.getChannel()))
+      engine.releaseHeldBySustain(zoneChannels(m.getChannel()));
+
     // With MPE on, the parser takes notes, bend, pressure, the pedal and the
     // layout messages. An ordinary keyboard on the master channel still plays.
     mpeInstrument.processNextMidiEvent(m);
@@ -401,6 +417,29 @@ void OvertoniumProcessor::followPedal(const juce::MidiMessage &m) noexcept {
   currentParams.pedalDown = pedalChannels != 0;
 }
 
+uint32_t OvertoniumProcessor::zoneChannels(int masterChannel) const noexcept {
+  const auto layout = mpeInstrument.getZoneLayout();
+  const auto zone =
+      masterChannel == 1 ? layout.getLowerZone() : layout.getUpperZone();
+  uint32_t channels = 0;
+
+  for (int channel = 1; channel <= 16; ++channel)
+    if (zone.isUsing(channel))
+      channels |= 1u << (unsigned)channel;
+
+  return channels;
+}
+
+uint32_t OvertoniumProcessor::sustainedZoneChannels() const noexcept {
+  uint32_t channels = 0;
+
+  for (const int master : {1, 16})
+    if ((pedalChannels & (1u << (unsigned)master)) != 0)
+      channels |= zoneChannels(master);
+
+  return channels;
+}
+
 void OvertoniumProcessor::publishPlaying() noexcept {
   const auto held = engine.heldExpression();
   const auto range = paramCache.bendRange != nullptr
@@ -414,6 +453,7 @@ void OvertoniumProcessor::publishPlaying() noexcept {
     bend = perNote;
 
   sustainShown.store(pedalChannels != 0, std::memory_order_relaxed);
+  sostenutoShown.store(engine.isSostenutoDown(), std::memory_order_relaxed);
   bendShown.store(juce::jlimit(-1.0f, 1.0f, bend), std::memory_order_relaxed);
   wheelShown.store(modWheel, std::memory_order_relaxed);
   // What the keyboard sends, before Aftertouch from is applied.
@@ -449,6 +489,10 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
     engine.setSustainPedal(true);
   } else if (m.isSustainPedalOff()) {
     engine.setSustainPedal(false);
+  } else if (m.isSostenutoPedalOn()) {
+    engine.setSostenutoPedal(true);
+  } else if (m.isSostenutoPedalOff()) {
+    engine.setSostenutoPedal(false);
   } else if (m.isAllNotesOff()) {
     engine.allNotesOff();
   } else if (m.isAllSoundOff()) {

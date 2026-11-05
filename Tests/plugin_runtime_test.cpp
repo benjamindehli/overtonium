@@ -2586,6 +2586,132 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
 
+/// The sostenuto pedal over MIDI, with MPE off and on. The engine's side is in
+/// the DSP suite. This checks the controller reaches it, that under MPE it is
+/// kept apart from the sustain pedal the parser holds, and the lamp.
+void testSostenutoOverMidi(OvertoniumProcessor &p) {
+  section("Sostenuto over MIDI");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // One partial, held at full sustain, and every release short, since a voice
+  // lasts until all its channels have finished.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+             i == 0 ? 1.0f : 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::releaseSuffix, i), 0.03f);
+  }
+  setParam(ovt::params::noiseParamId(ovt::params::releaseSuffix), 0.03f);
+
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages,
+                         int blocks = 30) {
+    juce::MidiBuffer m;
+    for (const auto &message : messages)
+      m.addEvent(message, 0);
+    renderBlocks(p, blocks, 512, m);
+  };
+  const auto cc = [](int channel, int number, int value) {
+    return juce::MidiMessage::controllerEvent(channel, number, value);
+  };
+  const auto on = [](int channel, int note) {
+    return juce::MidiMessage::noteOn(channel, note, 1.0f);
+  };
+  const auto off = [](int channel, int note) {
+    return juce::MidiMessage::noteOff(channel, note);
+  };
+  const auto voices = [&p] { return p.getActiveVoiceCount(); };
+
+  // ---- an ordinary keyboard -------------------------------------------------
+  {
+    send({on(1, 60)});
+    send({cc(1, 66, 127)});
+    const bool lit = p.isSostenutoDown();
+    send({off(1, 60), on(1, 64)});
+    send({off(1, 64)});
+    const auto heldOne = voices();
+    send({cc(1, 66, 0)});
+
+    check(lit && heldOne == 1 && voices() == 0 && !p.isSostenutoDown(),
+          "CC 66 holds the key that was down and not the one played after, "
+          "and lights the lamp while it is down (" +
+              std::to_string(heldOne) + " held)");
+
+    send({on(5, 60), cc(5, 66, 100)});
+    send({off(5, 60), cc(5, 66, 90)});
+    const auto onFive = voices();
+    send({cc(5, 66, 20)});
+    check(onFive == 1 && voices() == 0,
+          "on any channel, and a continuous pedal's values either side of the "
+          "middle work as down and up");
+  }
+
+  // ---- MPE: the master channel, and kept apart from the sustain pedal -------
+  setParam(ovt::params::mpeId, 1.0f);
+  send({}, 2);
+  {
+    send({on(2, 60)});
+    send({cc(1, 66, 127)});
+    const bool lit = p.isSostenutoDown();
+    send({off(2, 60), on(3, 64)});
+    send({off(3, 64)});
+    const auto heldOne = voices();
+    send({cc(1, 66, 0)});
+
+    check(lit && heldOne == 1 && voices() == 0,
+          "under MPE the master channel's pedal holds the key that was down "
+          "and not the one played after (" +
+              std::to_string(heldOne) + " held)");
+
+    send({on(2, 60), cc(3, 66, 127)});
+    send({off(2, 60)});
+    check(!p.isSostenutoDown() && voices() == 0,
+          "and a member channel's pedal does nothing, as with the sustain "
+          "pedal");
+
+    // The parser keeps one state for both pedals. Given CC 66 as well, it
+    // would let go of the caught note as the sustain pedal comes up.
+    send({on(2, 60)});
+    send({cc(1, 66, 127), cc(1, 64, 127)});
+    send({off(2, 60)});
+    send({cc(1, 64, 0)});
+    const auto afterSustain = voices();
+    send({cc(1, 66, 0)});
+    check(afterSustain == 1 && voices() == 0,
+          "with both down, lifting the sustain pedal keeps what the "
+          "sostenuto pedal caught, until that lifts too");
+
+    // And the other way: the sustain pedal takes over a note the sostenuto
+    // pedal held, and the engine lets it go when the zone's pedal lifts.
+    send({on(2, 60)});
+    send({cc(1, 66, 127)});
+    send({off(2, 60)});
+    send({cc(1, 64, 127)});
+    send({cc(1, 66, 0)});
+    const auto afterSostenuto = voices();
+    send({cc(1, 64, 0)});
+    check(afterSostenuto == 1 && voices() == 0,
+          "lifting the sostenuto pedal under the sustain pedal leaves the "
+          "note to it, and lifting that lets it go");
+  }
+  setParam(ovt::params::mpeId, 0.0f);
+  send({}, 2);
+
+  // ---- MIDI Learn leaves it alone ------------------------------------------
+  check(ovt::MidiLearn::isReserved(66) &&
+            juce::String(ovt::MidiLearn::reservedFor(66)) ==
+                "the sostenuto pedal",
+        "MIDI Learn will not take CC 66, and says what it is for");
+
+  p.reset();
+  renderBlocks(p, 4, 512);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
 /// Notes arriving on a channel each, which is what MPE is.
 ///
 /// Checks the routing: a message on channel N reaches the voice it was meant
@@ -9134,6 +9260,20 @@ void testPlayingBar(OvertoniumProcessor &p) {
   const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
                     !sustain.getToggleState();
 
+  const auto &sostenuto = bar->sostenutoLamp();
+  bar->showActivity({0, false, true});
+  const bool sostenutoLit =
+      sostenuto.getToggleState() && !sustain.getToggleState();
+  bar->showActivity({});
+
+  check(sostenuto.isVisible() && sostenuto.getX() == sustain.getX() &&
+            sostenuto.getWidth() == sustain.getWidth() &&
+            sostenuto.getY() > sustain.getBottom() &&
+            sostenuto.getHeight() == sustain.getHeight() && sostenutoLit &&
+            !sostenuto.getToggleState(),
+        "SOSTENUTO stands under SUSTAIN, the same size, and lights on its "
+        "own");
+
   check(three, "it shows the voices in use and lights SUSTAIN (" +
                    inUse.getReading().toStdString() + ", " +
                    inUse.getTitle().toStdString() + ")");
@@ -9146,12 +9286,13 @@ void testPlayingBar(OvertoniumProcessor &p) {
 
   check(pitchMeter.isVisible() && wheelMeter.isVisible() &&
             pressureMeter.isVisible() &&
-            sustain.getRight() < pitchMeter.getX() &&
+            sostenuto.getRight() < pitchMeter.getX() &&
             pitchMeter.getRight() < wheelMeter.getX() &&
             wheelMeter.getRight() < pressureMeter.getX() &&
-            pitchMeter.getBounds().getCentreY() ==
-                sustain.getBounds().getCentreY(),
-        "PITCH, WHEEL and PRESSURE stand after SUSTAIN, on its line");
+            pitchMeter.getY() > sustain.getY() &&
+            pitchMeter.getBottom() < sostenuto.getBottom(),
+        "PITCH, WHEEL and PRESSURE stand after the pedals, within their "
+        "height");
 
   {
     // Where a needle's two ends and middle are, from its own width.
@@ -9164,15 +9305,15 @@ void testPlayingBar(OvertoniumProcessor &p) {
     };
     const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
 
-    bar->showActivity({0, false, -1.0f, 0.0f, 0.0f});
+    bar->showActivity({0, false, false, -1.0f, 0.0f, 0.0f});
     const bool atRest = pitchMeter.getColumn() == left &&
                         wheelMeter.getColumn() == left &&
                         pressureMeter.getColumn() == left;
-    bar->showActivity({0, false, 0.0f, 0.5f, 0.5f});
+    bar->showActivity({0, false, false, 0.0f, 0.5f, 0.5f});
     const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
                          near(wheelMeter.getColumn(), middle(wheelMeter)) &&
                          near(pressureMeter.getColumn(), middle(pressureMeter));
-    bar->showActivity({0, false, 1.0f, 1.0f, 1.0f});
+    bar->showActivity({0, false, false, 1.0f, 1.0f, 1.0f});
     const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
                           wheelMeter.getColumn() == right(wheelMeter) &&
                           pressureMeter.getColumn() == right(pressureMeter);
@@ -13622,6 +13763,7 @@ int main(int argc, char **argv) {
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);
+  testSostenutoOverMidi(processor);
   testMpeSlide();
   testActivityLamps(processor);
   testStrikeReadout();

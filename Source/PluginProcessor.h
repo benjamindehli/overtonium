@@ -82,6 +82,10 @@ public:
   /// Whether a sustain pedal is down on any channel.
   bool isSustainDown() const noexcept { return sustainShown.load(); }
 
+  /// Whether the sostenuto pedal is down, on any channel without MPE and on a
+  /// zone's master channel with it.
+  bool isSostenutoDown() const noexcept { return sostenutoShown.load(); }
+
   /// The pitch wheel, or the widest bend on any key held under MPE, from -1 to
   /// 1 against the BEND range.
   float getBendPosition() const noexcept { return bendShown.load(); }
@@ -324,9 +328,14 @@ private:
   uint32_t pedalChannels = 0;
 
   void followPedal(const juce::MidiMessage &) noexcept;
+
+  /// Under MPE, the channels of every zone whose master channel has its
+  /// sustain pedal down, or of one zone, one bit per MIDI channel.
+  uint32_t sustainedZoneChannels() const noexcept;
+  uint32_t zoneChannels(int masterChannel) const noexcept;
   void publishPlaying() noexcept;
 
-  std::atomic<bool> sustainShown{false};
+  std::atomic<bool> sustainShown{false}, sostenutoShown{false};
   std::atomic<float> bendShown{0.0f}, wheelShown{0.0f}, pressureShown{0.0f};
 
   /// The factory preset the host believes is loaded. Saved with the state so
