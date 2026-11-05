@@ -15,6 +15,10 @@ using ovt::ui::kScrollBarThickness;
 /// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
 
+/// The pointer tool button's height. It is taller than the header row it
+/// stands in, which is only as tall as the channel numbers need.
+constexpr int kToolButtonHeight = 24;
+
 /// The two bars under the top bar, as bits of OvertoniumEditor::openBars.
 constexpr int kPlayingBar = 1;
 constexpr int kTuningBar = 2;
@@ -194,7 +198,11 @@ void RowGutter::resized() {
 
   headerCap.toFront(false);
 
-  toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+  // Centred on the channel numbers, and reaching a little past the header row
+  // into the padding above and the row below. See kToolButtonHeight.
+  const auto header = rows[(size_t)Row::Header];
+  toolButton.setBounds(
+      header.withSizeKeepingCentre(header.getWidth() - 14, kToolButtonHeight));
   toolButton.toFront(false);
 }
 

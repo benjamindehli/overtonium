@@ -15,6 +15,7 @@
 #include <cstring>
 #include <functional>
 #include <map>
+#include <memory>
 #include <random>
 #include <set>
 #include <string>
@@ -54,6 +55,10 @@ void check(bool ok, const std::string &what) {
 }
 
 void section(const char *name) { std::printf("\n== %s ==\n", name); }
+
+// Every processor in this file is made on the heap, as a host makes one. It is
+// about 300 KB, and the main thread on Windows has 1 MB of stack, so two or
+// three on the stack at once overflow it there and nowhere else.
 
 struct Stats {
   float peak = 0.0f;
@@ -4404,7 +4409,8 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
 void testBothPresetKindsCarryTheSame() {
   section("Both kinds of preset carry the same set");
 
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
 
   const auto everyParam = [&p] {
     std::vector<juce::RangedAudioParameter *> out;
@@ -5515,7 +5521,8 @@ void testPresetMenuGroups(OvertoniumProcessor &p) {
 void testFirstProgramIsReachable() {
   section("The first preset on a new instance");
 
-  OvertoniumProcessor fresh;
+  const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+  auto &fresh = *freshOwner;
 
   auto *volume = fresh.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
@@ -5556,7 +5563,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
 
   using ovt::ui::PointerTool;
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
   // What a window left on this tool reports when the next one opens, with the
   // session carried between them the way a host carries it.
@@ -5660,7 +5668,8 @@ void testPresetNameOutlivesTheWindow() {
     return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
   };
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
   check(shownBy(proc).isEmpty(),
         "a window on a new instance shows nothing loaded");
@@ -5681,7 +5690,8 @@ void testPresetNameOutlivesTheWindow() {
   juce::MemoryBlock saved;
   proc.getStateInformation(saved);
 
-  OvertoniumProcessor restored;
+  const auto restoredOwner = std::make_unique<OvertoniumProcessor>();
+  auto &restored = *restoredOwner;
   restored.setStateInformation(saved.getData(), (int)saved.getSize());
 
   check(restored.presetName() == "Something Of My Own",
@@ -7781,7 +7791,8 @@ void testACorruptStateCannotPoisonTheOutput() {
   int checked = 0;
 
   for (const char *poison : poisons) {
-    OvertoniumProcessor victim;
+    const auto victimOwner = std::make_unique<OvertoniumProcessor>();
+    auto &victim = *victimOwner;
     victim.setRateAndBufferSizeDetails(48000.0, 256);
     victim.prepareToPlay(48000.0, 256);
     victim.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7836,7 +7847,8 @@ void testEveryHostRateStaysFinite() {
 
   for (double rate : rates) {
     for (int block : {64, 512}) {
-      OvertoniumProcessor fresh;
+      const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+      auto &fresh = *freshOwner;
       fresh.setRateAndBufferSizeDetails(rate, block);
       fresh.prepareToPlay(rate, block);
       fresh.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7859,7 +7871,8 @@ void testEveryHostRateStaysFinite() {
       // And in tune, which finiteness and loudness cannot see: an engine that
       // assumed 48 kHz would render a good note two octaves down at 192 kHz.
       if (block == 512) {
-        OvertoniumProcessor tone;
+        const auto toneOwner = std::make_unique<OvertoniumProcessor>();
+        auto &tone = *toneOwner;
         tone.setRateAndBufferSizeDetails(rate, block);
         tone.prepareToPlay(rate, block);
         tone.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7906,7 +7919,8 @@ void testTheSafetyClipHoldsUnity() {
   float worst = 0.0f;
 
   for (double rate : {44100.0, 48000.0, 96000.0}) {
-    OvertoniumProcessor fresh;
+    const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+    auto &fresh = *freshOwner;
     fresh.setRateAndBufferSizeDetails(rate, 256);
     fresh.prepareToPlay(rate, 256);
     fresh.applyFactoryPreset(presetIndex("Big Saw"));
@@ -11843,7 +11857,8 @@ void testBusLayouts(OvertoniumProcessor &p) {
 void testUndersizedBuffer() {
   section("Undersized buffers");
 
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
   p.setRateAndBufferSizeDetails(48000.0, 512);
   p.prepareToPlay(48000.0, 512);
 
@@ -11888,7 +11903,8 @@ void testMonoOutput() {
   section("Mono output");
 
   const auto renderPeak = [](juce::AudioChannelSet main) {
-    OvertoniumProcessor p;
+    const auto pOwner = std::make_unique<OvertoniumProcessor>();
+    auto &p = *pOwner;
 
     juce::AudioProcessor::BusesLayout layout;
     layout.outputBuses.add(main);
@@ -11948,7 +11964,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
 
   using ovt::ui::PointerTool;
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
   std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
   auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
@@ -12826,7 +12843,8 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
   const bool before = ovt::updateCheckAllowed();
 
   for (int instance = 0; instance < 3; ++instance) {
-    OvertoniumProcessor fresh;
+    const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+    auto &fresh = *freshOwner;
 
     for (int open = 0; open < 3; ++open) {
       std::unique_ptr<juce::AudioProcessorEditor> ed(fresh.createEditor());
@@ -13119,7 +13137,8 @@ void testMpeSlide() {
 
   // Its own processor, since an earlier test leaves notes decaying and a master
   // gain of its own, and this measures loudness.
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
 
   const auto setParam = [&p](const juce::String &id, float plain) {
     if (auto *param = p.apvts.getParameter(id))
@@ -13574,7 +13593,8 @@ int main(int argc, char **argv) {
 
   juce::ScopedJuceInitialiser_GUI juceInit;
 
-  OvertoniumProcessor processor;
+  const auto processorOwner = std::make_unique<OvertoniumProcessor>();
+  auto &processor = *processorOwner;
 
   // Writes docs/parameters.json from the layout and stops, rather than
   // testing. The check further down then holds the file to it.
