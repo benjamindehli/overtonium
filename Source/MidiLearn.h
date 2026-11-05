@@ -18,15 +18,16 @@ public:
   static constexpr int kNumControllers = 128;
 
   /// Controller numbers this will not bind because something already listens
-  /// for them: the mod wheel (1), sustain (64), the MPE slide axis (74), the
-  /// note stops (120, 123) and the RPN and NRPN messages an MPE controller uses
-  /// to declare its zones (6, 38, 98 to 101).
+  /// for them: the mod wheel (1), sustain (64), sostenuto (66), the MPE slide
+  /// axis (74), the note stops (120, 123) and the RPN and NRPN messages an MPE
+  /// controller uses to declare its zones (6, 38, 98 to 101).
   static bool isReserved(int controller) noexcept {
     switch (controller) {
     case 1:
     case 6:
     case 38:
     case 64:
+    case 66:
     case 74:
     case 98:
     case 99:

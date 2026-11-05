@@ -145,6 +145,7 @@ struct PlayingActivity {
   /// Voices sounding, release tails included.
   int voicesInUse = 0;
   bool sustain = false;
+  bool sostenuto = false;
 
   /// -1 to 1 against the BEND range.
   float bend = 0.0f;
@@ -172,6 +173,7 @@ public:
 
   const SegmentDisplay &inUseDisplay() const { return inUse; }
   const ScreenSwitch &sustainLamp() const { return sustain; }
+  const ScreenSwitch &sostenutoLamp() const { return sostenuto; }
   const ActivityNeedle &bendMeter() const { return bendNeedle; }
   const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
   const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
@@ -208,7 +210,7 @@ private:
   GlowButton legato, noStack, mpe;
 
   SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
-  ScreenSwitch sustain;
+  ScreenSwitch sustain, sostenuto;
   ActivityNeedle bendNeedle{colours::accent}, wheelNeedle{colours::accent},
       pressureNeedle{colours::accent};
 
