@@ -13,6 +13,12 @@ namespace ovt::ui {
 
 int meterSegments(int height) { return juce::jlimit(6, 24, height / 15); }
 
+juce::Rectangle<float> meterTrack(juce::Rectangle<float> whole) {
+  const auto width = juce::jmax(6.0f, whole.getWidth() * 0.62f);
+  return whole.withSizeKeepingCentre(width, whole.getHeight())
+      .reduced(0.0f, kMeterGlowSpread);
+}
+
 namespace {
 /// The macro colours: none first, then eight hues spread around the wheel
 /// at one lightness, told apart on a knob's ring.

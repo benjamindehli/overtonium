@@ -741,11 +741,12 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
     const auto colour = slider.findColour(juce::Slider::trackColourId);
 
+    // In from each end by the bloom's reach, as a channel meter's track is,
+    // so the bloom rounds off inside the fader and there is room for the lip
+    // of the recess.
     const auto trackH = juce::jmax(6.0f, bounds.getHeight() * 0.5f);
-    const auto track = bounds.withSizeKeepingCentre(bounds.getWidth(), trackH);
-
-    g.setColour(colours::groove);
-    g.fillRoundedRectangle(track, trackH * 0.35f);
+    const auto track = bounds.withSizeKeepingCentre(bounds.getWidth(), trackH)
+                           .reduced(kMeterGlowSpread, 0.0f);
 
     const int count =
         juce::jlimit(8, 48, juce::roundToInt(track.getWidth() / 9.0f));
@@ -762,6 +763,47 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto mid = track.getCentreX();
     const auto lo = juce::jmin(mid, at);
     const auto hi = juce::jmax(mid, at);
+
+    // The lit run, by the same test the cells use below, and the bloom
+    // around it the channel meters have, under the recess as theirs is.
+    int first = count, last = -1;
+    for (int i = 0; i < count; ++i) {
+      const auto centre = track.getX() + ((float)i + 0.5f) * step;
+      if (centre >= lo && centre <= hi) {
+        first = juce::jmin(first, i);
+        last = i;
+      }
+    }
+
+    const auto run =
+        juce::Rectangle<float>(track.getX() + (float)first * step, track.getY(),
+                               (float)(last - first + 1) * step, trackH);
+
+    const auto bloom = [&] {
+      g.setColour(colour.withAlpha(0.09f * dim));
+      g.fillRoundedRectangle(run.expanded(kMeterGlowSpread), 4.0f);
+
+      g.setColour(colour.withAlpha(0.10f * dim));
+      g.fillRoundedRectangle(run.expanded(kMeterGlowSpread * 0.45f), 3.0f);
+    };
+
+    if (last >= first)
+      bloom();
+
+    paintRecess(g, track, trackH * 0.35f);
+
+    g.setColour(colours::groove);
+    g.fillRoundedRectangle(track, trackH * 0.35f);
+
+    // And again on the groove, clipped to it, as on a channel meter.
+    if (last >= first) {
+      juce::Path groove;
+      groove.addRoundedRectangle(track, trackH * 0.35f);
+
+      juce::Graphics::ScopedSaveState keep(g);
+      g.reduceClipRegion(groove);
+      bloom();
+    }
 
     for (int i = 0; i < count; ++i) {
       const auto cell = juce::Rectangle<float>(track.getX() + (float)i * step,
@@ -930,9 +972,7 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     // The slider's own rectangle, not the one this was handed, which JUCE
     // insets by the thumb's radius. The meter uses the whole component.
     const auto whole = slider.getLocalBounds().toFloat();
-
-    const auto trackW = juce::jmax(6.0f, whole.getWidth() * 0.62f);
-    const auto track = whole.withSizeKeepingCentre(trackW, whole.getHeight());
+    const auto track = meterTrack(whole);
 
     const int count = meterSegments((int)whole.getHeight());
     const auto step = track.getHeight() / (float)count;
