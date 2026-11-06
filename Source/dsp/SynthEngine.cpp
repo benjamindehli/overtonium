@@ -969,6 +969,9 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
   SympatheticStrings::Plan plan;
   constexpr int kStrings = SympatheticStrings::kStrings;
 
+  // As stiff as STRETCH makes the partials, so their overtones meet.
+  plan.stiffness = stiffnessFor((double)p.global.stretchCents);
+
   const auto set = [&plan](int key, double hz, bool free) {
     const auto s = SympatheticStrings::stringOf(key);
     // The class's constant rather than the local beside it, which MSVC would

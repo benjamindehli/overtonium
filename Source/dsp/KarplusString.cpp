@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Exact.h"
+
 namespace ovt {
 
 namespace {
@@ -55,6 +57,12 @@ void KarplusString::reset() noexcept {
 
   write = 0;
   lowpassPrevious = 0.0f;
+  for (int i = 0; i < kStiffSections; ++i)
+    apIn[i] = apOut[i] = 0.0f;
+  stiffOn = false;
+  allpass = 0.0;
+  apCoeff = 0.0f;
+  apStep = 0.0f;
   primed = false;
   fade = 0.0f;
   fadeStep = 0.0f;
@@ -72,8 +80,108 @@ double KarplusString::lowpassDelay(double omega, double coeff) noexcept {
   return std::atan2(im, re) / omega;
 }
 
+double KarplusString::allpassDelay(double omega, double a) noexcept {
+  // (a + z^-1) / (1 + a z^-1), whose phase is -omega + 2 atan2(a sin, 1 + a
+  // cos). One sample at a = 0.
+  if (omega <= 0.0)
+    return (1.0 - a) / (1.0 + a);
+
+  return 1.0 - 2.0 *
+                   std::atan2(a * std::sin(omega), 1.0 + a * std::cos(omega)) /
+                   omega;
+}
+
+double KarplusString::fitStiffness(double hz, double stiffness,
+                                   double longest) noexcept {
+  if (exactly(stiffness, 0.0))
+    return 0.0;
+
+  if (exactly(hz, fittedHz) && exactly(stiffness, fittedStiffness))
+    return allpass;
+
+  fittedHz = hz;
+  fittedStiffness = stiffness;
+
+  // Mode k of the law, and the last one under the top of the band, which is
+  // the one matched along with the first.
+  const auto modeHz = [hz, stiffness](int k) {
+    return (double)k * hz *
+           std::sqrt(std::max(1.0e-6, 1.0 + stiffness * (double)(k * k)));
+  };
+
+  int top = 1;
+  for (int k = 2; k <= kStiffFitMode && modeHz(k) < 0.45 * sampleRate; ++k)
+    top = k;
+
+  if (top < 2)
+    return 0.0;
+
+  // How much more delay the loop needs at the first mode than at the matched
+  // one, which is all the allpasses' to give, since a plain loop has the same
+  // delay at both. The lowpass is left out, so the string keeps whatever it
+  // does to the series without stiffness and gains only what the law adds.
+  const auto w1 = kTwoPi * modeHz(1) / sampleRate;
+  const auto wk = kTwoPi * modeHz(top) / sampleRate;
+  const auto want =
+      sampleRate / modeHz(1) - (double)top * sampleRate / modeHz(top);
+
+  const auto gap = [w1, wk](double a) {
+    return (double)kStiffSections * (allpassDelay(w1, a) - allpassDelay(wk, a));
+  };
+
+  // Negative coefficients delay the bottom more and stretch the series,
+  // positive ones the top and squeeze it. Bounded so the line is never asked
+  // to be shorter than the interpolation needs.
+  double lo = -0.95, hi = 0.95;
+  while (lo < 0.0 &&
+         (double)kStiffSections * allpassDelay(w1, lo) > longest - 4.0)
+    lo *= 0.5;
+
+  if (gap(lo) <= want)
+    return lo;
+  if (gap(hi) >= want)
+    return hi;
+
+  for (int i = 0; i < 40; ++i) {
+    const auto mid = 0.5 * (lo + hi);
+    (gap(mid) > want ? lo : hi) = mid;
+  }
+
+  return 0.5 * (lo + hi);
+}
+
+void KarplusString::engageStiffness() noexcept {
+  // At nought each allpass passes on its last input, so the pair holds the
+  // last two values the line was given. Moving the line back by two puts
+  // what is already in it where a loop that had always had them would have,
+  // and the next two writes are those same values again.
+  const auto last = [this](std::size_t back) {
+    return line[(write - back + mask + 1) & mask];
+  };
+
+  apIn[0] = last(1);
+  apOut[0] = last(2);
+  apIn[1] = last(2);
+  apOut[1] = last(3);
+
+  write = (write - (std::size_t)kStiffSections + mask + 1) & mask;
+  delay -= (double)kStiffSections;
+  apCoeff = 0.0f;
+  stiffOn = true;
+}
+
+void KarplusString::disengageStiffness() noexcept {
+  // The two values the pair still holds go into the line, where they would
+  // have gone a sample each from now, and the line goes on from there.
+  line[write] = apIn[1];
+  line[(write + 1) & mask] = apIn[0];
+  write = (write + (std::size_t)kStiffSections) & mask;
+  delay += (double)kStiffSections;
+  stiffOn = false;
+}
+
 void KarplusString::setBlock(double hz, double decaySeconds, float damp,
-                             float point, int len) noexcept {
+                             float point, int len, double stiffness) noexcept {
   if (line.empty() || len <= 0)
     return;
 
@@ -85,8 +193,41 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
   const auto omega = kTwoPi * f / sampleRate;
 
   // The whole loop is one period, and the lowpass is part of it.
-  const auto target = std::clamp(period - lowpassDelay(omega, (double)b), 2.0,
-                                 (double)(mask - 4));
+  const auto plainTarget = std::clamp(period - lowpassDelay(omega, (double)b),
+                                      2.0, (double)(mask - 4));
+
+  // A stiff string's first mode moves up with the law, and the allpasses take
+  // their own delay at it out of the line's. They are only in the loop while
+  // there is stiffness, or a ramp back to none to finish.
+  double target = plainTarget;
+
+  if (stiffable) {
+    // Where the last block's ramp was headed, exactly, so a coefficient on
+    // its way back to nought gets there.
+    apCoeff = (float)allpass;
+
+    allpass = audibleLow && plainTarget >= 2.0 + 2.0 * kStiffSections
+                  ? fitStiffness(f, stiffness, plainTarget)
+                  : 0.0;
+
+    if (!primed)
+      stiffOn = !exactly(allpass, 0.0);
+    else if (!exactly(allpass, 0.0) && !stiffOn)
+      engageStiffness();
+    else if (exactly(allpass, 0.0) && stiffOn && exactly(apCoeff, 0.0f))
+      disengageStiffness();
+
+    if (stiffOn) {
+      const auto first =
+          f * std::sqrt(std::max(
+                  1.0e-6, 1.0 + (exactly(allpass, 0.0) ? 0.0 : stiffness)));
+      const auto w1 = kTwoPi * first / sampleRate;
+      target =
+          std::clamp(sampleRate / first - lowpassDelay(w1, (double)b) -
+                         (double)kStiffSections * allpassDelay(w1, allpass),
+                     2.0, (double)(mask - 4));
+    }
+  }
 
   // Ringing to a thousandth over the decay time, one loop pass per period.
   // The lowpass takes some of the fundamental each pass as well, so the gain
@@ -113,7 +254,7 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
 
   // Heard while the loop is long enough to tune, faded out below that.
   const auto targetFade =
-      audibleLow ? (float)std::clamp((target - kFadeShortest) /
+      audibleLow ? (float)std::clamp((plainTarget - kFadeShortest) /
                                          (kFadeLongest - kFadeShortest),
                                      0.0, 1.0)
                  : 0.0f;
@@ -124,8 +265,11 @@ void KarplusString::setBlock(double hz, double decaySeconds, float damp,
     delay = target;
     fade = targetFade;
     feedback = targetFeedback;
+    apCoeff = (float)allpass;
     primed = true;
   }
+
+  apStep = ((float)allpass - apCoeff) / (float)len;
 
   delayStep = (target - delay) / (double)len;
   fadeStep = (targetFade - fade) / (float)len;
@@ -176,7 +320,23 @@ float KarplusString::tick(float excitation) noexcept {
   const auto damped = (1.0f - b) * out + b * lowpassPrevious;
   lowpassPrevious = out;
 
-  line[write] = inputGain * strike + feedback * damped;
+  auto in = inputGain * strike + feedback * damped;
+
+  // The stiffness, on everything that goes into the line, the strike as well
+  // as the loop, so a coefficient of nought is a delay of exactly what the
+  // line is read short by.
+  if (stiffOn) {
+    for (int i = 0; i < kStiffSections; ++i) {
+      const auto y = apCoeff * (in - apOut[i]) + apIn[i];
+      apIn[i] = in;
+      apOut[i] = y;
+      in = y;
+    }
+
+    apCoeff += apStep;
+  }
+
+  line[write] = in;
   write = (write + 1) & mask;
 
   delay += delayStep;

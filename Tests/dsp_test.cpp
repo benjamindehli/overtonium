@@ -5530,6 +5530,252 @@ double pitchNear(const std::vector<float> &x, size_t from, size_t count,
 /// The string the noise channel strikes: in tune, ringing for as long as
 /// DECAY says, following a pitch that moves, quiet where it cannot be tuned,
 /// and as loud as the noise that breathes into it.
+/// The resonator's strings follow STRETCH. Two allpasses in each loop spread
+/// a string's overtones the way the stiff-string law spreads the partials, so
+/// a stretched partial still finds its string.
+void testStiffStrings() {
+  section("Stiff strings");
+
+  constexpr double sr = 48000.0;
+
+  // A string rung by one impulse and left, with nothing taking its top away,
+  // so its modes stay sharp.
+  const auto ring = [&](double hz, double stiffness, bool stiffable,
+                        int samples) {
+    KarplusString s;
+    s.setStiffable(stiffable);
+    s.prepare(sr, 20.0);
+    std::vector<float> out((size_t)samples);
+    for (int n = 0; n < samples; n += 256) {
+      s.setBlock(hz, 20.0, 0.0f, -1.0f, 256, stiffness);
+      for (int i = 0; i < 256 && n + i < samples; ++i)
+        out[(size_t)(n + i)] = s.tick(n + i == 0 ? 1.0f : 0.0f);
+    }
+    return out;
+  };
+
+  // Where a mode near `near` really is: the loudest point of a Hann-windowed
+  // transform within 40 cents of it, a cent apart, refined by a parabola.
+  const auto peakNear = [&](const std::vector<float> &x, double near) {
+    const auto power = [&](double hz) {
+      const double w = 6.283185307179586 * hz / sr;
+      const double c = 2.0 * std::cos(w);
+      double s1 = 0.0, s2 = 0.0;
+      const auto len = x.size();
+      for (size_t n = 0; n < len; ++n) {
+        const double hann =
+            0.5 - 0.5 * std::cos(6.283185307179586 * (double)n / (double)len);
+        const double s0 = (double)x[n] * hann + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+      }
+      return std::log(s1 * s1 + s2 * s2 - c * s1 * s2 + 1.0e-30);
+    };
+
+    int best = -40;
+    double bestPower = -1.0e300;
+    std::vector<double> p(81);
+    for (int cents = -40; cents <= 40; ++cents) {
+      p[(size_t)(cents + 40)] = power(near * std::exp2(cents / 1200.0));
+      if (p[(size_t)(cents + 40)] > bestPower) {
+        bestPower = p[(size_t)(cents + 40)];
+        best = cents;
+      }
+    }
+
+    if (best == -40 || best == 40)
+      return near * std::exp2(best / 1200.0);
+
+    const auto a = p[(size_t)(best + 39)], b = p[(size_t)(best + 40)],
+               c = p[(size_t)(best + 41)];
+    const auto shift = 0.5 * (a - c) / (a - 2.0 * b + c);
+    return near * std::exp2((best + shift) / 1200.0);
+  };
+
+  // How far the string's modes up to `last` are from where the law moves
+  // them, worst first. Measured against the plain string's own modes, so
+  // what the loop does to the series without stiffness, which the lowpass
+  // and the interpolation both do a little at the top, is left out, and only
+  // what stiffness adds is judged.
+  const auto worstCents = [&](double hz, double stretch, double stiffness,
+                              int last) {
+    const auto plain = ring(hz, 0.0, true, 1 << 16);
+    const auto x = ring(hz, stiffness, true, 1 << 16);
+    const auto b = stiffnessFor(stretch);
+    double worst = 0.0;
+    for (int k = 1; k <= last; ++k) {
+      const auto ratio = std::sqrt(1.0 + b * (double)(k * k));
+      const auto own = peakNear(plain, (double)k * hz);
+      const auto law = own * ratio;
+      worst =
+          std::max(worst, std::abs(1200.0 * std::log2(peakNear(x, law) / law)));
+    }
+    return worst;
+  };
+
+  // ---- without stiffness, exactly the plain string --------------------------
+  {
+    const auto plain = ring(220.0, 0.0, false, 20000);
+    const auto stiffable = ring(220.0, 0.0, true, 20000);
+    check(plain == stiffable,
+          "with no stiffness the loop rings exactly as the plain string does, "
+          "sample for sample");
+  }
+
+  // ---- the allpasses go in and out of the loop without a trace -------------
+  //
+  // They are only there while a string is stiff. A vanishingly small
+  // stiffness puts them in and taking it away takes them out, and the string
+  // has to carry on as if nothing had happened. Moving the line by the wrong
+  // amount would put it a whole wave out.
+  {
+    const auto driven = [&](bool tiny) {
+      KarplusString s;
+      s.setStiffable(true);
+      s.prepare(sr, 20.0);
+      std::vector<float> out;
+      for (int block = 0; block < 60; ++block) {
+        const bool in = tiny && block >= 20 && block < 40;
+        s.setBlock(220.0, 4.0, 0.25f, -1.0f, 256,
+                   in ? stiffnessFor(1.0e-6) : 0.0);
+        for (int n = 0; n < 256; ++n)
+          out.push_back(
+              s.tick(0.01f * (float)std::sin(6.283185307179586 * 331.0 *
+                                             (double)(block * 256 + n) / sr)));
+      }
+      return out;
+    };
+
+    const auto plain = driven(false);
+    const auto through = driven(true);
+    float worst = 0.0f, peak = 0.0f;
+    for (size_t n = 0; n < plain.size(); ++n) {
+      worst = std::max(worst, std::abs(plain[n] - through[n]));
+      peak = std::max(peak, std::abs(plain[n]));
+    }
+    check(worst < 1.0e-6f * peak,
+          "the allpasses go into the loop and out again without a trace (" +
+              std::to_string(worst / peak) + " of the level)");
+  }
+
+  // ---- with it, the modes sit where the law puts the partials ---------------
+  {
+    const auto b24 = stiffnessFor(24.0);
+    const auto stiff = worstCents(220.0, 24.0, b24, 16);
+    const auto plain = worstCents(220.0, 24.0, 0.0, 16);
+
+    check(stiff < 0.5 && plain > 5.0,
+          "at 24 cents of STRETCH the first sixteen modes of A3 are within "
+          "half a cent of the partials, where the plain string misses by " +
+              std::to_string(plain) + " (" + std::to_string(stiff) + ")");
+
+    const auto high = worstCents(1046.5, 24.0, b24, 16);
+    // Its sixteenth mode is near 17 kHz, where the interpolation's own delay
+    // is no longer flat and the fit, which takes it as flat, is a little out.
+    check(high < 1.0,
+          "and on C6, whose sixteenth mode is near 17 kHz, within a cent (" +
+              std::to_string(high) + ")");
+
+    const auto b80 = stiffnessFor(80.0);
+    const auto far = worstCents(220.0, 80.0, b80, 16);
+    check(far < 3.0,
+          "and at 80 cents within three (" + std::to_string(far) + ")");
+
+    // Squeezed, where an allpass can only help where little is needed.
+    const auto bLess = stiffnessFor(-3.0);
+    const auto squeezed = worstCents(1046.5, -3.0, bLess, 16);
+    const auto unsqueezed = worstCents(1046.5, -3.0, 0.0, 16);
+    check(squeezed < unsqueezed && squeezed < 0.5,
+          "pulled in, a high string follows too (" + std::to_string(squeezed) +
+              " cents, against " + std::to_string(unsqueezed) + " without)");
+  }
+
+  // ---- so a stretched partial rings its string ------------------------------
+  //
+  // The twelfth partial of A3 at 24 cents of STRETCH, played into the
+  // resonator with A3's string free. What comes back is what matters.
+  {
+    const auto wet = [&](double stiffness) {
+      const auto owner = std::make_unique<SympatheticStrings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+      rp.damping = 0.0f;
+
+      SympatheticStrings::Plan plan;
+      const auto s = (size_t)SympatheticStrings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.stiffness = stiffness;
+
+      const auto b = stiffnessFor(24.0);
+      const auto hz = 12.0 * 220.0 * std::sqrt(1.0 + b * 144.0);
+
+      std::vector<float> l(512), r(512);
+      double energy = 0.0;
+      for (int block = 0; block < 400; ++block) {
+        for (int n = 0; n < 512; ++n)
+          l[(size_t)n] = r[(size_t)n] =
+              0.1f * (float)std::sin(6.283185307179586 * hz *
+                                     (double)(block * 512 + n) / sr);
+        strings.process(l.data(), r.data(), 512, rp, plan);
+        if (block >= 200)
+          for (float x : l)
+            energy += (double)x * (double)x;
+      }
+      return energy;
+    };
+
+    const auto stiff = wet(stiffnessFor(24.0));
+    const auto plain = wet(0.0);
+    check(stiff > 10.0 * plain,
+          "a stretched partial rings its string far more once the string is "
+          "as stiff (" +
+              std::to_string(10.0 * std::log10(stiff / plain)) + " dB more)");
+  }
+
+  // ---- moving STRETCH under a ringing string does not click -----------------
+  //
+  // Driven by a steady sine at its own pitch, a string's output is as smooth
+  // as the sine, whose second difference is tiny. A step in the loop, where
+  // STRETCH moves, would stand far above it.
+  {
+    KarplusString s;
+    s.setStiffable(true);
+    s.prepare(sr, 20.0);
+    std::vector<float> out;
+    for (int block = 0; block < 60; ++block) {
+      const auto stretch = block < 20 ? 0.0 : block < 40 ? 24.0 : 180.0;
+      s.setBlock(220.0, 4.0, 0.25f, -1.0f, 256, stiffnessFor(stretch));
+      for (int n = 0; n < 256; ++n)
+        out.push_back(
+            s.tick(0.01f * (float)std::sin(6.283185307179586 * 220.0 *
+                                           (double)(block * 256 + n) / sr)));
+    }
+
+    float atMove = 0.0f, elsewhere = 0.0f, peak = 0.0f;
+    for (size_t n = 10 * 256; n < out.size(); ++n) {
+      const auto bend = std::abs(out[n] - 2.0f * out[n - 1] + out[n - 2]);
+      const auto block = n / 256;
+      peak = std::max(peak, std::abs(out[n]));
+      if (block == 20 || block == 40)
+        atMove = std::max(atMove, bend);
+      else
+        elsewhere = std::max(elsewhere, bend);
+    }
+
+    check(atMove <= 2.0f * elsewhere && elsewhere < 0.01f * peak,
+          "moving STRETCH under a ringing string changes it without a step "
+          "(the sharpest bend where it moves " +
+              std::to_string(atMove / peak) + " of the level, elsewhere " +
+              std::to_string(elsewhere / peak) + ")");
+  }
+}
+
 void testKarplusString() {
   section("The string in the noise channel");
 
@@ -14014,6 +14260,7 @@ int main() {
   testOneVoicePerKey();
   testPerNoteChannels();
   testKarplusString();
+  testStiffStrings();
   testSympatheticStrings();
   testSostenutoPedal();
   testHalfPedal();

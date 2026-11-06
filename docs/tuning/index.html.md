@@ -1,6 +1,6 @@
 Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-18
+Last changed: 2026-11-05
 
 # The Overtonium tuning system
 
@@ -68,6 +68,8 @@ STRETCH sets that stiffness. It is set by how far it moves the top partial, not 
 The bottom of the series barely moves and the top moves a long way. Turn it further and the partials no longer share a fundamental, so the sound stops being a note with a timbre and becomes a bell. Negative values pull the partials inward. No real string does this, but it is still a useful sound.
 
 It is separate from TUNE, and the two work together. Equal temperament with heavy stretch sounds different from just intonation with the same stretch. Zero is the plain harmonic series.
+
+The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are just as stiff, so a stretched partial still finds the string it should ring. Up to about a piano's worth of stretch, the first sixteen overtones of each string land within a fraction of a cent of the partials. Further out the upper ones drift. The low strings can only be pulled in a little, so with negative stretch it is mostly the high strings that follow.
 
 One note while STRETCH turns from a harmonic series to beyond a piano. The bottom of the series barely moves and the top moves a long way. Along the way the partials stop sharing a fundamental.
 
