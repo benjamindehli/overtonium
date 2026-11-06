@@ -349,8 +349,10 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
       "88 sympathetic strings that resonate with what you play, before the bus "
       "drive. Piano rings the held keys' strings, and all 88 while the "
       "sustain pedal is down. Open rings all 88 as if the pedal were always "
-      "down. Octave rings twelve strings from C3, and Series the tuning root's "
-      "harmonics.");
+      "down. Octave rings twelve strings from C3, Series the tuning root's "
+      "harmonics, and Fifths the root and its fifth in four octaves. Chord "
+      "is Piano that keeps the last chord's strings ringing after you let "
+      "go.");
 
   // The click opens a menu rather than toggling, and the light says what came
   // back.

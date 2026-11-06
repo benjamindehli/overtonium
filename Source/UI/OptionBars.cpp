@@ -808,7 +808,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
   root.setTooltip(
-      "The key the temperament is built on, and the resonator's Series");
+      "The key the temperament is built on, and the resonator's Series and "
+      "Fifths");
   root.showSharpSign(true);
   reference.setTooltip("The pitch A is tuned to");
   retune.slider.setTooltip("How long Adaptive takes to slide a held note to "

@@ -49,9 +49,10 @@ int choiceIndex(juce::AudioProcessorValueTreeState &apvts, const char *id) {
 }
 
 bool rootInUse(juce::AudioProcessorValueTreeState &apvts) {
+  const auto resonator = choiceIndex(apvts, params::resonatorModeId);
   return choiceIndex(apvts, params::temperamentId) != (int)Temperament::Equal ||
-         choiceIndex(apvts, params::resonatorModeId) ==
-             (int)ResonatorMode::Series;
+         resonator == (int)ResonatorMode::Series ||
+         resonator == (int)ResonatorMode::Fifths;
 }
 
 int voiceCount(juce::AudioProcessorValueTreeState &apvts) {

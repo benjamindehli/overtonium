@@ -219,6 +219,10 @@ public:
   /// How often the strings' sides are worked out again.
   static constexpr double kPanSeconds = 0.02;
 
+  /// How many octaves of root and fifth the resonator's Fifths mode rings,
+  /// from the root's second octave up.
+  static constexpr int kFifthsOctaves = 4;
+
   /// Loudest instance of each partial across the sounding voices, 0..1. The
   /// loudest rather than the sum, so a chord does not pin the display.
   float getPartialLevel(int index0) const noexcept {
@@ -592,6 +596,31 @@ private:
   int panClock = 1 << 30;
   std::array<float, SympatheticStrings::kStrings> lastPan{};
   std::array<bool, SympatheticStrings::kStrings> lastDriven{};
+
+  /// The chord the resonator's Chord mode holds: which voices' keys belong to
+  /// it, and for each string in it, where its key last sounded, nought until
+  /// a block has seen it. Kept in every mode, so switching to Chord rings the
+  /// last chord played. See rememberChord.
+  std::array<bool, kPoolSize> inChord{};
+  std::array<bool, SympatheticStrings::kStrings> chordStrings{};
+  std::array<double, SympatheticStrings::kStrings> chordHz{};
+
+  /// Whether a key going down now joins the chord, and if it starts a new
+  /// one, puts the keys struck with it in. Called before a voice is chosen.
+  bool joinChord() noexcept;
+
+  /// Puts a voice's key in the chord.
+  void addToChord(size_t voice, int note) noexcept;
+
+  /// Follows the chord's held keys where Adaptive moves them. Once a block.
+  void followChord() noexcept;
+
+  /// Forgets the chord.
+  void forgetChord() noexcept {
+    inChord.fill(false);
+    chordStrings.fill(false);
+    chordHz.fill(0.0);
+  }
 
   /// How far down the sustain pedal is for each MIDI channel's notes: nought
   /// for an ordinary keyboard's, which belong to no channel, and one to

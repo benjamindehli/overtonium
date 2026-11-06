@@ -63,7 +63,7 @@ bool isOn(juce::AudioProcessorValueTreeState &, const char *id);
 int choiceIndex(juce::AudioProcessorValueTreeState &, const char *id);
 
 /// Whether the root decides anything you can hear: under any temperament but
-/// equal, or with the resonator in Series.
+/// equal, or with the resonator in Series or Fifths.
 bool rootInUse(juce::AudioProcessorValueTreeState &);
 
 /// Carries out a choice from any of the lists above, or one of the switches.

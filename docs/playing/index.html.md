@@ -1,6 +1,6 @@
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-11-05
+Last changed: 2026-11-06
 
 # Playing Overtonium
 
@@ -174,7 +174,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune`            | `adaptiveRetune`  | 0.0 ms to 1.00 s                                                                                                                   | 30.0 ms    |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on                                                                                                                          | On         |
 | `Adaptive No Drift`          | `adaptiveHome`    | Off or on                                                                                                                          | Off        |
-| `Resonator Mode`             | `resonatorMode`   | Off, Piano, Open, Octave, Series                                                                                                   | Off        |
+| `Resonator Mode`             | `resonatorMode`   | Off, Piano, Open, Octave, Series, Fifths, Chord                                                                                    | Off        |
 | `Resonator Mix`              | `resonatorMix`    | 0 % to 100 %                                                                                                                       | 50 %       |
 | `Resonator Decay`            | `resonatorDecay`  | 200 ms to 10.00 s                                                                                                                  | 4.00 s     |
 | `Resonator Damp`             | `resonatorDamp`   | 0 % to 100 %                                                                                                                       | 40 %       |
