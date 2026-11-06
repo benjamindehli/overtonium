@@ -46,7 +46,18 @@ public:
     /// How stiff every string is, as the stiff-string law's B, which is
     /// what STRETCH sets for the partials. See KarplusString::setBlock.
     double stiffness = 0.0;
+
+    /// Which side each string rings back on, -1 left to 1 right, after what
+    /// is driving it this block, and whether anything is. A string nothing
+    /// drives keeps the side it had while it rings on. See process.
+    std::array<float, kStrings> pan{};
+    std::array<bool, kStrings> driven{};
   };
+
+  /// How long a string takes to move to a new side, as a time constant. Long
+  /// enough that partials beating against each other do not swing it, short
+  /// enough to follow a chord change.
+  static constexpr double kPanSeconds = 0.05;
 
   /// The key a string belongs to, and back.
   static constexpr int keyOf(int string) noexcept {
@@ -124,6 +135,10 @@ private:
   /// What each string was fed at the end of the last block, so a change in
   /// what it is fed can be moved across the next one.
   std::array<float, kStrings> feeding{};
+
+  /// The side each string is on now, moving towards the plan's, and the gain
+  /// it was last sent to each side with, so a change is ramped across a block.
+  std::array<float, kStrings> panNow{}, gainLeft{}, gainRight{};
 
   /// The level the instrument and the resonator are let through at, as they
   /// move towards what MIX and the mode ask for.

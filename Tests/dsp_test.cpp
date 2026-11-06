@@ -6651,6 +6651,202 @@ void testHalfPedal() {
   }
 }
 
+/// The resonator rings each string back on the side of what drives it, so a
+/// panned patch keeps its resonator with it, and a centred one is as it was.
+void testStereoResonator() {
+  section("Stereo resonator");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 512;
+  using Strings = SympatheticStrings;
+
+  // One partial or two, the resonator alone, ringing A4's string.
+  const auto setUp = [](float firstPan, float secondPan, float second) {
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].pan = firstPan;
+    p.osc[1].volume = second;
+    p.osc[1].pan = secondPan;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.resonator.mode = ResonatorMode::Piano;
+    p.resonator.mix = 1.0f;
+    p.pedalDown = true;
+    return p;
+  };
+
+  // ---- a centred patch is exactly as it was
+  // ----------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = setUp(0.0f, 0.0f, 0.3f);
+    p.resonator.mix = 0.5f;
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(57, 1.0f, p);
+    bool same = true;
+    for (int b = 0; b < 100; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      same &= l == r;
+    }
+    check(same, "a centred patch's resonator rings in the middle, the two "
+                "sides the same sample for sample");
+  }
+
+  // ---- a string takes the side of what drives it ----------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = setUp(1.0f, 1.0f, 0.0f);
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(69, 1.0f, p);
+    double left = 0.0, right = 0.0;
+    for (int b = 0; b < 200; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      if (b >= 100)
+        for (int n = 0; n < kBlock; ++n) {
+          left += (double)l[(size_t)n] * l[(size_t)n];
+          right += (double)r[(size_t)n] * r[(size_t)n];
+        }
+    }
+    check(right > 0.0 && left < right * 1.0e-3,
+          "a partial panned hard right rings its string on the right (left " +
+              std::to_string(10.0 * std::log10(left / right + 1.0e-30)) +
+              " dB under it)");
+  }
+
+  // ---- driven from both sides it sits between them, by how much each feeds --
+  {
+    const auto sideOf = [&](float second) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto p = setUp(1.0f, -1.0f, second);
+      p.osc[0].volume = 0.5f;
+      std::vector<float> l(kBlock), r(kBlock);
+      e.noteOn(69, 1.0f, p);
+      e.noteOn(57, 1.0f, p);
+      for (int b = 0; b < 4; ++b)
+        e.render(l.data(), r.data(), kBlock, p);
+      auto plan = e.planStrings(p);
+      e.panStrings(plan, p);
+      return plan.pan[(size_t)Strings::stringOf(69)];
+    };
+
+    // Three partials feed A4's string: A4's first, panned right, and two
+    // panned left, A3's second and A4's own second, which lands on the
+    // string's second mode. With the second partials at 1/sqrt(2) of the
+    // first's level, the two on the left feed as much power as the one on the
+    // right, so it sits in the middle. At half the level they feed a quarter
+    // each, and it leans right, at (1 - 2/4) / (1 + 2/4), a third.
+    const auto even = sideOf(0.5f / std::sqrt(2.0f));
+    const auto lean = sideOf(0.25f);
+    check(std::abs(even) < 0.02f,
+          "fed as much from each side, a string sits in the middle (" +
+              std::to_string(even) + ")");
+    check(std::abs(lean - 1.0f / 3.0f) < 0.02f,
+          "and fed more from the right, it leans right, weighted by what each "
+          "feeds it (" +
+              std::to_string(lean) + ")");
+  }
+
+  // ---- as loud wherever it is, and it moves without a step ------------------
+  {
+    const auto ringAt = [&](const std::function<float(int)> &panAt,
+                            std::vector<float> &l, std::vector<float> &r) {
+      const auto owner = std::make_unique<Strings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+
+      Strings::Plan plan;
+      const auto s = (size_t)Strings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+
+      std::vector<float> bl(kBlock), br(kBlock);
+      for (int b = 0; b < 200; ++b) {
+        const auto pan = panAt(b);
+        plan.driven[s] = pan > -2.0f;
+        plan.pan[s] = std::max(-1.0f, pan);
+        for (int n = 0; n < kBlock; ++n)
+          bl[(size_t)n] = br[(size_t)n] =
+              0.01f * (float)std::sin(6.283185307179586 * 220.0 *
+                                      (double)(b * kBlock + n) / sr);
+        strings.process(bl.data(), br.data(), kBlock, rp, plan);
+        l.insert(l.end(), bl.begin(), bl.end());
+        r.insert(r.end(), br.begin(), br.end());
+      }
+    };
+
+    const auto power = [](const std::vector<float> &l,
+                          const std::vector<float> &r, size_t from) {
+      double sum = 0.0;
+      for (size_t n = from; n < l.size(); ++n)
+        sum += (double)l[n] * l[n] + (double)r[n] * r[n];
+      return sum;
+    };
+
+    std::vector<float> lc, rc, lr, rr;
+    ringAt([](int) { return 0.0f; }, lc, rc);
+    ringAt([](int) { return 1.0f; }, lr, rr);
+    const auto from = (size_t)(100 * kBlock);
+    const auto db =
+        10.0 * std::log10(power(lr, rr, from) / power(lc, rc, from));
+    check(std::abs(db) < 0.1,
+          "a string hard right is as loud as one in the middle (" +
+              std::to_string(db) + " dB)");
+
+    // Moved from the middle to the right and back, with nothing driving it in
+    // between, which keeps the side it had.
+    std::vector<float> lm, rm;
+    ringAt(
+        [](int b) {
+          return b < 60 ? 0.0f : b < 100 ? 1.0f : b < 140 ? -5.0f : 0.0f;
+        },
+        lm, rm);
+
+    // Every block of the glide to a new side starts with the gains moving on,
+    // so each one's first samples are where a step would be.
+    float bend = 0.0f, sine = 0.0f, peak = 0.0f;
+    for (size_t n = 50 * kBlock; n < lm.size(); ++n)
+      for (const auto *x : {&lm, &rm}) {
+        const auto d = std::abs((*x)[n] - 2.0f * (*x)[n - 1] + (*x)[n - 2]);
+        peak = std::max(peak, std::abs((*x)[n]));
+        if (((n / kBlock >= 60 && n / kBlock < 90) ||
+             (n / kBlock >= 140 && n / kBlock < 170)) &&
+            n % kBlock < 4)
+          bend = std::max(bend, d);
+        else
+          sine = std::max(sine, d);
+      }
+    check(bend <= 2.0f * sine,
+          "it moves to a new side without a step (sharpest bend where it "
+          "moves " +
+              std::to_string(bend / peak) + " of the level, elsewhere " +
+              std::to_string(sine / peak) + ")");
+
+    float leftAt120 = 0.0f, rightAt120 = 0.0f;
+    for (size_t n = 120 * kBlock; n < 121 * kBlock; ++n) {
+      leftAt120 = std::max(leftAt120, std::abs(lm[n]));
+      rightAt120 = std::max(rightAt120, std::abs(rm[n]));
+    }
+    check(leftAt120 < 0.05f * rightAt120,
+          "and with nothing driving it, it keeps the side it had");
+
+    bool backInMiddle = true;
+    for (size_t n = 190 * kBlock; n < lm.size(); ++n)
+      backInMiddle &= exactly(lm[n], rm[n]);
+    check(backInMiddle, "back in the middle it is exactly in the middle again");
+  }
+}
+
 void testSympatheticStrings() {
   section("Sympathetic strings");
 
@@ -14264,6 +14460,7 @@ int main() {
   testSympatheticStrings();
   testSostenutoPedal();
   testHalfPedal();
+  testStereoResonator();
   testHeldExpression();
   testActivity();
   testLampsFollowNewestNote();
