@@ -318,6 +318,12 @@ enum class ResonatorMode {
   /// The tuning root's harmonic series from its second octave, pure, always
   /// undamped.
   Series,
+  /// The tuning root and the pure fifth above it, in four octaves from its
+  /// second, always undamped, as a drone.
+  Fifths,
+  /// Piano, with the last chord struck held free after its keys come up, as
+  /// if a sostenuto pedal caught every chord. See SynthEngine::noteOnImpl.
+  Chord,
   NumModes
 };
 
@@ -333,6 +339,10 @@ inline const char *resonatorModeName(ResonatorMode m) {
     return "Octave";
   case ResonatorMode::Series:
     return "Series";
+  case ResonatorMode::Fifths:
+    return "Fifths";
+  case ResonatorMode::Chord:
+    return "Chord";
 
   case ResonatorMode::NumModes:
     break;

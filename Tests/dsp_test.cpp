@@ -6847,6 +6847,389 @@ void testStereoResonator() {
   }
 }
 
+/// The resonator's Fifths and Chord modes: Fifths rings a drone of the root
+/// and its fifth, pure, and Chord holds the last chord struck after its keys
+/// come up, while a line played over it leaves it be.
+void testFifthsAndChord() {
+  section("Fifths and Chord");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 256;
+  using Strings = SympatheticStrings;
+
+  const auto near = [](double a, double b) {
+    return a > 0.0 && b > 0.0 && std::abs(1200.0 * std::log2(a / b)) < 0.01;
+  };
+  const auto equal = [](int key) {
+    return 440.0 * std::exp2((double)(key - 69) / 12.0);
+  };
+
+  // Which strings a plan has free, by key.
+  const auto freeKeys = [](const Strings::Plan &plan) {
+    std::vector<int> keys;
+    for (int s = 0; s < Strings::kStrings; ++s)
+      if (plan.free[(size_t)s])
+        keys.push_back(Strings::keyOf(s));
+    return keys;
+  };
+
+  // ---- Fifths ---------------------------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.resonator.mode = ResonatorMode::Fifths;
+
+    bool right = true;
+    std::string got;
+    for (const int root : {0, 2, 11}) {
+      p.global.tuningRoot = root;
+      const auto plan = e.planStrings(p);
+      const auto keys = freeKeys(plan);
+      const auto bottom = 36 + root;
+      std::vector<int> want;
+      for (int o = 0; o < SynthEngine::kFifthsOctaves; ++o) {
+        want.push_back(bottom + 12 * o);
+        want.push_back(bottom + 12 * o + 7);
+      }
+      std::sort(want.begin(), want.end());
+      right &= keys == want;
+      for (int o = 0; o < SynthEngine::kFifthsOctaves; ++o) {
+        const auto hz = equal(bottom) * (double)(1 << o);
+        right &= near(plan.hz[(size_t)Strings::stringOf(bottom + 12 * o)], hz);
+        right &= near(plan.hz[(size_t)Strings::stringOf(bottom + 12 * o + 7)],
+                      hz * 1.5);
+      }
+      if (!right && got.empty())
+        got = "root " + std::to_string(root);
+    }
+    check(right, "Fifths rings the root from its second octave and the pure "
+                 "fifth above it, in four octaves, undamped, for any root" +
+                     (got.empty() ? std::string() : " (wrong at " + got + ")"));
+
+    // The root's own key, as Series takes it, under an unequal temperament.
+    p.global.tuningRoot = 2;
+    p.global.temperament = Temperament::Werckmeister3;
+    const auto plan = e.planStrings(p);
+    check(
+        near(plan.hz[(size_t)Strings::stringOf(38)],
+             noteFrequency(38, Temperament::Werckmeister3, 2, 440.0)) &&
+            near(plan.hz[(size_t)Strings::stringOf(45)],
+                 1.5 * noteFrequency(38, Temperament::Werckmeister3, 2, 440.0)),
+        "and its fifths are pure whatever the temperament makes of the "
+        "root");
+  }
+
+  // ---- Chord: what it holds -------------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.resonator.mode = ResonatorMode::Chord;
+    std::vector<float> l(kBlock), r(kBlock);
+    const auto wait = [&](double seconds) {
+      for (int b = 0; b < (int)(seconds * sr) / kBlock + 1; ++b)
+        e.render(l.data(), r.data(), kBlock, p);
+    };
+    const auto press = [&](std::initializer_list<int> keys) {
+      for (int k : keys)
+        e.noteOn(k, 0.8f, p);
+    };
+    const auto lift = [&](std::initializer_list<int> keys) {
+      for (int k : keys)
+        e.noteOff(k);
+    };
+    const auto freeNow = [&] { return freeKeys(e.planStrings(p)); };
+    using Keys = std::vector<int>;
+
+    press({48, 52, 55});
+    wait(0.2);
+    check(freeNow() == Keys{48, 52, 55},
+          "Chord frees the strings of a chord while it is held, as Piano does");
+
+    lift({48, 52, 55});
+    wait(0.2);
+    check(freeNow() == Keys{48, 52, 55},
+          "and keeps them free once its keys come up");
+
+    // A line over it: one key at a time, overlapping, each struck well apart.
+    press({72});
+    wait(0.1);
+    const auto lineHeld = freeNow();
+    press({74});
+    wait(0.1);
+    lift({72});
+    wait(0.1);
+    lift({74});
+    wait(0.2);
+    check(lineHeld == Keys{48, 52, 55, 72} && freeNow() == Keys{48, 52, 55},
+          "a line played over it rings its own strings while each key is "
+          "held, and leaves the chord as it was");
+
+    // A key added while the chord is down joins it.
+    press({53, 57, 60});
+    wait(0.2);
+    press({64});
+    wait(0.1);
+    lift({53, 57, 60, 64});
+    wait(0.2);
+    check(freeNow() == Keys{53, 57, 60, 64},
+          "a new chord struck after letting go replaces the old one, and a key "
+          "added while it is down joins it");
+
+    // Under the sustain pedal the keys are up, so a chord struck while the
+    // pedal holds the last one is new rather than added to it.
+    p.pedalDown = true;
+    e.setSustainPedal(true);
+    press({50, 57});
+    wait(0.1);
+    lift({50, 57});
+    wait(0.1);
+    press({52, 59});
+    wait(0.1);
+    lift({52, 59});
+    p.pedalDown = false;
+    e.setSustainPedal(false);
+    wait(0.2);
+    check(freeNow() == Keys{52, 59},
+          "keys the pedal holds are up, so a chord struck after them is new");
+
+    // A note struck alone after everything is up leaves the chord.
+    press({62});
+    wait(0.1);
+    lift({62});
+    wait(0.2);
+    check(freeNow() == Keys{52, 59}, "a lone note is not a chord");
+
+    // Another mode, and back, and the chord is still there.
+    p.resonator.mode = ResonatorMode::Piano;
+    wait(0.1);
+    const auto piano = freeNow();
+    p.resonator.mode = ResonatorMode::Chord;
+    check(piano.empty() && freeNow() == Keys{52, 59},
+          "Piano lets the chord's strings go, and Chord, chosen again, has "
+          "them back");
+
+    e.allNotesOff();
+    check(freeNow().empty(), "and all notes off forgets it");
+  }
+
+  // ---- Chord: the strings follow Adaptive -----------------------------------
+  //
+  // C and F sharp struck together, then A under both: one of the two held
+  // notes has to move a comma to make both intervals pure, and its string
+  // goes with it, and stays there once the keys come up.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.global.temperament = Temperament::Adaptive;
+    p.global.adaptiveRetuneSeconds = 0.05f;
+    p.resonator.mode = ResonatorMode::Chord;
+    std::vector<float> l(kBlock), r(kBlock);
+
+    e.noteOn(60, 0.8f, p);
+    e.noteOn(66, 0.8f, p);
+    for (int b = 0; b < 20; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    const auto before = e.frequencyOfNote(60) * e.frequencyOfNote(66);
+
+    e.noteOn(57, 0.8f, p);
+    bool following = true;
+    for (int b = 0; b < 40; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      const auto plan = e.planStrings(p);
+      for (int key : {57, 60, 66})
+        following &= near(plan.hz[(size_t)Strings::stringOf(key)],
+                          e.frequencyOfNote(key));
+    }
+    const auto moved = 1200.0 * std::log2(e.frequencyOfNote(60) *
+                                          e.frequencyOfNote(66) / before);
+    const auto sounded = std::array<double, 3>{
+        e.frequencyOfNote(57), e.frequencyOfNote(60), e.frequencyOfNote(66)};
+
+    for (int key : {57, 60, 66})
+      e.noteOff(key);
+    for (int b = 0; b < 40; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    const auto after = e.planStrings(p);
+    bool stayed = true;
+    int i = 0;
+    for (int key : {57, 60, 66})
+      stayed &=
+          after.free[(size_t)Strings::stringOf(key)] &&
+          near(after.hz[(size_t)Strings::stringOf(key)], sounded[(size_t)i++]);
+
+    check(std::abs(std::abs(moved) - tuning::kAdaptiveComma) < 0.01 &&
+              following,
+          "under Adaptive the chord's strings follow a held key as it is "
+          "retuned (" +
+              std::to_string(moved) + " cents)");
+    check(stayed, "and stay where its keys last sounded once they come up");
+  }
+
+  // ---- Chord rings on where Piano stops -------------------------------------
+  {
+    const auto ringing = [sr](ResonatorMode mode) {
+      constexpr int block = 256;
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto p = makeFlatParams(0.0f);
+      p.osc[0].volume = 0.5f;
+      p.osc[0].release = 0.03f;
+      p.global.masterGain = 1.0f;
+      p.global.safetyClip = false;
+      p.resonator.mode = mode;
+      p.resonator.mix = 1.0f;
+      p.resonator.decaySeconds = 3.0f;
+      std::vector<float> l(block), r(block);
+      for (int k : {48, 52, 55})
+        e.noteOn(k, 0.8f, p);
+      double sum = 0.0;
+      long counted = 0;
+      for (int b = 0; b < (int)(1.5 * sr) / block; ++b) {
+        if (b == (int)(0.5 * sr) / block)
+          for (int k : {48, 52, 55})
+            e.noteOff(k);
+        e.render(l.data(), r.data(), block, p);
+        if (b > (int)(1.2 * sr) / block)
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+    const auto chord = ringing(ResonatorMode::Chord);
+    const auto piano = ringing(ResonatorMode::Piano);
+    check(chord > 1.0e-3 && chord > 30.0 * piano,
+          "the chord rings on after its keys come up, where Piano's strings "
+          "are damped (" +
+              std::to_string(chord) + " against " + std::to_string(piano) +
+              ")");
+  }
+
+  // ---- no clicks ------------------------------------------------------------
+  //
+  // A chord of sines that start and stop smoothly, the resonator alone,
+  // switched between modes and moved from chord to chord. Every change is
+  // moved rather than stepped, so the energy above 16 kHz just after each
+  // stays far under the signal. Strings freed or damped leave a trace there,
+  // about 90 dB under it, as they do switching between the older modes. A
+  // level stepped rather than moved is 30 to 45 dB under it.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.4f;
+    p.osc[0].attack = 0.05f;
+    p.osc[0].release = 0.05f;
+    p.osc[1].volume = 0.2f;
+    p.osc[1].attack = 0.05f;
+    p.osc[1].release = 0.05f;
+    p.osc[1].audible = true;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.resonator.mix = 1.0f;
+    p.resonator.decaySeconds = 2.0f;
+    p.resonator.damping = 0.0f;
+
+    struct Event {
+      double at;
+      ResonatorMode mode;
+      std::vector<int> press, lift;
+    };
+    using M = ResonatorMode;
+    const std::vector<Event> events{{0.0, M::Fifths, {48, 52, 55}, {}},
+                                    {0.6, M::Chord, {}, {}},
+                                    {1.2, M::Chord, {}, {48, 52, 55}},
+                                    {1.8, M::Chord, {50, 53, 57}, {}},
+                                    {2.4, M::Chord, {}, {50, 53, 57}},
+                                    {3.0, M::Chord, {52, 55, 59}, {}},
+                                    {3.6, M::Series, {}, {}},
+                                    {4.2, M::Chord, {}, {}},
+                                    {4.8, M::Fifths, {}, {}},
+                                    {5.4, M::Chord, {}, {}},
+                                    {6.0, M::Chord, {}, {52, 55, 59}},
+                                    {6.6, M::Piano, {}, {}},
+                                    {7.2, M::Fifths, {}, {}}};
+
+    std::vector<float> out;
+    std::vector<size_t> changes;
+    std::vector<float> l(kBlock), r(kBlock);
+    size_t next = 0;
+    for (int b = 0; b < (int)(7.8 * sr) / kBlock; ++b) {
+      const auto t = (double)b * kBlock / sr;
+      while (next < events.size() && t >= events[next].at) {
+        const auto &ev = events[next++];
+        p.resonator.mode = ev.mode;
+        for (int k : ev.press)
+          e.noteOn(k, 0.8f, p);
+        for (int k : ev.lift)
+          e.noteOff(k);
+        changes.push_back(out.size());
+      }
+      e.render(l.data(), r.data(), kBlock, p);
+      out.insert(out.end(), l.begin(), l.end());
+    }
+
+    const int w = 240;
+    const auto above16k = [&out, w, sr](size_t start) {
+      double energy = 0.0;
+      for (int k = (int)(16000.0 / sr * w); k < w / 2; ++k) {
+        double re = 0.0, im = 0.0;
+        for (int n = 0; n < w; ++n) {
+          const auto hann = 0.5 - 0.5 * std::cos(6.283185307 * n / (w - 1));
+          re +=
+              out[start + (size_t)n] * hann * std::cos(6.283185307 * k * n / w);
+          im -=
+              out[start + (size_t)n] * hann * std::sin(6.283185307 * k * n / w);
+        }
+        energy += re * re + im * im;
+      }
+      return energy;
+    };
+
+    // The first change is the chord starting out of silence, nothing to
+    // compare with.
+    // Against the run's own level, as the energy the same window would hold
+    // of it, Hann and all, since a change into near silence has little of
+    // its own to be under.
+    double signal = 0.0;
+    for (auto x : out)
+      signal += (double)x * x;
+    signal *= (double)w * w * 0.375 / 2.0 / (double)out.size();
+
+    double closest = 1.0e9;
+    std::string worst;
+    for (size_t c = 1; c < changes.size(); ++c) {
+      const auto at = changes[c];
+      double here = 0.0;
+      for (size_t from = at - 240; from < at + 960; from += 60)
+        here = std::max(here, above16k(from));
+      const auto under = 10.0 * std::log10(signal / here);
+      if (under < closest) {
+        closest = under;
+        worst = std::string(resonatorModeName(events[c - 1].mode)) + " to " +
+                resonatorModeName(events[c].mode) + " at " +
+                std::to_string(events[c].at).substr(0, 3) + " s";
+      }
+    }
+    check(
+        closest > 70.0,
+        "switching into and out of Fifths and Chord, and from one chord to "
+        "the next, makes no click (energy above 16 kHz at a change at least " +
+            std::to_string(closest) + " dB under the signal, " + worst + ")");
+  }
+}
+
 void testSympatheticStrings() {
   section("Sympathetic strings");
 
@@ -7477,8 +7860,9 @@ void testSympatheticStrings() {
 
     std::string worst;
     double furthest = 0.0;
-    for (const auto mode : {ResonatorMode::Piano, ResonatorMode::Open,
-                            ResonatorMode::Octave, ResonatorMode::Series}) {
+    for (const auto mode :
+         {ResonatorMode::Piano, ResonatorMode::Open, ResonatorMode::Octave,
+          ResonatorMode::Series, ResonatorMode::Fifths, ResonatorMode::Chord}) {
       const auto dry = level(mode, 0.0f);
       for (const float mix : {0.25f, 0.5f, 0.75f, 1.0f}) {
         const auto off = 20.0 * std::log10(level(mode, mix) / dry);
@@ -14461,6 +14845,7 @@ int main() {
   testSostenutoPedal();
   testHalfPedal();
   testStereoResonator();
+  testFifthsAndChord();
   testHeldExpression();
   testActivity();
   testLampsFollowNewestNote();

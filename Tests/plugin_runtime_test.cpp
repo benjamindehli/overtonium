@@ -9052,13 +9052,12 @@ void testResonatorParameters(OvertoniumProcessor &p) {
 
   auto *mode = dynamic_cast<juce::AudioParameterChoice *>(
       p.apvts.getParameter(pp::resonatorModeId));
-  check(
-      mode != nullptr &&
-          mode->choices ==
-              juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
-          mode->getIndex() == (int)ovt::ResonatorMode::Off,
-      "Resonator Mode is Off, Piano, Open, Octave or Series, and Off to begin "
-      "with");
+  check(mode != nullptr &&
+            mode->choices == juce::StringArray{"Off", "Piano", "Open", "Octave",
+                                               "Series", "Fifths", "Chord"} &&
+            mode->getIndex() == (int)ovt::ResonatorMode::Off,
+        "Resonator Mode is Off, Piano, Open, Octave, Series, Fifths or Chord, "
+        "and Off to begin with");
 
   if (auto *decay = p.apvts.getParameter(pp::resonatorDecayId))
     check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",
@@ -9971,16 +9970,25 @@ void testTuningBar(OvertoniumProcessor &p) {
     setMode(ovt::ResonatorMode::Series);
     bar->refresh();
     const bool liveForSeries = root->isActive() && settingsRootLive();
-    setMode(ovt::ResonatorMode::Piano);
+    setMode(ovt::ResonatorMode::Fifths);
     bar->refresh();
-    const bool deadAgain = !root->isActive() && !settingsRootLive();
+    const bool liveForFifths = root->isActive() && settingsRootLive();
+    bool deadAgain = true;
+    for (const auto other :
+         {ovt::ResonatorMode::Piano, ovt::ResonatorMode::Open,
+          ovt::ResonatorMode::Octave, ovt::ResonatorMode::Chord}) {
+      setMode(other);
+      bar->refresh();
+      deadAgain &= !root->isActive() && !settingsRootLive();
+    }
     setMode(ovt::ResonatorMode::Off);
     bar->refresh();
 
-    check(topBar != nullptr && deadBefore && liveForSeries && deadAgain,
+    check(topBar != nullptr && deadBefore && liveForSeries && liveForFifths &&
+              deadAgain,
           "and under Equal the root lights, on the bar and in Settings, while "
-          "the resonator is in Series, which rings the root's harmonics, and "
-          "only then");
+          "the resonator is in Series or Fifths, which are built on the root, "
+          "and only then");
   }
 
   // ---- under Adaptive, Retune joins it -------------------------------------

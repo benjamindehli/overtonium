@@ -61,6 +61,7 @@ void SynthEngine::reset() noexcept {
   panClock = 1 << 30;
   lastPan.fill(0.0f);
   lastDriven.fill(false);
+  forgetChord();
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
@@ -294,6 +295,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     glides = true;
   }
 
+  // Whether this key belongs to the chord the resonator's Chord mode holds,
+  // decided before anything below steals a voice the chord counts on.
+  const bool joins = joinChord();
+
   // ---- legato ---------------------------------------------------------------
   //
   // One voice, and a key going down while another is still held moves the note
@@ -452,6 +457,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       if (glides)
         held->startGlide(from, glide);
 
+      if (joins)
+        addToChord(heldIndex, note);
+
       held->setAge(++ageCounter);
       lastNoteFrequency = held->getFrequency();
       return;
@@ -477,6 +485,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
   const auto index = (size_t)std::distance(voices.data(), target);
   clearPedals(index);
+
+  inChord[index] = false;
+  if (joins)
+    addToChord(index, note);
 
   // A fresh note, so not a line yet, and if it was the line's voice the line
   // has gone with it.
@@ -967,6 +979,62 @@ double SynthEngine::restingFrequency(int note,
          std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
 }
 
+bool SynthEngine::joinChord() noexcept {
+  // A key joins the chord while any of the chord's own keys is still down,
+  // and starts a new one when it is struck together with others, within the
+  // chord window, after the old chord's keys have all come up. A key struck
+  // on its own is a line over the chord, and leaves it as it was. A key the
+  // pedal holds is up.
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
+  bool chordDown = false, struckTogether = false;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    if (!v.isActive() || v.isReleasing() || heldByPedal(i))
+      continue;
+
+    chordDown |= inChord[i];
+    struckTogether |= clock - pressedAt[i] < window;
+  }
+
+  if (chordDown)
+    return true;
+
+  if (!struckTogether)
+    return false;
+
+  forgetChord();
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    if (v.isActive() && !v.isReleasing() && !heldByPedal(i) &&
+        clock - pressedAt[i] < window)
+      addToChord(i, v.getNote());
+  }
+
+  return true;
+}
+
+void SynthEngine::addToChord(size_t voice, int note) noexcept {
+  inChord[voice] = true;
+
+  const auto s = SympatheticStrings::stringOf(note);
+  if (s >= 0 && s < SympatheticStrings::kStrings)
+    chordStrings[(size_t)s] = true;
+}
+
+void SynthEngine::followChord() noexcept {
+  // Where each of the chord's keys sounds while it is held, before any bend,
+  // so its string follows Adaptive. Once let go, the string stays where the
+  // key last was.
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    const auto s = SympatheticStrings::stringOf(v.getNote());
+    if (inChord[i] && v.isActive() && !v.isReleasing() && s >= 0 &&
+        s < SympatheticStrings::kStrings && chordStrings[(size_t)s])
+      chordHz[(size_t)s] = v.getFrequency();
+  }
+}
+
 SympatheticStrings::Plan
 SynthEngine::planStrings(const SynthParams &p) const noexcept {
   SympatheticStrings::Plan plan;
@@ -987,10 +1055,13 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
 
   switch (p.resonator.mode) {
   case ResonatorMode::Piano:
-  case ResonatorMode::Open: {
+  case ResonatorMode::Open:
+  case ResonatorMode::Chord: {
     // Open is Piano with the sustain pedal always down. Part way down, the
-    // dampers rest lightly on the strings whose keys are up.
+    // dampers rest lightly on the strings whose keys are up. Chord is Piano
+    // with the last chord's strings held free, as a held key's are.
     const bool open = p.resonator.mode == ResonatorMode::Open;
+    const bool chord = p.resonator.mode == ResonatorMode::Chord;
     const bool pedal = p.pedalDown || open;
     const float depth = open ? 1.0f : std::clamp(p.pedalDepth, 0.0f, 1.0f);
 
@@ -1011,6 +1082,19 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
                                        : 1.0f);
       }
     }
+
+    // The chord's strings, where their keys last sounded. A key of it that is
+    // down again sounds where it is now, as any held key does.
+    if (chord)
+      for (size_t s = 0; s < (size_t)kStrings; ++s)
+        if (chordStrings[s]) {
+          if (!(held[s] > 0.0))
+            held[s] =
+                chordHz[s] > 0.0
+                    ? chordHz[s]
+                    : restingFrequency(SympatheticStrings::keyOf((int)s), p);
+          damperLift[s] = 1.0f;
+        }
 
     for (int s = 0; s < kStrings; ++s) {
       const auto key = SympatheticStrings::keyOf(s);
@@ -1038,6 +1122,20 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     for (int h = 1; h <= 8; ++h)
       set(rootKey + (int)std::lround(12.0 * std::log2((double)h)),
           fundamental * (double)h, true);
+    break;
+  }
+
+  case ResonatorMode::Fifths: {
+    // The root from its second octave and the pure fifth above it, in four
+    // octaves, so the fifths and octaves of the drone never beat.
+    const auto rootKey = 36 + ((p.global.tuningRoot % 12) + 12) % 12;
+    const auto fundamental = restingFrequency(rootKey, p);
+
+    for (int octave = 0; octave < kFifthsOctaves; ++octave) {
+      const auto hz = fundamental * (double)(1 << octave);
+      set(rootKey + 12 * octave, hz, true);
+      set(rootKey + 12 * octave + 7, hz * 1.5, true);
+    }
     break;
   }
 
@@ -1353,6 +1451,7 @@ void SynthEngine::allNotesOff() noexcept {
   panClock = 1 << 30;
   lastPan.fill(0.0f);
   lastDriven.fill(false);
+  forgetChord();
 }
 
 void SynthEngine::allSoundOff() noexcept {
@@ -1371,6 +1470,7 @@ void SynthEngine::allSoundOff() noexcept {
   panClock = 1 << 30;
   lastPan.fill(0.0f);
   lastDriven.fill(false);
+  forgetChord();
 }
 
 namespace {
@@ -1754,6 +1854,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   glide = GlideSettings::of(p);
   renderVoices(left, right, numSamples, p);
   clock += (uint64_t)numSamples;
+  followChord();
 
   // ---- the resonator --------------------------------------------------------
   // On the summed channels and before the bus drive, so the strings ring

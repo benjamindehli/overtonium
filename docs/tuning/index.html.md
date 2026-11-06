@@ -1,6 +1,6 @@
 Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-11-05
+Last changed: 2026-11-06
 
 # The Overtonium tuning system
 
@@ -117,7 +117,7 @@ C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it wi
 
 ### Root
 
-Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series, which is built on the root in every temperament.
+Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series or Fifths, which are built on the root in every temperament.
 
 On a root of C every temperament is laid out the way organs were tuned. Pythagorean and quarter-comma meantone each have one fifth that cannot be used, the wolf, and on C it is G#-Eb. That keeps C, F, Bb, G, D and A major in tune. On another root the wolf moves with it, a minor sixth above the root.
 
@@ -125,7 +125,7 @@ On a root of C every temperament is laid out the way organs were tuned. Pythagor
 
 One of eleven pitches for A: 415, 430, 432, 435, 438, 440, 442, 443, 444, 446 or 466 Hz. A stays exactly at this pitch in every fixed temperament, because the offsets are measured relative to A, the same way a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive, A's middle version sits on the reference, and an A in a chord that needs it takes the version a comma either side.
 
-The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are tuned the same way, so they follow the temperament, the root and the reference pitch. Its Series mode is built on the root's own harmonics.
+The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are tuned the same way, so they follow the temperament, the root and the reference pitch. Its Series mode is built on the root's own harmonics, and its Fifths mode on the root and its fifth.
 
 None of the three is saved with a [preset](https://benjamindehli.github.io/overtonium/presets/). A temperament belongs to the music you are playing, not to any one sound in it. You set it once and keep working, and a patch that reset it to equal while you worked would get in the way. This includes Init, which clears the patch but not the session.
 

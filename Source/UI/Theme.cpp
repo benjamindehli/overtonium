@@ -409,9 +409,9 @@ juce::Colour characterColour(Character c) {
 // spread evenly round the hue wheel, in the order of its type.
 
 juce::Colour resonatorColour(ResonatorMode m) {
-  // Piano, Open, Octave and Series, a quarter of the wheel apart.
-  constexpr std::array<juce::uint32, 4> kLit{0xffce83de, 0xffee8545, 0xff6ebb5d,
-                                             0xff00b4ec};
+  // Piano, Open, Octave, Series, Fifths and Chord, a sixth of the wheel apart.
+  constexpr std::array<juce::uint32, 6> kLit{
+      0xffce83de, 0xfff47a7c, 0xffd49800, 0xff6dbb5e, 0xff00bbc3, 0xff6ea4ff};
   static_assert(kLit.size() + 1 == (size_t)ResonatorMode::NumModes);
 
   const auto at = (int)m - 1;

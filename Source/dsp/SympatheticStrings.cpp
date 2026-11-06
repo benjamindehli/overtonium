@@ -66,6 +66,10 @@ float SympatheticStrings::makeUpDecibels(ResonatorMode mode) noexcept {
     return 7.5f;
   case ResonatorMode::Series:
     return 4.5f;
+  case ResonatorMode::Fifths:
+    return 3.0f;
+  case ResonatorMode::Chord:
+    return 8.0f;
   case ResonatorMode::Octave:
     return 11.0f;
   case ResonatorMode::Off:
