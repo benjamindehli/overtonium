@@ -58,6 +58,9 @@ void SynthEngine::reset() noexcept {
   sustainDown = false;
   sostenutoDown = false;
   sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
@@ -1046,6 +1049,106 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
   return plan;
 }
 
+void SynthEngine::panStrings(SympatheticStrings::Plan &plan,
+                             const SynthParams &p) const noexcept {
+  constexpr int kStrings = SympatheticStrings::kStrings;
+
+  // Nothing panned, every string in the middle, which is where they are
+  // already, and nothing to work out.
+  bool panned = std::abs(p.noise.pan) > 0.0f;
+  for (const auto &o : p.osc)
+    panned |= std::abs(o.pan) > 0.0f;
+
+  if (!panned)
+    return;
+
+  // Everything in semitones on the MIDI scale, so a string's key is a partial's
+  // position less its mode's, rounded. Each string in use, and how far above
+  // its first each of its modes is, stiffness and all.
+  std::array<double, kStrings> semitone{};
+  bool any = false;
+  for (size_t s = 0; s < (size_t)kStrings; ++s)
+    if (plan.hz[s] > 0.0) {
+      semitone[s] = 69.0 + 12.0 * std::log2(plan.hz[s] / 440.0);
+      any = true;
+    }
+
+  if (!any)
+    return;
+
+  std::array<double, kPanModes + 1> rank{};
+  for (int k = 1; k <= kPanModes; ++k)
+    rank[(size_t)k] =
+        12.0 * std::log2((double)k *
+                         std::sqrt(std::max(
+                             1.0e-6, 1.0 + plan.stiffness * (double)(k * k))));
+
+  // How much of each channel reaches the strings, which are fed the two sides
+  // together, and from where.
+  std::array<float, kNumHarmonics> mono{}, side{};
+  for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+    side[i] = std::clamp(p.osc[i].pan, -1.0f, 1.0f);
+    mono[i] = 0.5f * (std::sqrt(0.5f * (1.0f - side[i])) +
+                      std::sqrt(0.5f * (1.0f + side[i])));
+  }
+  const auto noiseSide = std::clamp(p.noise.pan, -1.0f, 1.0f);
+  const auto noiseMono = 0.5f * (std::sqrt(0.5f * (1.0f - noiseSide)) +
+                                 std::sqrt(0.5f * (1.0f + noiseSide)));
+
+  std::array<double, kStrings> weight{}, toward{};
+  constexpr double kSemitonesWide = kPanWidthCents / 100.0;
+  constexpr int kLowest = SympatheticStrings::kLowestKey;
+
+  for (const auto &v : voices) {
+    if (!v.isActive())
+      continue;
+
+    const auto &peaks = v.getPartialPeaks();
+    const auto &octaves = v.getPartialOctaves();
+
+    for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+      const double level = (double)(peaks[i] * mono[i]);
+      if (level < 1.0e-5)
+        continue;
+
+      const double power = level * level;
+      const double at = 69.0 + 12.0 * (octaves[i] - std::log2(440.0));
+
+      // The key of each string this partial could be the k-th mode of, from
+      // its own pitch down, until the strings run out.
+      for (int k = 1; k <= kPanModes; ++k) {
+        const auto fundamental = at - rank[(size_t)k];
+        if (fundamental < (double)kLowest - 0.5)
+          break;
+
+        const auto s = (int)(fundamental + 0.5) - kLowest;
+        if (s >= kStrings || plan.hz[(size_t)s] <= 0.0)
+          continue;
+
+        const auto off = (fundamental - semitone[(size_t)s]) / kSemitonesWide;
+        const auto feeds = power / (1.0 + off * off);
+        weight[(size_t)s] += feeds;
+        toward[(size_t)s] += feeds * (double)side[i];
+      }
+    }
+
+    // The noise feeds every string a little, from wherever it is panned.
+    const double noise = (double)(v.getNoisePeak() * noiseMono);
+    if (noise >= 1.0e-5)
+      for (size_t s = 0; s < (size_t)kStrings; ++s)
+        if (plan.hz[s] > 0.0) {
+          weight[s] += noise * noise;
+          toward[s] += noise * noise * (double)noiseSide;
+        }
+  }
+
+  for (size_t s = 0; s < (size_t)kStrings; ++s)
+    if (weight[s] > 1.0e-12) {
+      plan.pan[s] = (float)(toward[s] / weight[s]);
+      plan.driven[s] = true;
+    }
+}
+
 double SynthEngine::frequencyOfNote(int note) const noexcept {
   for (const auto &v : voices)
     if (v.isActive() && !v.isReleasing() && v.getNote() == note)
@@ -1247,6 +1350,9 @@ void SynthEngine::allNotesOff() noexcept {
   sustainDown = false;
   sostenutoDown = false;
   sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
 }
 
 void SynthEngine::allSoundOff() noexcept {
@@ -1262,6 +1368,9 @@ void SynthEngine::allSoundOff() noexcept {
   sustainDown = false;
   sostenutoDown = false;
   sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
 }
 
 namespace {
@@ -1650,8 +1759,25 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   // On the summed channels and before the bus drive, so the strings ring
   // inside the instrument and the character drives them too. Off, and faded
   // out, the stage is skipped.
-  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy())
-    sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
+  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy()) {
+    auto plan = planStrings(p);
+
+    // The sides, worked out every kPanSeconds rather than every block, so
+    // they cost the same whatever block size the host uses. The strings glide
+    // to a new side more slowly than that.
+    panClock += numSamples;
+    if (panClock >= (int)(kPanSeconds * sampleRate)) {
+      panClock = 0;
+      panStrings(plan, p);
+      lastPan = plan.pan;
+      lastDriven = plan.driven;
+    } else {
+      plan.pan = lastPan;
+      plan.driven = lastDriven;
+    }
+
+    sympathetic.process(left, right, numSamples, p.resonator, plan);
+  }
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier. See BusDrive.

@@ -254,6 +254,13 @@ public:
     return partialTremolos;
   }
 
+  /// Where each partial is sounding in the last render call, as octaves above
+  /// 1 Hz, so log2 of its frequency, with every bend and wander in it. For the
+  /// resonator, which pans each string after what drives it.
+  const std::array<double, kNumHarmonics> &getPartialOctaves() const noexcept {
+    return partialOctaves;
+  }
+
   /// Where pitch modulation and drift have this partial now, in cents.
   const std::array<float, kNumHarmonics> &getPartialPitches() const noexcept {
     return partialPitches;
@@ -417,6 +424,7 @@ private:
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
+  std::array<double, kNumHarmonics> partialOctaves{};
   std::array<float, kNumHarmonics> partialVelocities{};
   std::array<float, kNumHarmonics> partialPressures{};
   std::array<float, kNumHarmonics> partialKeyboards{};

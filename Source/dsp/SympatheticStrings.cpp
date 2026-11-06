@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Exact.h"
+
 namespace ovt {
 
 namespace {
@@ -28,6 +30,9 @@ void SympatheticStrings::prepare(double sampleRate) noexcept {
 
   ringing.fill(false);
   feeding.fill(0.0f);
+  panNow.fill(0.0f);
+  gainLeft.fill(1.0f);
+  gainRight.fill(1.0f);
   fresh = true;
 }
 
@@ -37,6 +42,9 @@ void SympatheticStrings::silence() noexcept {
 
   ringing.fill(false);
   feeding.fill(0.0f);
+  panNow.fill(0.0f);
+  gainLeft.fill(1.0f);
+  gainRight.fill(1.0f);
 }
 
 void SympatheticStrings::reset() noexcept {
@@ -104,15 +112,24 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
   const float damp = std::clamp(params.damping, 0.0f, 1.0f);
   const double decay = std::max(0.05, (double)params.decaySeconds);
 
+  // How far a string moves towards its new side this block.
+  const auto panStep =
+      (float)(1.0 - std::exp(-(double)numSamples / (kPanSeconds * rate)));
+
   for (int done = 0; done < numSamples; done += kChunk) {
     const int len = std::min(kChunk, numSamples - done);
 
     float in[kChunk];
-    float sum[kChunk];
+
+    // The strings in the middle go to both sides alike, as one sum, and the
+    // rest to each side by their own gains. A patch in the middle has nothing
+    // but the first, so it is what it was.
+    float sum[kChunk], sumLeft[kChunk], sumRight[kChunk];
+    bool sided = false;
 
     for (int n = 0; n < len; ++n) {
       in[n] = 0.5f * (left[done + n] + right[done + n]) * kSend;
-      sum[n] = 0.0f;
+      sum[n] = sumLeft[n] = sumRight[n] = 0.0f;
     }
 
     for (int i = 0; i < kStrings; ++i) {
@@ -164,13 +181,51 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       // eighty-seven clicks at once.
       const auto step = (target - feeding[s]) / (float)len;
 
-      for (int n = 0; n < len; ++n) {
-        feeding[s] += step;
+      // Its side, moved once for the whole call rather than each chunk, and
+      // the gains for it. Equal in power wherever it is, and exactly one each
+      // in the middle, so a centred string sounds as it always did.
+      if (done == 0 && plan.driven[s]) {
+        const auto toward = std::clamp(plan.pan[s], -1.0f, 1.0f);
+        panNow[s] += (toward - panNow[s]) * panStep;
 
-        // A damped string is fed nothing.
-        const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
-        peak = std::max(peak, std::abs(y));
-        sum[n] += y;
+        // Back in the middle exactly, once it is all but there, so it goes
+        // back to the sum both sides share.
+        if (exactly(toward, 0.0f) && std::abs(panNow[s]) < 1.0e-4f)
+          panNow[s] = 0.0f;
+      }
+
+      const auto toLeft = std::sqrt(1.0f - panNow[s]);
+      const auto toRight = std::sqrt(1.0f + panNow[s]);
+
+      if (exactly(toLeft, 1.0f) && exactly(gainLeft[s], 1.0f) &&
+          exactly(gainRight[s], 1.0f)) {
+        for (int n = 0; n < len; ++n) {
+          feeding[s] += step;
+
+          // A damped string is fed nothing.
+          const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
+          peak = std::max(peak, std::abs(y));
+          sum[n] += y;
+        }
+      } else {
+        sided = true;
+        auto gl = gainLeft[s], gr = gainRight[s];
+        const auto glStep = (toLeft - gl) / (float)len;
+        const auto grStep = (toRight - gr) / (float)len;
+
+        for (int n = 0; n < len; ++n) {
+          feeding[s] += step;
+          gl += glStep;
+          gr += grStep;
+
+          const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
+          peak = std::max(peak, std::abs(y));
+          sumLeft[n] += y * gl;
+          sumRight[n] += y * gr;
+        }
+
+        gainLeft[s] = toLeft;
+        gainRight[s] = toRight;
       }
 
       feeding[s] = target;
@@ -184,8 +239,10 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       wetNow = wetGain + (wetNow - wetGain) * glide;
 
       const auto wet = sum[n] * wetNow;
-      left[done + n] = left[done + n] * dryNow + wet;
-      right[done + n] = right[done + n] * dryNow + wet;
+      left[done + n] =
+          left[done + n] * dryNow + (sided ? wet + sumLeft[n] * wetNow : wet);
+      right[done + n] =
+          right[done + n] * dryNow + (sided ? wet + sumRight[n] * wetNow : wet);
     }
   }
 

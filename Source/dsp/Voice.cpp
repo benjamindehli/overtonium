@@ -547,6 +547,10 @@ void Voice::render(float *left, float *right, int numSamples,
   // every voice shares. The engine filled them for exactly these blocks.
   int block = 0;
 
+  // The note's own pitch as octaves above 1 Hz, which each partial's place is
+  // added to for the resonator. See getPartialOctaves.
+  const double baseOctave = std::log2(std::max(1.0e-3, baseFreq));
+
   for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
 
@@ -611,6 +615,7 @@ void Voice::render(float *left, float *right, int numSamples,
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
           (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
           retuneSemis;
+      partialOctaves[(size_t)i] = baseOctave + semis / 12.0;
 
       // Where the key itself is, bent and gliding but without this partial's
       // place in the series or its own wander. The combo organ filters each

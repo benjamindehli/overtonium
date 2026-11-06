@@ -201,6 +201,24 @@ public:
   /// dampers are up. Public for the tests.
   SympatheticStrings::Plan planStrings(const SynthParams &) const noexcept;
 
+  /// Which side each string should ring back on, after what is driving it.
+  /// Every partial sounding is matched against the string modes it could be
+  /// feeding, and each string takes the side of what feeds it, weighted by
+  /// how much each feeds it and how near it lands. Public for the tests.
+  void panStrings(SympatheticStrings::Plan &,
+                  const SynthParams &) const noexcept;
+
+  /// How close in cents a partial has to come to a string's mode to count
+  /// as feeding it at half weight. Wider than a mode is at a long DECAY, so
+  /// drift and vibrato do not make the side flicker.
+  static constexpr double kPanWidthCents = 5.0;
+
+  /// The string modes a partial is matched against, from the fundamental up.
+  static constexpr int kPanModes = 32;
+
+  /// How often the strings' sides are worked out again.
+  static constexpr double kPanSeconds = 0.02;
+
   /// Loudest instance of each partial across the sounding voices, 0..1. The
   /// loudest rather than the sum, so a chord does not pin the display.
   float getPartialLevel(int index0) const noexcept {
@@ -568,6 +586,12 @@ private:
   uint64_t ageCounter = 0;
   bool sustainDown = false;
   bool sostenutoDown = false;
+
+  /// Samples since the strings' sides were last worked out, and what they
+  /// came to, handed on until the next time. See kPanSeconds.
+  int panClock = 1 << 30;
+  std::array<float, SympatheticStrings::kStrings> lastPan{};
+  std::array<bool, SympatheticStrings::kStrings> lastDriven{};
 
   /// How far down the sustain pedal is for each MIDI channel's notes: nought
   /// for an ordinary keyboard's, which belong to no channel, and one to
