@@ -21,8 +21,10 @@ void SympatheticStrings::prepare(double sampleRate) noexcept {
 
   // Each long enough for its own note pulled down as far as any temperament,
   // or Adaptive two commas down, can take it, with room to spare.
-  for (int i = 0; i < kStrings; ++i)
+  for (int i = 0; i < kStrings; ++i) {
+    strings[(size_t)i].setStiffable(true);
     strings[(size_t)i].prepare(sampleRate, 0.85 * equalHz(keyOf(i)));
+  }
 
   ringing.fill(false);
   feeding.fill(0.0f);
@@ -135,7 +137,7 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
           free ? 1.0 - (double)std::clamp(plan.rest[s], 0.0f, 1.0f) : 0.0;
       const auto rings =
           lift >= 1.0 ? decay : damped * std::pow(decay / damped, lift);
-      string.setBlock(hz, rings, damp, -1.0f, len);
+      string.setBlock(hz, rings, damp, -1.0f, len, plan.stiffness);
 
       float peak = 0.0f;
 

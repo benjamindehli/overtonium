@@ -42,6 +42,10 @@ public:
     /// time and DECAY. Nought unless something sets it, so a string that is
     /// only marked free is free.
     std::array<float, kStrings> rest{};
+
+    /// How stiff every string is, as the stiff-string law's B, which is
+    /// what STRETCH sets for the partials. See KarplusString::setBlock.
+    double stiffness = 0.0;
   };
 
   /// The key a string belongs to, and back.

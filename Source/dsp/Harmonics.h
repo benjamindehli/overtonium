@@ -71,6 +71,14 @@ inline const HarmonicInfo &harmonic(int index0) noexcept {
   return harmonicTable()[(size_t)index0];
 }
 
+/// The stiff-string law's B for a STRETCH, chosen so the top partial is
+/// displaced by exactly `stretchCents`. Partial n sits at
+/// n * f0 * sqrt(1 + B * n^2). Negative compresses the series.
+inline double stiffnessFor(double stretchCents) noexcept {
+  constexpr double top = (double)kNumHarmonics;
+  return (std::exp2(stretchCents / 600.0) - 1.0) / (top * top);
+}
+
 /// How far partial n sits above its own harmonic, in cents, following the
 /// stiff-string law n * f0 * sqrt(1 + B * n^2). Applied on top of TUNE.
 ///
@@ -81,10 +89,8 @@ inline double inharmonicCents(int index0, double stretchCents) noexcept {
   if (exactly(stretchCents, 0.0))
     return 0.0;
 
-  constexpr double top = (double)kNumHarmonics;
-
   // B is chosen so the top partial lands exactly on stretchCents.
-  const double b = (std::exp2(stretchCents / 600.0) - 1.0) / (top * top);
+  const double b = stiffnessFor(stretchCents);
   const double n = (double)(index0 + 1);
 
   return 600.0 * std::log2(std::max(1.0e-6, 1.0 + b * n * n));
