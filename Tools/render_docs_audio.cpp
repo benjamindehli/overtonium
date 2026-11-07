@@ -11,6 +11,7 @@
 // CONTRIBUTING.md has the rest.
 
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <vector>
@@ -22,8 +23,17 @@ namespace {
 constexpr double kRate = 44100.0;
 constexpr int kBlock = 512;
 
+/// A name that is not a preset stops the render, rather than leaving whatever
+/// patch was loaded before to be written under its name.
 int indexOf(const juce::String &name) {
-  return ovt::presets::names().indexOf(name);
+  const auto at = ovt::presets::names().indexOf(name);
+
+  if (at < 0) {
+    std::printf("no preset called %s\n", name.toRawUTF8());
+    std::exit(1);
+  }
+
+  return at;
 }
 
 /// A preset's name as the file it is written to and the page links it by:

@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
@@ -90,10 +91,19 @@ Stats renderBlocks(OvertoniumProcessor &p, int blocks, int blockSize,
 
 /// A factory preset by name, since the menu is alphabetical and gains entries,
 /// so a position does not stay the same sound.
+///
+/// A name that is not a preset stops the run. Carrying on would test whatever
+/// preset came first under the name of the one that was renamed.
 int presetIndex(const juce::String &name) {
   const auto at = ovt::presets::names().indexOf(name);
-  jassert(at >= 0);
-  return juce::jmax(0, at);
+
+  if (at < 0) {
+    std::printf("  FAIL  there is no factory preset called \"%s\"\n",
+                name.toRawUTF8());
+    std::exit(1);
+  }
+
+  return at;
 }
 
 juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
@@ -13998,8 +14008,6 @@ void testSoloAndMute(OvertoniumProcessor &p) {
   p.reset();
 }
 
-} // namespace
-
 /// An answer that puts up another notice replaces the action that is running.
 /// The notice keeps a copy of the action while it runs, so the action can go
 /// on using what it captured. Under the sanitizers the old way is a heap use
@@ -14035,6 +14043,8 @@ void testANoticeCanReplaceItself() {
 
   check(said == "aaaaa second ", "and its own answer runs (" + said + ")");
 }
+
+} // namespace
 
 int main(int argc, char **argv) {
   // See the same line in dsp_test: unbuffered, so a crash keeps whatever it
