@@ -63,11 +63,15 @@ void Notice::show(const juce::String &title, const juce::String &text,
 }
 
 void Notice::answer(const std::function<void()> &action) {
+  // A copy, since the action is one of this notice's members. An action that
+  // shows another notice replaces it, which would destroy it while it runs.
+  const auto run = action;
+
   // Put away first, so an answer that opens something else is not covered.
   setVisible(false);
 
-  if (action != nullptr)
-    action();
+  if (run != nullptr)
+    run();
 }
 
 void Notice::resized() {
