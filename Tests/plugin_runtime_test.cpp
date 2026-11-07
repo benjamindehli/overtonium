@@ -8140,9 +8140,33 @@ void testACorruptStateCannotPoisonTheOutput() {
       continue;
     }
 
+    // Not even for a moment, since the audio thread can render a block while
+    // the host is still restoring the session.
+    struct Watch : juce::AudioProcessorParameter::Listener {
+      int notNumbers = 0;
+
+      void parameterValueChanged(int, float value) override {
+        if (!std::isfinite(value))
+          ++notNumbers;
+      }
+
+      void parameterGestureChanged(int, bool) override {}
+    } watch;
+
+    for (auto *parameter : victim.getParameters())
+      parameter->addListener(&watch);
+
     juce::MemoryBlock block;
     victim.copyXmlToBinary(*xml, block);
     victim.setStateInformation(block.getData(), (int)block.getSize());
+
+    for (auto *parameter : victim.getParameters())
+      parameter->removeListener(&watch);
+
+    check(watch.notNumbers == 0,
+          std::string("a state of \"") + poison +
+              "\" never puts a value that is not a number on a parameter (" +
+              std::to_string(watch.notNumbers) + " did)");
 
     juce::MidiBuffer midi;
     midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);

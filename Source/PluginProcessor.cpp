@@ -806,7 +806,21 @@ void OvertoniumProcessor::setStateInformation(const void *data,
                                               int sizeInBytes) {
   if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
     if (xml->hasTagName(apvts.state.getType())) {
-      const auto tree = juce::ValueTree::fromXml(*xml);
+      auto tree = juce::ValueTree::fromXml(*xml);
+
+      // A value that is not a number, from a corrupted or hand edited file, is
+      // put back to the default before anything reads it. NaN is the one value
+      // the range clamps let through, and replaceState hands it straight to
+      // the parameters, where a block rendered in between would carry it into
+      // the feedback in the effects.
+      for (auto child : tree)
+        if (child.hasProperty("value") &&
+            !std::isfinite((double)child.getProperty("value")))
+          if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(
+                  apvts.getParameter(child.getProperty("id").toString())))
+            child.setProperty(
+                "value", ranged->convertFrom0to1(ranged->getDefaultValue()),
+                nullptr);
 
       // Read before replaceState, so the host's own program restore is a no-op.
       // Defaults to the first preset when absent.
@@ -866,13 +880,6 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       for (const auto &entry : older)
         entry.first->setValueNotifyingHost(
             entry.first->convertTo0to1(entry.second));
-
-      // A value that is not a number, from a corrupted or hand edited file, is
-      // put back to the default. NaN is the one value the range clamps let
-      // through, and checking it here keeps the check off the audio thread.
-      for (auto *parameter : getParameters())
-        if (!std::isfinite(parameter->getValue()))
-          parameter->setValueNotifyingHost(parameter->getDefaultValue());
     }
   }
 }
