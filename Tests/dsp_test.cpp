@@ -14801,6 +14801,36 @@ void testOutputStage() {
           "and the smoothing is what the window was for (" +
               std::to_string(flat3 / std::max(1.0e-9, ahead3)) + " times)");
   }
+
+  // ---- the window's ring stays inside itself ------------------------------
+  //
+  // The front of the window moves on every time a peak falls out of it. A
+  // count that only goes up would overflow after about a day of sound, so it
+  // moves back a lap whenever it completes one. A second of a sine is many
+  // laps of a ring a millisecond long.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)sr), r((size_t)sr);
+
+    for (size_t n = 0; n < l.size(); ++n) {
+      const auto s =
+          (float)(2.0 * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
+      l[n] = s;
+      r[n] = s;
+    }
+
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Limiter, true,
+                  true);
+
+    const auto ring = OutputStage::lookaheadSamples(sr) / 2 + 1;
+
+    check(stage.wedgeFront() >= 0 && stage.wedgeFront() < ring,
+          "the limiter's window stays inside its ring after a second (" +
+              std::to_string(stage.wedgeFront()) + " of " +
+              std::to_string(ring) + ")");
+  }
 }
 
 int main() {
