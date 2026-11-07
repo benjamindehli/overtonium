@@ -20,6 +20,19 @@ namespace ovt::ui {
 /// must agree to the pixel.
 int meterSegments(int height);
 
+/// How far the bloom around a lit meter run reaches beyond it, in pixels.
+///
+/// The paint and the dirty band the meter asks for must agree on it, or the
+/// old level leaves a smear.
+inline constexpr float kMeterGlowSpread = 3.0f;
+
+/// The track a channel's meter lights in, within the meter's whole bounds:
+/// 62 % of the width, centred, and short of each end by the bloom's reach, so
+/// the bloom rounds off inside the meter rather than being cut square by its
+/// edge. That leaves room for the lip of the recess too. Shared for the same
+/// reason as meterSegments.
+juce::Rectangle<float> meterTrack(juce::Rectangle<float> whole);
+
 namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};

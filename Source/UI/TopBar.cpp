@@ -194,9 +194,6 @@ void StereoOutputMeter::push(float l, float r) {
 
 void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
                                  const Bar &bar, int count) const {
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(r, 1.5f);
-
   const auto step = r.getWidth() / (float)count;
   const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
@@ -227,6 +224,14 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
     g.setColour(colours::textDim.withAlpha(db >= -6.0f ? 0.55f : 0.30f));
     g.fillRect(x, scale.getY(), 1.0f, 3.0f);
   }
+
+  // Both bars in one recess, as one two-line display, a pixel in for its lip.
+  // Two of them would have their lips meet in the gap between the bars.
+  area.reduce(1.0f, 1.0f);
+  paintRecess(g, area, 1.5f);
+
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(area, 1.5f);
 
   const auto count = segments();
   const auto gap = 2.0f;

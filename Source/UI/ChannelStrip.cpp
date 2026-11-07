@@ -1068,14 +1068,6 @@ void LevelMeter::setBackdrop(juce::Colour top, juce::Colour bottom) {
 
 int LevelMeter::segments() const { return meterSegments(getHeight()); }
 
-namespace {
-/// How far the bloom around a lit meter run reaches beyond it, in pixels.
-///
-/// The paint and the dirty band push() returns must agree on it, or the old
-/// level leaves a smear.
-constexpr float kMeterGlowSpread = 3.0f;
-} // namespace
-
 juce::Rectangle<int> LevelMeter::push(float level) {
   // A decibel scale with a floor at -48 dB. On a linear amplitude scale
   // everything above the fundamental sits squashed against the bottom.
@@ -1118,11 +1110,12 @@ juce::Rectangle<int> LevelMeter::push(float level) {
 
   // Only the lamps that lit or went out. Not repainted here: the editor
   // merges these from every meter and invalidates once.
-  const auto step = (float)getHeight() / (float)count;
+  const auto track = meterTrack(getLocalBounds().toFloat());
+  const auto step = track.getHeight() / (float)count;
 
-  const auto top = (float)getHeight() - (float)juce::jmax(before, after) * step;
+  const auto top = track.getBottom() - (float)juce::jmax(before, after) * step;
   const auto bottom =
-      (float)getHeight() - (float)juce::jmin(before, after) * step;
+      track.getBottom() - (float)juce::jmin(before, after) * step;
 
   // The margin covers the bloom, which reaches kMeterGlowSpread beyond the
   // run, plus a pixel for the rounding above.
@@ -1145,19 +1138,8 @@ void LevelMeter::paint(juce::Graphics &g) {
 
   // The meter sits behind the fader and owns its whole track.
   const auto full = getLocalBounds().toFloat();
-  const auto trackW = juce::jmax(6.0f, full.getWidth() * 0.62f);
-  const auto track = full.withSizeKeepingCentre(trackW, full.getHeight());
-
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(track, trackW * 0.35f);
-
-  // Recessed into the channel.
-  const auto lip = juce::jmin(6.0f, track.getHeight() * 0.06f);
-  g.setGradientFill(
-      juce::ColourGradient(juce::Colours::black.withAlpha(0.45f), track.getX(),
-                           track.getY(), juce::Colours::black.withAlpha(0.0f),
-                           track.getX(), track.getY() + lip, false));
-  g.fillRect(track.withHeight(lip));
+  const auto track = meterTrack(full);
+  const auto trackW = track.getWidth();
 
   const auto count = segments();
   const auto onNow = juce::jlimit(0, count, lit);
@@ -1169,22 +1151,62 @@ void LevelMeter::paint(juce::Graphics &g) {
   const auto on = colour.withAlpha(0.92f);
   const auto off = colour.withAlpha(0.13f);
 
-  // Bloom around the lit run, drawn once for the whole run and kept inside the
-  // component's bounds so the invalidated band need not grow.
+  // Bloom around the lit run, drawn once for the whole run, rounded at both
+  // ends inside the component's bounds so the invalidated band need not grow.
+  const auto litTop = track.getBottom() - (float)onNow * step;
+  const auto room = juce::jmax(0.0f, (full.getWidth() - trackW) * 0.5f);
+  const auto spread = juce::jmin(kMeterGlowSpread, room);
+
+  // The foot is the same however long the run is, so it is drawn on its own,
+  // below a seam half way up the bottom lamp, from a shape that does not change
+  // with the run. One rounded rectangle the length of the run comes out a shade
+  // different at its foot as the run grows or shrinks, outside the band the
+  // meter asks to have repainted. Each part runs on well past the seam, so
+  // neither has a corner near it.
+  const auto seam = (int)std::floor(track.getBottom() - step * 0.5f);
+  const auto upper = juce::Rectangle<float>(
+      track.getX(), litTop, track.getWidth(), full.getBottom() + 8.0f - litTop);
+  const auto foot =
+      juce::Rectangle<float>(track.getX(), track.getBottom() - step - 8.0f,
+                             track.getWidth(), step + 8.0f);
+
+  const auto layer = [&](float grow, float corner, float alpha) {
+    g.setColour(colour.withAlpha(alpha));
+    {
+      juce::Graphics::ScopedSaveState keep(g);
+      g.reduceClipRegion(0, 0, getWidth(), seam);
+      g.fillRoundedRectangle(upper.expanded(grow, grow), corner);
+    }
+    juce::Graphics::ScopedSaveState keep(g);
+    g.reduceClipRegion(0, seam, getWidth(), getHeight() - seam);
+    g.fillRoundedRectangle(foot.expanded(grow, grow), corner);
+  };
+
+  const auto bloom = [&] {
+    layer(spread, 4.0f, 0.09f);
+    layer(spread * 0.45f, 3.0f, 0.10f);
+  };
+
+  // Under the recess, as a lamp's glow is, so the lip reads the same lit or
+  // not.
+  if (onNow > 0)
+    bloom();
+
+  // Recessed into the channel, as every other light is.
+  paintRecess(g, track, trackW * 0.35f);
+
+  g.setColour(colours::groove);
+  g.fillRoundedRectangle(track, trackW * 0.35f);
+
+  // And again on the groove, clipped to it, so the lamps light the groove
+  // around them as well as the channel beside it.
   if (onNow > 0) {
-    const auto litTop = track.getBottom() - (float)onNow * step;
-    const auto run = juce::Rectangle<float>(
-        track.getX(), litTop, track.getWidth(), track.getBottom() - litTop);
+    juce::Path groove;
+    groove.addRoundedRectangle(track, trackW * 0.35f);
 
-    const auto room = juce::jmax(0.0f, (full.getWidth() - trackW) * 0.5f);
-    const auto spread = juce::jmin(kMeterGlowSpread, room);
-
-    g.setColour(colour.withAlpha(0.09f));
-    g.fillRoundedRectangle(
-        run.expanded(spread, juce::jmin(kMeterGlowSpread, spread)), 4.0f);
-
-    g.setColour(colour.withAlpha(0.10f));
-    g.fillRoundedRectangle(run.expanded(spread * 0.45f, spread * 0.45f), 3.0f);
+    juce::Graphics::ScopedSaveState keep(g);
+    g.reduceClipRegion(groove);
+    bloom();
   }
 
   for (int i = 0; i < count; ++i) {
