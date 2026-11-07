@@ -1,6 +1,6 @@
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-11-06
+Last changed: 2026-11-07
 
 # Playing Overtonium
 
@@ -276,7 +276,7 @@ A full sweep reaches the ends of the range, so if the patch value is already nea
 
 Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 884 parameters, and it works the same way in every host.
 
-**Twelve controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
+**Eighteen controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. 120 to 127 are the channel mode messages, which stop notes, reset controllers and switch modes. Some hosts send 121 when the transport stops. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
 
 **It works the same with MPE on**, which takes extra handling. With MPE on, nearly every message goes to the part of the instrument that reads your keyboard's layout, so bindings are checked before that, not after. Otherwise MIDI Learn would not work on the controllers the instrument is most often played from.
 

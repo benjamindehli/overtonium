@@ -1764,16 +1764,22 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
     mpe->setValueNotifyingHost(1.0f);
     p.prepareToPlay(48000.0, 256);
 
-    // Let go of the one it already has first. Two controllers may point at
-    // one control, and controllerFor answers with the lowest of them, so
-    // leaving CC 20 bound would have this reading 20 whatever CC 21 did.
-    p.midiLearn.forget(afterLoad);
+    // Learned again without forgetting CC 20 first, as the menu's "Bind a
+    // different controller" does. The new one replaces the old.
     p.midiLearn.arm(afterLoad);
     send(21, 64);
 
     check(p.midiLearn.controllerFor(afterLoad) == 21,
           "a controller is still learned with MPE on (" +
               std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+    const auto before = afterLoad->getValue();
+    send(20, before < 0.5f ? 127 : 0);
+
+    check(juce::exactlyEqual(afterLoad->getValue(), before),
+          "and the controller it had before lets go of it (" +
+              std::to_string(before) + " then " +
+              std::to_string(afterLoad->getValue()) + ")");
 
     send(21, 127);
     const auto high = afterLoad->getValue();
@@ -2854,6 +2860,21 @@ void testSostenutoOverMidi(OvertoniumProcessor &p) {
             juce::String(ovt::MidiLearn::reservedFor(66)) ==
                 "the sostenuto pedal",
         "MIDI Learn will not take CC 66, and says what it is for");
+
+  // Every channel mode message, 120 to 127. Some hosts send reset all
+  // controllers on stop, which would move a control bound to it.
+  {
+    std::string learnable;
+
+    for (int number = 120; number < 128; ++number)
+      if (!ovt::MidiLearn::isReserved(number) ||
+          juce::String(ovt::MidiLearn::reservedFor(number)).isEmpty())
+        learnable += std::to_string(number) + " ";
+
+    check(learnable.empty(), "MIDI Learn will not take a channel mode "
+                             "message, and says what each is for (" +
+                                 learnable + "taken)");
+  }
 
   p.reset();
   renderBlocks(p, 4, 512);
