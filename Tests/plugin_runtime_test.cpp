@@ -5389,6 +5389,36 @@ void testMasterEffects(OvertoniumProcessor &p) {
 
   check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
 
+  // A macro on the release row lengthens every release without writing the
+  // parameters, so the reported tail has to read what the engine gets rather
+  // than the knobs.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto knobsOnly = p.getTailLengthSeconds();
+
+  int releaseRow = 0;
+  for (int row = 0; row < ovt::params::kNumMacroRows; ++row)
+    if (juce::String(ovt::params::kMacroRows[row]) ==
+        ovt::params::releaseSuffix)
+      releaseRow = row + 1; // the list opens with None
+
+  const auto setMacro = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  setMacro(ovt::params::macroRowId(0), (float)releaseRow);
+  setMacro(ovt::params::macroScopeId(0), 0.0f);
+  setMacro(ovt::params::macroCurveId(0), 0.0f);
+  setMacro(ovt::params::macroAmountId(0), 1.0f);
+
+  const auto stretched = p.getTailLengthSeconds();
+
+  check(stretched > knobsOnly + 1.0,
+        "the reported tail follows a macro on the release row (" +
+            std::to_string(knobsOnly) + " s, then " +
+            std::to_string(stretched) + " s)");
+
   ovt::presets::apply(p.apvts, presetIndex("Init"));
   p.reset();
 }

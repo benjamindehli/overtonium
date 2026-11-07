@@ -320,23 +320,25 @@ bool OvertoniumProcessor::isBusesLayoutSupported(
 }
 
 double OvertoniumProcessor::getTailLengthSeconds() const {
+  // A snapshot of its own, since the host asks from its own thread while the
+  // audio thread rewrites currentParams every block. The snapshot only reads
+  // the parameters' atomics, and it applies the macros, so a macro on Release
+  // or Key-off swell counts.
+  ovt::SynthParams now;
+  paramCache.snapshot(now, 0.0f);
+
   // The longest release currently dialled in rather than the worst case the
-  // ranges allow, so offline bounces are not padded with silence.
+  // ranges allow, so offline bounces are not padded with silence. The key-off
+  // swell runs before the release.
   float longest = 0.0f;
 
-  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
-    const auto &osc = paramCache.osc[(size_t)i];
+  for (const auto &osc : now.osc)
+    longest = juce::jmax(longest, osc.swell + osc.release);
 
-    // The key-off swell runs before the release.
-    const auto swell = osc.swell != nullptr ? osc.swell->load() : 0.0f;
-    const auto release = osc.release != nullptr ? osc.release->load() : 0.0f;
-
-    longest = juce::jmax(longest, swell + release);
-  }
+  longest = juce::jmax(longest, now.noise.swell + now.noise.release);
 
   // Plus whatever is still ringing in the master effects.
-  return (double)longest + (double)engine.effectsTailSeconds(currentParams) +
-         0.1;
+  return (double)longest + (double)engine.effectsTailSeconds(now) + 0.1;
 }
 
 void OvertoniumProcessor::updateAftertouch() {
