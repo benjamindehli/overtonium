@@ -109,7 +109,7 @@ float Reverb::Allpass::process(float x, float coefficient) noexcept {
 
 // ---- the network ------------------------------------------------------------
 
-void Reverb::prepare(double newSampleRate) noexcept {
+void Reverb::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   for (int i = 0; i < kLines; ++i) {

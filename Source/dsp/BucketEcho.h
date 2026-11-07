@@ -23,7 +23,7 @@ class BucketEcho {
 public:
   static constexpr float kMaxTimeSeconds = 2.0f;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// Processes in place. Runs even with no input, since a tail is still a tail.

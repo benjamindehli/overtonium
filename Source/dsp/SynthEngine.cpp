@@ -6,7 +6,7 @@
 
 namespace ovt {
 
-void SynthEngine::prepare(double newSampleRate) noexcept {
+void SynthEngine::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
   renderRate = sampleRate;
 

@@ -133,7 +133,7 @@ public:
     return (int)(kLookaheadSeconds * std::max(1.0, sampleRate) + 0.5);
   }
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// How late this stage is, in samples, at the rate it was prepared with.

@@ -31,7 +31,7 @@ constexpr double kNudgeDecaySeconds = 0.130;
 constexpr double kOffsetGlideSeconds = 0.050;
 } // namespace
 
-void Wobble::prepare(double newSampleRate) noexcept {
+void Wobble::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   // Room for the read point to sit a full travel either side of centre, plus

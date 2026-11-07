@@ -48,7 +48,7 @@ public:
   static constexpr int kMaxPolyphony = 16;
   static constexpr int kPoolSize = kMaxPolyphony + 8;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// The held chord as Adaptive last settled it, for the Tuning bar. Copies it

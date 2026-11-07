@@ -77,7 +77,7 @@ void SpringReverb::Spring::clear() noexcept {
   dark = rumble = tail = 0.0f;
 }
 
-void SpringReverb::prepare(double newSampleRate) noexcept {
+void SpringReverb::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   preDelay.assign((size_t)(kMaxPreDelaySeconds * sampleRate) + 4, 0.0f);

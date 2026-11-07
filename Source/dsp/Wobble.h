@@ -23,7 +23,7 @@ public:
   /// How far the read point can be pushed either side of centre.
   static constexpr float kMaxDepthSeconds = 0.030f;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// Processes in place. Does not allocate.

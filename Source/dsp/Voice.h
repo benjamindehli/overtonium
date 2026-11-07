@@ -137,7 +137,7 @@ public:
   static constexpr int kControlBlock = 32;
 
   /// @param seed  distinguishes this voice's random stream from its siblings.
-  void prepare(double newSampleRate, uint32_t seed) noexcept;
+  void prepare(double newSampleRate, uint32_t seed);
   void reset() noexcept;
 
   /// Moves the voice to a different render rate without disturbing it. Every
