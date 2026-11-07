@@ -15,21 +15,12 @@ permissions:
   contents: read
 
 jobs:
-  package:
-    name: ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 90
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS
-            os: macos-latest
-          - name: Linux
-            os: ubuntu-latest
-          - name: Windows
-            os: windows-latest
+  # Once, on one small runner, before the three builds start. A run started by
+  # hand has no tag, so the job passes with nothing to check.
+  verify:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
 
     steps:
       - uses: actions/checkout@v7
@@ -42,8 +33,8 @@ jobs:
       # ships a file whose name and contents disagree, a tag with no notes
       # beside it would publish a release page with nothing on it, and a
       # releases page that stops at the version before would quietly become a
-      # list of everything except what people just downloaded. None of the
-      # three shows up anywhere the person cutting the release is looking.
+      # list of everything except what people just downloaded. None of
+      # them shows up anywhere the person cutting the release is looking.
       #
       # Everything is reported before giving up, so a release that got two of
       # them wrong takes one round trip rather than two. This runs before
@@ -73,6 +64,26 @@ jobs:
           python3 .github/scripts/release_docs.py "$tagged" || status=1
 
           exit $status
+
+  package:
+    name: ${{ matrix.name }}
+    needs: verify
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Linux
+            os: ubuntu-latest
+          - name: Windows
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v7
 
       # Same treatment as the build workflow: the hosted runners reach apt
       # through a mirror that intermittently stops answering, and apt's own
