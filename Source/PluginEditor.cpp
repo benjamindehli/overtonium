@@ -17,7 +17,7 @@ constexpr int kMasterGap = 8;
 
 /// The pointer tool button's height. It is taller than the header row it
 /// stands in, which is only as tall as the channel numbers need.
-constexpr int kToolButtonHeight = 24;
+constexpr int kToolButtonHeight = 22;
 
 /// The two bars under the top bar, as bits of OvertoniumEditor::openBars.
 constexpr int kPlayingBar = 1;

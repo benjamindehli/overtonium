@@ -233,13 +233,13 @@ void StereoOutputMeter::paint(juce::Graphics &g) {
   g.setColour(colours::groove);
   g.fillRoundedRectangle(area, 1.5f);
 
+  // The bars meet, and each lamp's own pixel above and below leaves the same
+  // dark line between them as between the lamps along a bar.
   const auto count = segments();
-  const auto gap = 2.0f;
-  const auto barH = (area.getHeight() - gap) * 0.5f;
+  const auto barH = area.getHeight() * 0.5f;
 
   paintBar(g, area.removeFromTop(barH), left, count);
-  area.removeFromTop(gap);
-  paintBar(g, area.removeFromTop(barH), right, count);
+  paintBar(g, area, right, count);
 }
 
 // =============================================================================

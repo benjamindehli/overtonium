@@ -33,6 +33,18 @@ inline constexpr float kMeterGlowSpread = 3.0f;
 /// reason as meterSegments.
 juce::Rectangle<float> meterTrack(juce::Rectangle<float> whole);
 
+/// Lamp i of a meter of count lamps, counted from the bottom of the track.
+///
+/// The lamps fill the track a pixel in from its edges on every side, with a
+/// gap between neighbours, so there is the same pixel at both ends as along
+/// the sides. Shared for the same reason as meterSegments.
+juce::Rectangle<float> meterLamp(juce::Rectangle<float> track, int count,
+                                 int i);
+
+/// The corner of a meter's recess and groove: a lamp's corner plus the pixel
+/// between the lamps and the groove's edge, so the two curves run together.
+inline constexpr float kMeterRecessCorner = 3.0f;
+
 namespace colours {
 inline const juce::Colour background{0xff0b0d10};
 inline const juce::Colour panel{0xff14181d};

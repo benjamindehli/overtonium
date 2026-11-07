@@ -571,44 +571,30 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   const auto lo = juce::jmin(anchor, ringAngle);
   const auto hi = juce::jmax(anchor, ringAngle);
 
-  // Where the travel changes kind, as a share of it: an attack below its
-  // shortest time sets the start phase instead. The ticks below it are drawn
-  // as dots. Nought on every knob that has no such stretch.
-  const auto split =
-      (float)(double)slider.getProperties().getWithDefault("phaseSplit", 0.0);
+  // Lit and unlit ticks are the same segment, as a meter's lamps are. Unlit
+  // is the knob's own colour held down low, so an idle ring still says whose
+  // knob it is. It warms towards lit while LINK arms the knob. A blank knob
+  // has no colour of its own yet, so its ring is the plain dim grey a silent
+  // channel's is.
+  const auto unlit =
+      (blank ? colours::textDim : fill).withAlpha(0.2f + 0.3f * glow);
 
   for (int i = 0; i < ticks; ++i) {
     const auto t = (float)i / (float)(ticks - 1);
     const auto a = rotaryStartAngle + t * (rotaryEndAngle - rotaryStartAngle);
     const bool lit = live && !blank && a >= lo - 1.0e-4f && a <= hi + 1.0e-4f;
 
-    const auto inner = radius * (lit ? 0.76f : 0.82f);
-    const auto outer = radius * (lit ? 1.00f : 0.96f);
+    const auto inner = radius * 0.76f;
+    const auto outer = radius;
     const auto sinA = std::sin(a);
     const auto cosA = std::cos(a);
-
-    // The unlit ticks warm towards the knob's own colour while LINK arms it.
-    const auto unlit =
-        colours::groove.brighter(0.22f).interpolatedWith(fill, 0.65f * glow);
 
     g.setColour(lit ? ringColour.withMultipliedAlpha(dim)
                     : unlit.withMultipliedAlpha(dim));
 
-    if (t < split - 1.0e-4f) {
-      // A dot as wide as the tick is thick, at the middle of its length.
-      const auto mid = (inner + outer) * 0.5f;
-      const auto d = lit ? juce::jmax(2.4f, radius * 0.17f)
-                         : juce::jmax(1.6f, radius * 0.11f);
-
-      g.fillEllipse(juce::Rectangle<float>(d, d).withCentre(
-          {centre.x + mid * sinA, centre.y - mid * cosA}));
-      continue;
-    }
-
     g.drawLine({centre.x + inner * sinA, centre.y - inner * cosA,
                 centre.x + outer * sinA, centre.y - outer * cosA},
-               lit ? juce::jmax(1.6f, radius * 0.11f)
-                   : juce::jmax(1.0f, radius * 0.07f));
+               juce::jmax(1.6f, radius * 0.11f));
   }
 
   // ---- the cap --------------------------------------------------------------
@@ -726,6 +712,48 @@ void OvertoniumLookAndFeel::drawRotarySlider(
   mark(rimIn, rimOut, head.interpolatedWith(head.darker(0.38f), into));
 }
 
+namespace {
+/// A fader's glass cap, lit from the top like everything on the panel: a
+/// lens lighter at the top than the bottom, a soft highlight over its upper
+/// part, an edge brighter at the top left, and a dark line inside the bottom
+/// edge where the glass turns away from the light. body is the glass's tint,
+/// which the gradient runs either side of. across is true when the fader
+/// travels sideways, so the cap stands upright and casts its shadow to the
+/// right.
+void paintGlassCap(juce::Graphics &g, juce::Rectangle<float> cap, float dim,
+                   juce::Colour body, bool across) {
+  const auto white = juce::Colours::white;
+  const auto black = juce::Colours::black;
+  constexpr float corner = 2.0f;
+
+  // The cast shadow, down and to the right.
+  g.setColour(black.withAlpha(0.34f * dim));
+  g.fillRoundedRectangle(
+      across ? cap.translated(1.5f, 0.5f) : cap.translated(0.5f, 1.5f), corner);
+
+  g.setGradientFill(juce::ColourGradient(
+      body.withMultipliedAlpha(1.7f), cap.getX(), cap.getY(),
+      body.withMultipliedAlpha(0.5f), cap.getX(), cap.getBottom(), false));
+  g.fillRoundedRectangle(cap, corner);
+
+  const auto shine = cap.reduced(1.5f).withHeight(
+      juce::jmax(2.0f, (cap.getHeight() - 3.0f) * 0.45f));
+  g.setGradientFill(juce::ColourGradient(
+      white.withAlpha(0.30f * dim), shine.getX(), shine.getY(),
+      white.withAlpha(0.02f * dim), shine.getX(), shine.getBottom(), false));
+  g.fillRoundedRectangle(shine, 1.0f);
+
+  g.setGradientFill(juce::ColourGradient(
+      white.withAlpha(0.62f * dim), cap.getX(), cap.getY(),
+      white.withAlpha(0.20f * dim), cap.getRight(), cap.getBottom(), false));
+  g.drawRoundedRectangle(cap.reduced(0.5f), corner, 1.0f);
+
+  g.setColour(black.withAlpha(0.30f * dim));
+  g.fillRect(cap.getX() + 2.0f, cap.getBottom() - 2.0f, cap.getWidth() - 4.0f,
+             1.0f);
+}
+} // namespace
+
 void OvertoniumLookAndFeel::drawLinearSlider(
     juce::Graphics &g, int x, int y, int width, int height, float sliderPos,
     float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
@@ -754,6 +782,16 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto step = track.getWidth() / (float)count;
     const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
+    // The cells fill the track a pixel in from its edges on every side, with
+    // a gap between neighbours, as a channel meter's lamps do.
+    const auto inner = track.reduced(1.0f);
+    const auto cellW =
+        (inner.getWidth() - gap * (float)(count - 1)) / (float)count;
+    const auto cellAt = [&](int i) {
+      return inner.withX(inner.getX() + (float)i * (cellW + gap))
+          .withWidth(cellW);
+    };
+
     // Lit, and the same colour held low so an amount of nothing still shows
     // which macro the row belongs to.
     const auto on = colour.withAlpha(0.92f * dim);
@@ -768,16 +806,15 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     // around it the channel meters have, under the recess as theirs is.
     int first = count, last = -1;
     for (int i = 0; i < count; ++i) {
-      const auto centre = track.getX() + ((float)i + 0.5f) * step;
+      const auto centre = cellAt(i).getCentreX();
       if (centre >= lo && centre <= hi) {
         first = juce::jmin(first, i);
         last = i;
       }
     }
 
-    const auto run =
-        juce::Rectangle<float>(track.getX() + (float)first * step, track.getY(),
-                               (float)(last - first + 1) * step, trackH);
+    const auto run = last >= first ? cellAt(first).getUnion(cellAt(last))
+                                   : juce::Rectangle<float>();
 
     const auto bloom = [&] {
       g.setColour(colour.withAlpha(0.09f * dim));
@@ -790,15 +827,15 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     if (last >= first)
       bloom();
 
-    paintRecess(g, track, trackH * 0.35f);
+    paintRecess(g, track, kMeterRecessCorner);
 
     g.setColour(colours::groove);
-    g.fillRoundedRectangle(track, trackH * 0.35f);
+    g.fillRoundedRectangle(track, kMeterRecessCorner);
 
     // And again on the groove, clipped to it, as on a channel meter.
     if (last >= first) {
       juce::Path groove;
-      groove.addRoundedRectangle(track, trackH * 0.35f);
+      groove.addRoundedRectangle(track, kMeterRecessCorner);
 
       juce::Graphics::ScopedSaveState keep(g);
       g.reduceClipRegion(groove);
@@ -806,9 +843,7 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     }
 
     for (int i = 0; i < count; ++i) {
-      const auto cell = juce::Rectangle<float>(track.getX() + (float)i * step,
-                                               track.getY(), step, trackH)
-                            .reduced(gap * 0.5f, 1.0f);
+      const auto cell = cellAt(i);
 
       const bool on_ = cell.getCentreX() >= lo && cell.getCentreX() <= hi;
 
@@ -821,18 +856,8 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const juce::Rectangle<float> cap(at - capW * 0.5f, bounds.getY() + 0.5f,
                                      capW, bounds.getHeight() - 1.0f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
-    g.fillRoundedRectangle(cap.translated(1.5f, 0.5f), 2.0f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
-    g.fillRoundedRectangle(cap, 2.0f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
-    g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
-    g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
-               cap.getHeight() - 5.0f);
+    paintGlassCap(g, cap, dim, juce::Colours::white.withAlpha(0.13f * dim),
+                  true);
 
     if ((bool)slider.getProperties().getWithDefault("learnArmed", false)) {
       g.setColour(colours::learning);
@@ -849,23 +874,14 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto dim = slider.isEnabled() ? 1.0f : 0.4f;
     const auto at = juce::jlimit(bounds.getX(), bounds.getRight(), sliderPos);
 
-    const auto capW = juce::jmax(6.0f, bounds.getHeight() * 0.30f);
+    // Wider for its height than the channel faders' caps, since the bars
+    // are short and a cap at their proportion would be a sliver.
+    const auto capW = juce::jmax(9.0f, bounds.getHeight() * 0.42f);
     const juce::Rectangle<float> cap(at - capW * 0.5f, bounds.getY() + 0.5f,
                                      capW, bounds.getHeight() - 1.0f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
-    g.fillRoundedRectangle(cap.translated(1.5f, 0.5f), 2.0f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.13f * dim));
-    g.fillRoundedRectangle(cap, 2.0f);
-
-    g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
-    g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
-
-    // The lip runs down the cap.
-    g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
-    g.fillRect(cap.getX() + 1.5f, cap.getY() + 2.5f, 1.0f,
-               cap.getHeight() - 5.0f);
+    paintGlassCap(g, cap, dim, juce::Colours::white.withAlpha(0.13f * dim),
+                  true);
 
     // Waiting for a controller. Around the cap only, so it does not enclose the
     // meter.
@@ -975,8 +991,6 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto track = meterTrack(whole);
 
     const int count = meterSegments((int)whole.getHeight());
-    const auto step = track.getHeight() / (float)count;
-    const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
     // What is left either side of the track, less a pixel of air against the
     // track and another against the edge of the strip.
@@ -992,10 +1006,9 @@ void OvertoniumLookAndFeel::drawLinearSlider(
     const auto off = tint.withMultipliedAlpha(0.14f * dim);
 
     for (int i = 0; i < count; ++i) {
+      const auto lamp = meterLamp(track, count, i);
       const auto cell =
-          juce::Rectangle<float>(
-              0.0f, track.getBottom() - (float)(i + 1) * step, lane, step)
-              .reduced(0.0f, gap * 0.5f);
+          juce::Rectangle<float>(0.0f, lamp.getY(), lane, lamp.getHeight());
 
       const auto corner = juce::jmin(2.0f, cell.getHeight() * 0.4f);
 
@@ -1012,22 +1025,12 @@ void OvertoniumLookAndFeel::drawLinearSlider(
   const juce::Rectangle<float> cap(bounds.getX() + 0.5f, fillTop - capH * 0.5f,
                                    bounds.getWidth() - 1.0f, capH);
 
-  g.setColour(juce::Colours::black.withAlpha(0.34f * dim));
-  g.fillRoundedRectangle(cap.translated(0.5f, 1.5f), 2.0f);
-
   // Light enough that the lit segments behind it stay legible. Tinted in the
   // macro's colour when a macro has this fader.
-  g.setColour(driven ? tint.withMultipliedAlpha(0.3f * dim)
-                     : juce::Colours::white.withAlpha(0.13f * dim));
-  g.fillRoundedRectangle(cap, 2.0f);
-
-  // The cap's own edge, white whatever is driving it.
-  g.setColour(juce::Colours::white.withAlpha(0.46f * dim));
-  g.drawRoundedRectangle(cap.reduced(0.5f), 2.0f, 1.0f);
-
-  // The lip, off centre so it does not divide the cap in half.
-  g.setColour(juce::Colours::white.withAlpha(0.26f * dim));
-  g.fillRect(cap.getX() + 2.5f, cap.getY() + 1.5f, cap.getWidth() - 5.0f, 1.0f);
+  paintGlassCap(g, cap, dim,
+                driven ? tint.withMultipliedAlpha(0.3f * dim)
+                       : juce::Colours::white.withAlpha(0.13f * dim),
+                false);
 }
 
 void OvertoniumLookAndFeel::drawButtonBackground(

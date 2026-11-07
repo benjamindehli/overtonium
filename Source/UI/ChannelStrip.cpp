@@ -1111,18 +1111,26 @@ juce::Rectangle<int> LevelMeter::push(float level) {
   // Only the lamps that lit or went out. Not repainted here: the editor
   // merges these from every meter and invalidates once.
   const auto track = meterTrack(getLocalBounds().toFloat());
-  const auto step = track.getHeight() / (float)count;
+  const auto lo = juce::jmin(before, after);
+  const auto hi = juce::jmax(before, after);
 
-  const auto top = track.getBottom() - (float)juce::jmax(before, after) * step;
+  // From the top of the higher run to the top of the lower, where the bloom's
+  // rounded top lands, or to the foot of the track when the run starts or
+  // ends, since the bloom's foot comes and goes with it.
+  const auto top = meterLamp(track, count, hi - 1).getY();
   const auto bottom =
-      track.getBottom() - (float)juce::jmin(before, after) * step;
+      lo == 0 ? track.getBottom() : meterLamp(track, count, lo - 1).getY();
 
   // The margin covers the bloom, which reaches kMeterGlowSpread beyond the
   // run, plus a pixel for the rounding above.
   const auto margin = (int)kMeterGlowSpread + 1;
 
-  return juce::Rectangle<int>(0, juce::roundToInt(top) - margin, getWidth(),
-                              juce::roundToInt(bottom - top) + 2 * margin)
+  // Out to the whole pixels the edges fall in, since the lamps' edges are not
+  // on pixel boundaries.
+  const auto y0 = (int)std::floor(top) - margin;
+  const auto y1 = (int)std::ceil(bottom) + margin;
+
+  return juce::Rectangle<int>(0, y0, getWidth(), y1 - y0)
       .getIntersection(getLocalBounds());
 }
 
@@ -1144,7 +1152,6 @@ void LevelMeter::paint(juce::Graphics &g) {
   const auto count = segments();
   const auto onNow = juce::jlimit(0, count, lit);
   const auto step = track.getHeight() / (float)count;
-  const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
 
   // Off is the channel's own colour held down low, so an idle meter still says
   // which channel it belongs to.
@@ -1153,7 +1160,8 @@ void LevelMeter::paint(juce::Graphics &g) {
 
   // Bloom around the lit run, drawn once for the whole run, rounded at both
   // ends inside the component's bounds so the invalidated band need not grow.
-  const auto litTop = track.getBottom() - (float)onNow * step;
+  const auto litTop =
+      onNow > 0 ? meterLamp(track, count, onNow - 1).getY() : track.getBottom();
   const auto room = juce::jmax(0.0f, (full.getWidth() - trackW) * 0.5f);
   const auto spread = juce::jmin(kMeterGlowSpread, room);
 
@@ -1193,16 +1201,16 @@ void LevelMeter::paint(juce::Graphics &g) {
     bloom();
 
   // Recessed into the channel, as every other light is.
-  paintRecess(g, track, trackW * 0.35f);
+  paintRecess(g, track, kMeterRecessCorner);
 
   g.setColour(colours::groove);
-  g.fillRoundedRectangle(track, trackW * 0.35f);
+  g.fillRoundedRectangle(track, kMeterRecessCorner);
 
   // And again on the groove, clipped to it, so the lamps light the groove
   // around them as well as the channel beside it.
   if (onNow > 0) {
     juce::Path groove;
-    groove.addRoundedRectangle(track, trackW * 0.35f);
+    groove.addRoundedRectangle(track, kMeterRecessCorner);
 
     juce::Graphics::ScopedSaveState keep(g);
     g.reduceClipRegion(groove);
@@ -1210,11 +1218,7 @@ void LevelMeter::paint(juce::Graphics &g) {
   }
 
   for (int i = 0; i < count; ++i) {
-    const auto lamp =
-        juce::Rectangle<float>(track.getX() + 1.0f,
-                               track.getBottom() - (float)(i + 1) * step,
-                               track.getWidth() - 2.0f, step)
-            .reduced(0.0f, gap * 0.5f);
+    const auto lamp = meterLamp(track, count, i);
 
     g.setColour(i < onNow ? on : off);
     g.fillRoundedRectangle(lamp, juce::jmin(2.0f, lamp.getHeight() * 0.4f));
@@ -1408,16 +1412,6 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   if (auto *p = apvts.getParameter(paramId))
     s.setDoubleClickReturnValue(
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
-
-  // Where the attack stops being a time and becomes a start phase, as a share
-  // of the knob's travel, read off the parameter's own range. See
-  // kShortestAttack.
-  if (role == Role::Attack)
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            apvts.getParameter(paramId)))
-      s.getProperties().set(
-          "phaseSplit",
-          (double)p->getNormalisableRange().convertTo0to1(kShortestAttack));
 
   s.onUserDragStart = [this, role] { link.linkDragStarted(role, index); };
   s.onUserDragEnd = [this, role] { link.linkDragEnded(role, index); };
