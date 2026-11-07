@@ -12,6 +12,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
@@ -90,10 +91,19 @@ Stats renderBlocks(OvertoniumProcessor &p, int blocks, int blockSize,
 
 /// A factory preset by name, since the menu is alphabetical and gains entries,
 /// so a position does not stay the same sound.
+///
+/// A name that is not a preset stops the run. Carrying on would test whatever
+/// preset came first under the name of the one that was renamed.
 int presetIndex(const juce::String &name) {
   const auto at = ovt::presets::names().indexOf(name);
-  jassert(at >= 0);
-  return juce::jmax(0, at);
+
+  if (at < 0) {
+    std::printf("  FAIL  there is no factory preset called \"%s\"\n",
+                name.toRawUTF8());
+    std::exit(1);
+  }
+
+  return at;
 }
 
 juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
