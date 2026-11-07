@@ -521,15 +521,39 @@ jobs:
           vst3=build-san-vst3/Overtonium_artefacts/RelWithDebInfo/VST3/Overtonium.vst3
           asan=$(gcc -print-file-name=libasan.so)
 
+          # The exit status of each pass is pluginval's, not tee's, so a
+          # failed test or a plugin that will not load fails the step. A
+          # crash after SUCCESS passes with a warning, as in the build job,
+          # and the next step still fails on anything the sanitizers saw.
+          failed=0
+
           for seed in 0x63cc70f 0; do
             echo "random seed: $seed"
 
+            set +e
             xvfb-run -a env LD_PRELOAD="$asan" \
               ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 \
               UBSAN_OPTIONS=print_stacktrace=1 \
               ./pluginval --strictness-level 8 --random-seed "$seed" \
-                --validate "$vst3" 2>&1 | tee -a pluginval-sanitized.log
+                --validate "$vst3" 2>&1 | tee pass.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            cat pass.log >> pluginval-sanitized.log
+
+            if [ "$status" -ne 0 ]; then
+              if grep -qx "SUCCESS" pass.log &&
+                ! grep -qE '^!!! Test |\*\*\* FAILED|^FAILURE|tests failed' \
+                  pass.log; then
+                echo "::warning::pluginval passed every test with seed $seed and then exited with $status while shutting down."
+              else
+                echo "::error::pluginval failed with seed $seed (exit $status)"
+                failed=1
+              fi
+            fi
           done
+
+          exit "$failed"
 
       # The log as well as the exit status, since UBSan reports and carries on.
       - name: Fail on anything the sanitizers reported
