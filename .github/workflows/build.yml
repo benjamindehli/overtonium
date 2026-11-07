@@ -246,13 +246,23 @@ jobs:
       #
       # The revision is pinned, so the check cannot change underneath a commit
       # that did not touch it. Bump the one line when there is reason to.
+      #
+      # The cache is keyed on the runner image as well, so a binary built on
+      # one Ubuntu release is not run on the next, where the libraries it was
+      # linked against may differ. ImageOS is set by the runner rather than by
+      # this workflow, so it is not in the env context and is read here.
+      - name: Name the runner image
+        if: runner.os == 'Linux'
+        id: image
+        run: echo "os=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+
       - name: Cache the VST3 validator
         if: runner.os == 'Linux'
         id: validator-cache
         uses: actions/cache@v6
         with:
           path: vst3-validator
-          key: vst3-validator-${{ env.VST3_SDK_REV }}-${{ runner.os }}
+          key: vst3-validator-${{ env.VST3_SDK_REV }}-${{ steps.image.outputs.os }}
 
       - name: Build the VST3 validator
         if: runner.os == 'Linux' && steps.validator-cache.outputs.cache-hit != 'true'
