@@ -87,15 +87,17 @@ void BucketEcho::prepare(double newSampleRate) noexcept {
   left.rateHz = kSweepL;
   right.rateHz = kSweepR;
 
-  left.rng = Xorshift{0x1f123bb5u};
-  right.rng = Xorshift{0x27d4eb2du};
-
   reset();
 }
 
 void BucketEcho::reset() noexcept {
   left.clear();
   right.clear();
+
+  // Seeded here rather than in prepare, so the hiss starts the same way after
+  // every reset.
+  left.rng.reseed(0x1f123bb5u);
+  right.rng.reseed(0x27d4eb2du);
 
   // Not the same place, or the two clocks would start in step and the first
   // second of a patch would be in mono.

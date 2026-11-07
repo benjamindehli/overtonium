@@ -68,6 +68,18 @@ void SynthEngine::reset() noexcept {
   adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
   motorTurns = 0.0;
+
+  // From the start of their streams and their turns, so two renders of the
+  // same thing after a reset match.
+  sharedRandom.reseed(kSharedSeed);
+  hissRandom.reseed(kHissSeed);
+
+  for (auto &m : pitchModulators)
+    m.reset();
+
+  for (auto &m : ampModulators)
+    m.reset();
+
   hissLowGain = hissHighGain = hissFirst = hissLowState = 0.0f;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);

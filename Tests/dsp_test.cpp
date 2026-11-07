@@ -14926,6 +14926,84 @@ void testOutputStage() {
   }
 }
 
+/// Two renders of the same thing, with a reset between them, come out the same
+/// sample for sample. Every random stream and every running modulator starts
+/// again from where it started after prepare, so a bounce does not depend on
+/// what was played before it.
+void testRendersRepeatAfterReset() {
+  section("Renders repeat after a reset");
+
+  constexpr double sr = 48000.0;
+
+  const auto twice = [sr](const SynthParams &p) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+
+    const auto once = [&]() {
+      std::vector<float> l((size_t)(0.5 * sr)), r((size_t)(0.5 * sr));
+      engine.noteOn(60, 1.0f, p);
+
+      for (size_t at = 0; at < l.size(); at += 512)
+        engine.render(l.data() + at, r.data() + at,
+                      (int)std::min((size_t)512, l.size() - at), p);
+
+      engine.allSoundOff();
+      return l;
+    };
+
+    const auto first = once();
+    engine.reset();
+    const auto second = once();
+
+    int differed = 0;
+    for (size_t n = 0; n < first.size(); ++n)
+      if (!exactly(first[n], second[n]))
+        ++differed;
+
+    return differed;
+  };
+
+  auto base = makeFlatParams(0.2f);
+
+  {
+    auto p = base;
+    p.global.character = Character::Fm;
+    p.global.ampModInPhase = true;
+
+    for (auto &o : p.osc) {
+      o.amShape = LfoShape::Random;
+      o.amDepth = 0.8f;
+    }
+
+    const auto differed = twice(p);
+    check(differed == 0, "FM's hiss and a shared random tremolo repeat (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.echo.enabled = true;
+    p.echo.type = EchoType::Bucket;
+    p.echo.age = 1.0f;
+    p.echo.timeSeconds = 0.05f;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the bucket brigade's hiss repeats (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.global.safetyClip = true;
+    p.global.clipType = ClipType::Cassette;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the cassette's hiss and flutter repeat (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+}
+
 int main() {
   // Unbuffered, so a crash leaves behind everything printed up to it. ctest
   // reads the output through a pipe, which buffers it. Not _IOLBF, which the
@@ -15007,6 +15085,7 @@ int main() {
   testSpringReverb();
   testLofi();
   testOutputStage();
+  testRendersRepeatAfterReset();
   testConsole();
   testCassette();
   testPrint();
