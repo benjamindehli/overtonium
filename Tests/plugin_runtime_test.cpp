@@ -14008,8 +14008,6 @@ void testSoloAndMute(OvertoniumProcessor &p) {
   p.reset();
 }
 
-} // namespace
-
 /// An answer that puts up another notice replaces the action that is running.
 /// The notice keeps a copy of the action while it runs, so the action can go
 /// on using what it captured. Under the sanitizers the old way is a heap use
@@ -14045,6 +14043,8 @@ void testANoticeCanReplaceItself() {
 
   check(said == "aaaaa second ", "and its own answer runs (" + said + ")");
 }
+
+} // namespace
 
 int main(int argc, char **argv) {
   // See the same line in dsp_test: unbuffered, so a crash keeps whatever it
