@@ -88,8 +88,8 @@ OvertoniumProcessor::OvertoniumProcessor()
   // audioProcessorParameterChangeGestureBegin.
   addListener(this);
 
-  // Only carries program changes from MIDI, so it can run slowly and keeps
-  // running with no window open.
+  // Only carries housekeeping, so it can run slowly and keeps running with no
+  // window open. See timerCallback.
   startTimerHz(20);
 }
 
@@ -149,6 +149,19 @@ void OvertoniumProcessor::endEdit(const juce::String &name) {
   undoManager.beginNewTransaction(name);
   undoManager.perform(new ParameterEdit(
       std::move(moved), name, paramCache.macroChannels, masksBaseline, masks));
+}
+
+void OvertoniumProcessor::forgetEdits() {
+  undoManager.clearUndoHistory();
+  openGestures = 0;
+  editBaseline.clear();
+}
+
+void OvertoniumProcessor::windowClosing() {
+  if (openGestures > 0) {
+    openGestures = 0;
+    endEdit("Move a control");
+  }
 }
 
 void OvertoniumProcessor::recordEdit(const juce::String &name,
@@ -554,6 +567,9 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
 void OvertoniumProcessor::timerCallback() {
   applyPendingProgramChange();
   reportLatency();
+
+  if (forgetEditsPending.exchange(false))
+    forgetEdits();
 }
 
 int OvertoniumProcessor::latencyAtThisRate() const {
@@ -880,6 +896,14 @@ void OvertoniumProcessor::setStateInformation(const void *data,
       for (const auto &entry : older)
         entry.first->setValueNotifyingHost(
             entry.first->convertTo0to1(entry.second));
+
+      // The history belongs to the patch that was just replaced. The undo
+      // manager is not thread safe, so a restore on another thread leaves it
+      // to the timer.
+      if (juce::MessageManager::existsAndIsCurrentThread())
+        forgetEdits();
+      else
+        forgetEditsPending.store(true);
     }
   }
 }

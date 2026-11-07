@@ -12064,6 +12064,42 @@ void testUndo(OvertoniumProcessor &p) {
 
   check(!undo.canUndo(), "which was the whole history, not the first of 32");
 
+  // ---- a restored session starts a new history ---------------------------
+  //
+  // Undoing past a restore would write values from the patch before it, which
+  // is what a host's A/B switch or reloaded project replaced.
+  undo.clearUndoHistory();
+  userTurns({0}, tuneOf(0) > 0.5f ? 0.1f : 0.9f);
+
+  {
+    juce::MemoryBlock session;
+    p.getStateInformation(session);
+    p.setStateInformation(session.getData(), (int)session.getSize());
+  }
+
+  check(!undo.canUndo(), "restoring a session empties the history");
+
+  // ---- a window closed mid-drag ------------------------------------------
+  //
+  // The gesture never ends, so the processor has to close it when the window
+  // goes, or every later edit would be left out of the history.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    tuneParam(0)->beginChangeGesture();
+    tuneParam(0)->setValueNotifyingHost(tuneOf(0) > 0.5f ? 0.2f : 0.8f);
+  }
+
+  check(undo.canUndo(), "a drag cut short by the window closing is a step");
+
+  undo.clearUndoHistory();
+  p.recordEdit("Load preset",
+               [&p] { p.applyFactoryPreset(presetIndex("Init")); });
+
+  check(undo.canUndo(), "and the edits after it are recorded");
+
+  // The host's own end of the gesture, arriving late, changes nothing.
+  tuneParam(0)->endChangeGesture();
+
   undo.clearUndoHistory();
 }
 

@@ -179,6 +179,12 @@ public:
   void recordEdit(const juce::String &name,
                   const std::function<void()> &change);
 
+  /// Called by the window as it closes. A window closed in the middle of a
+  /// drag never ends the gesture, which would leave every later edit out of
+  /// the history, so this closes it and keeps what the drag had moved as its
+  /// step.
+  void windowClosing();
+
   /// The update check. Owned here rather than by the editor so a closing
   /// window only asks the fetch to stop and never waits on the network.
   ovt::UpdateCheck &updates() noexcept { return updateCheck; }
@@ -250,8 +256,9 @@ private:
   /// per-channel AT amounts read, as the setting says.
   void updateAftertouch();
 
-  /// Handles what the audio thread cannot: program changes from MIDI, and
-  /// keeping the reported latency in step with the lookahead switch.
+  /// Handles what the audio thread cannot: program changes from MIDI, keeping
+  /// the reported latency in step with the lookahead switch, and emptying the
+  /// history after a restore made on another thread.
   void timerCallback() override;
 
   /// The latency the host should be told at the current rate and settings.
@@ -299,6 +306,14 @@ private:
 
   void beginEdit();
   void endEdit(const juce::String &name);
+
+  /// Empties the history and closes any gesture left open. A restored session
+  /// is not the patch the history was recorded against, so undoing into it
+  /// would write values from before the restore. Message thread only.
+  void forgetEdits();
+
+  /// Set by a restore on another thread, for the timer to act on.
+  std::atomic<bool> forgetEditsPending{false};
 
   /// Renders into the scratch at an offset from the scratch start, since a
   /// split host block is rendered one piece at a time.
