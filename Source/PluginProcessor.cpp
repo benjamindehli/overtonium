@@ -88,8 +88,8 @@ OvertoniumProcessor::OvertoniumProcessor()
   // audioProcessorParameterChangeGestureBegin.
   addListener(this);
 
-  // Only carries program changes from MIDI, so it can run slowly and keeps
-  // running with no window open.
+  // Only carries housekeeping, so it can run slowly and keeps running with no
+  // window open. See timerCallback.
   startTimerHz(20);
 }
 
@@ -149,6 +149,19 @@ void OvertoniumProcessor::endEdit(const juce::String &name) {
   undoManager.beginNewTransaction(name);
   undoManager.perform(new ParameterEdit(
       std::move(moved), name, paramCache.macroChannels, masksBaseline, masks));
+}
+
+void OvertoniumProcessor::forgetEdits() {
+  undoManager.clearUndoHistory();
+  openGestures = 0;
+  editBaseline.clear();
+}
+
+void OvertoniumProcessor::windowClosing() {
+  if (openGestures > 0) {
+    openGestures = 0;
+    endEdit("Move a control");
+  }
 }
 
 void OvertoniumProcessor::recordEdit(const juce::String &name,
@@ -320,23 +333,25 @@ bool OvertoniumProcessor::isBusesLayoutSupported(
 }
 
 double OvertoniumProcessor::getTailLengthSeconds() const {
+  // A snapshot of its own, since the host asks from its own thread while the
+  // audio thread rewrites currentParams every block. The snapshot only reads
+  // the parameters' atomics, and it applies the macros, so a macro on Release
+  // or Key-off swell counts.
+  ovt::SynthParams now;
+  paramCache.snapshot(now, 0.0f);
+
   // The longest release currently dialled in rather than the worst case the
-  // ranges allow, so offline bounces are not padded with silence.
+  // ranges allow, so offline bounces are not padded with silence. The key-off
+  // swell runs before the release.
   float longest = 0.0f;
 
-  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
-    const auto &osc = paramCache.osc[(size_t)i];
+  for (const auto &osc : now.osc)
+    longest = juce::jmax(longest, osc.swell + osc.release);
 
-    // The key-off swell runs before the release.
-    const auto swell = osc.swell != nullptr ? osc.swell->load() : 0.0f;
-    const auto release = osc.release != nullptr ? osc.release->load() : 0.0f;
-
-    longest = juce::jmax(longest, swell + release);
-  }
+  longest = juce::jmax(longest, now.noise.swell + now.noise.release);
 
   // Plus whatever is still ringing in the master effects.
-  return (double)longest + (double)engine.effectsTailSeconds(currentParams) +
-         0.1;
+  return (double)longest + (double)engine.effectsTailSeconds(now) + 0.1;
 }
 
 void OvertoniumProcessor::updateAftertouch() {
@@ -552,6 +567,9 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
 void OvertoniumProcessor::timerCallback() {
   applyPendingProgramChange();
   reportLatency();
+
+  if (forgetEditsPending.exchange(false))
+    forgetEdits();
 }
 
 int OvertoniumProcessor::latencyAtThisRate() const {
@@ -804,7 +822,21 @@ void OvertoniumProcessor::setStateInformation(const void *data,
                                               int sizeInBytes) {
   if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
     if (xml->hasTagName(apvts.state.getType())) {
-      const auto tree = juce::ValueTree::fromXml(*xml);
+      auto tree = juce::ValueTree::fromXml(*xml);
+
+      // A value that is not a number, from a corrupted or hand edited file, is
+      // put back to the default before anything reads it. NaN is the one value
+      // the range clamps let through, and replaceState hands it straight to
+      // the parameters, where a block rendered in between would carry it into
+      // the feedback in the effects.
+      for (auto child : tree)
+        if (child.hasProperty("value") &&
+            !std::isfinite((double)child.getProperty("value")))
+          if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(
+                  apvts.getParameter(child.getProperty("id").toString())))
+            child.setProperty(
+                "value", ranged->convertFrom0to1(ranged->getDefaultValue()),
+                nullptr);
 
       // Read before replaceState, so the host's own program restore is a no-op.
       // Defaults to the first preset when absent.
@@ -865,12 +897,13 @@ void OvertoniumProcessor::setStateInformation(const void *data,
         entry.first->setValueNotifyingHost(
             entry.first->convertTo0to1(entry.second));
 
-      // A value that is not a number, from a corrupted or hand edited file, is
-      // put back to the default. NaN is the one value the range clamps let
-      // through, and checking it here keeps the check off the audio thread.
-      for (auto *parameter : getParameters())
-        if (!std::isfinite(parameter->getValue()))
-          parameter->setValueNotifyingHost(parameter->getDefaultValue());
+      // The history belongs to the patch that was just replaced. The undo
+      // manager is not thread safe, so a restore on another thread leaves it
+      // to the timer.
+      if (juce::MessageManager::existsAndIsCurrentThread())
+        forgetEdits();
+      else
+        forgetEditsPending.store(true);
     }
   }
 }

@@ -1764,16 +1764,22 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
     mpe->setValueNotifyingHost(1.0f);
     p.prepareToPlay(48000.0, 256);
 
-    // Let go of the one it already has first. Two controllers may point at
-    // one control, and controllerFor answers with the lowest of them, so
-    // leaving CC 20 bound would have this reading 20 whatever CC 21 did.
-    p.midiLearn.forget(afterLoad);
+    // Learned again without forgetting CC 20 first, as the menu's "Bind a
+    // different controller" does. The new one replaces the old.
     p.midiLearn.arm(afterLoad);
     send(21, 64);
 
     check(p.midiLearn.controllerFor(afterLoad) == 21,
           "a controller is still learned with MPE on (" +
               std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+    const auto before = afterLoad->getValue();
+    send(20, before < 0.5f ? 127 : 0);
+
+    check(juce::exactlyEqual(afterLoad->getValue(), before),
+          "and the controller it had before lets go of it (" +
+              std::to_string(before) + " then " +
+              std::to_string(afterLoad->getValue()) + ")");
 
     send(21, 127);
     const auto high = afterLoad->getValue();
@@ -2854,6 +2860,21 @@ void testSostenutoOverMidi(OvertoniumProcessor &p) {
             juce::String(ovt::MidiLearn::reservedFor(66)) ==
                 "the sostenuto pedal",
         "MIDI Learn will not take CC 66, and says what it is for");
+
+  // Every channel mode message, 120 to 127. Some hosts send reset all
+  // controllers on stop, which would move a control bound to it.
+  {
+    std::string learnable;
+
+    for (int number = 120; number < 128; ++number)
+      if (!ovt::MidiLearn::isReserved(number) ||
+          juce::String(ovt::MidiLearn::reservedFor(number)).isEmpty())
+        learnable += std::to_string(number) + " ";
+
+    check(learnable.empty(), "MIDI Learn will not take a channel mode "
+                             "message, and says what each is for (" +
+                                 learnable + "taken)");
+  }
 
   p.reset();
   renderBlocks(p, 4, 512);
@@ -5367,6 +5388,36 @@ void testMasterEffects(OvertoniumProcessor &p) {
   setParam(ovt::params::resonatorModeId, (float)(int)ovt::ResonatorMode::Off);
 
   check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
+
+  // A macro on the release row lengthens every release without writing the
+  // parameters, so the reported tail has to read what the engine gets rather
+  // than the knobs.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto knobsOnly = p.getTailLengthSeconds();
+
+  int releaseRow = 0;
+  for (int row = 0; row < ovt::params::kNumMacroRows; ++row)
+    if (juce::String(ovt::params::kMacroRows[row]) ==
+        ovt::params::releaseSuffix)
+      releaseRow = row + 1; // the list opens with None
+
+  const auto setMacro = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  setMacro(ovt::params::macroRowId(0), (float)releaseRow);
+  setMacro(ovt::params::macroScopeId(0), 0.0f);
+  setMacro(ovt::params::macroCurveId(0), 0.0f);
+  setMacro(ovt::params::macroAmountId(0), 1.0f);
+
+  const auto stretched = p.getTailLengthSeconds();
+
+  check(stretched > knobsOnly + 1.0,
+        "the reported tail follows a macro on the release row (" +
+            std::to_string(knobsOnly) + " s, then " +
+            std::to_string(stretched) + " s)");
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
   p.reset();
@@ -8089,9 +8140,33 @@ void testACorruptStateCannotPoisonTheOutput() {
       continue;
     }
 
+    // Not even for a moment, since the audio thread can render a block while
+    // the host is still restoring the session.
+    struct Watch : juce::AudioProcessorParameter::Listener {
+      int notNumbers = 0;
+
+      void parameterValueChanged(int, float value) override {
+        if (!std::isfinite(value))
+          ++notNumbers;
+      }
+
+      void parameterGestureChanged(int, bool) override {}
+    } watch;
+
+    for (auto *parameter : victim.getParameters())
+      parameter->addListener(&watch);
+
     juce::MemoryBlock block;
     victim.copyXmlToBinary(*xml, block);
     victim.setStateInformation(block.getData(), (int)block.getSize());
+
+    for (auto *parameter : victim.getParameters())
+      parameter->removeListener(&watch);
+
+    check(watch.notNumbers == 0,
+          std::string("a state of \"") + poison +
+              "\" never puts a value that is not a number on a parameter (" +
+              std::to_string(watch.notNumbers) + " did)");
 
     juce::MidiBuffer midi;
     midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
@@ -11988,6 +12063,42 @@ void testUndo(OvertoniumProcessor &p) {
         "all 32 of them (" + std::to_string(restored) + ")");
 
   check(!undo.canUndo(), "which was the whole history, not the first of 32");
+
+  // ---- a restored session starts a new history ---------------------------
+  //
+  // Undoing past a restore would write values from the patch before it, which
+  // is what a host's A/B switch or reloaded project replaced.
+  undo.clearUndoHistory();
+  userTurns({0}, tuneOf(0) > 0.5f ? 0.1f : 0.9f);
+
+  {
+    juce::MemoryBlock session;
+    p.getStateInformation(session);
+    p.setStateInformation(session.getData(), (int)session.getSize());
+  }
+
+  check(!undo.canUndo(), "restoring a session empties the history");
+
+  // ---- a window closed mid-drag ------------------------------------------
+  //
+  // The gesture never ends, so the processor has to close it when the window
+  // goes, or every later edit would be left out of the history.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    tuneParam(0)->beginChangeGesture();
+    tuneParam(0)->setValueNotifyingHost(tuneOf(0) > 0.5f ? 0.2f : 0.8f);
+  }
+
+  check(undo.canUndo(), "a drag cut short by the window closing is a step");
+
+  undo.clearUndoHistory();
+  p.recordEdit("Load preset",
+               [&p] { p.applyFactoryPreset(presetIndex("Init")); });
+
+  check(undo.canUndo(), "and the edits after it are recorded");
+
+  // The host's own end of the gesture, arriving late, changes nothing.
+  tuneParam(0)->endChangeGesture();
 
   undo.clearUndoHistory();
 }

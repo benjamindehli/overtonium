@@ -828,6 +828,10 @@ OvertoniumEditor::~OvertoniumEditor() {
   plugin().updates().cancel();
   plugin().updates().setListener(nullptr);
 
+  // Before the controls go, since a control being dragged does not end its
+  // gesture when it is destroyed.
+  plugin().windowClosing();
+
   setLookAndFeel(nullptr);
 }
 
