@@ -249,7 +249,6 @@ jobs:
           for bundle in build/Overtonium_artefacts/Release/*/Overtonium.*; do
             [ -e "$bundle" ] || continue
 
-            entitlements="build/Overtonium_artefacts/JuceLibraryCode/$(basename "$(dirname "$bundle")")"
             args=(--force --timestamp)
 
             if [ -n "$identity" ]; then
@@ -508,7 +507,6 @@ jobs:
       # main rather than the tag, since the tag is a detached head and the
       # Pages site is served from the branch.
       - name: Point the update feed, the download links and the metadata at this release
-        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -530,8 +528,9 @@ jobs:
           git checkout -B main origin/main
 
           # Four spaces, because .prettierrc asks for four and the format job
-          # checks this file. Two would push a commit to main that fails CI on
-          # every release.
+          # checks this file. A push made with this workflow's token starts no
+          # run of its own, so two spaces would fail the next push to main
+          # instead.
           cat > docs/latest.json <<JSON
           {
               "version": "$version",
@@ -605,16 +604,16 @@ jobs:
           stamp "$page" '<time datetime="[0-9]{4}-[0-9]{2}-[0-9]{2}">[^<]+</time>' \
                         "<time datetime=\"$day\">$spoken</time>" 1
 
-          # Prettier checks docs/ on every push to main, this commit included,
-          # and a longer version number can push a line past the width it wants
-          # to wrap at. Cheaper to reformat here than to land a commit on main
-          # that fails its own format job.
+          # Prettier checks docs/ on every push to main, and a longer version
+          # number can push a line past the width it wants to wrap at. The
+          # pages go through prettier in build_site.py below, so only the
+          # feed is formatted here.
           #
           # This job can write to the repository, so no package gets to run an
           # install script here, and npx runs only what the lockfile installed.
           # Prettier needs neither.
           npm ci --silent --ignore-scripts
-          npx --no-install prettier --write "$page" docs/latest.json
+          npx --no-install prettier --write docs/latest.json
 
           # Writes the structured data with the new day, and moves the sitemap
           # date of any page whose words changed above, which is the install

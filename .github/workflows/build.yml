@@ -178,10 +178,6 @@ jobs:
           case "$RUNNER_OS" in
             macOS)   run=(./pluginval.app/Contents/MacOS/pluginval) ;;
             Windows) run=(./pluginval.exe) ;;
-            # No display on the runner, so pluginval gets a virtual one. -a
-            # picks a free server number rather than colliding with a stale
-            # lock file from an earlier step.
-            Linux)   run=(xvfb-run -a ./pluginval) ;;
           esac
 
           # A crash here says only "exit code 139", which names neither the

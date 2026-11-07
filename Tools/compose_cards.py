@@ -5,14 +5,16 @@ them and nothing on the site would look wrong if they went stale. They have,
 twice. This is here so that regenerating them is one command rather than an
 afternoon of measuring the old ones.
 
-It needs the masters, which are not in the repository: `background.png` and
-`text.png` are hand-composed artwork rather than anything a build can
-produce, and `caption-*.png` are the captions. Four were lifted off the cards
-as they stood in 1.8.0. The face is DejaVu Sans at 30 px, centred on 600 with
-its baseline at 430: rendered that way, all four come back within one level in
-255 of the lifted ones, so a new caption is rendered with Pillow to the same
-numbers and saved beside them, as Effects and Playing were. All of them live
-beside each other outside the tree. Point ART at them.
+It needs the masters, which are not in the repository, kept together in the
+folder ART names. `background-current-cropped.png` is the 4x render cropped
+to the hero's band, as CONTRIBUTING describes. `text.png` is the wordmark,
+hand-made artwork that no build can produce. `caption-*.png` are the captions.
+Four were lifted off the cards as they stood in 1.8.0. The face is DejaVu Sans
+at 30 px, centred on 600 with its baseline at 430: rendered that way, all four
+come back within one level in 255 of the lifted ones, so a new caption is
+rendered with Pillow to the same numbers and saved beside them, as Effects and
+Playing were. `--check` composes from `background.png`, the older master the
+1.8.0 cards were made from.
 
 Needs Pillow and NumPy. Run it from anywhere:
 
@@ -132,12 +134,17 @@ def difference(arr, path):
 
 if __name__ == "__main__":
     # Every number above was recovered by composing the cards as they stood
-    # from the master they were made from and comparing. All five came back
+    # from the master they were made from and comparing. All of them came back
     # between 2.6 and 2.9 of 255, which is the JPEG's own noise rather than a
     # difference anybody could see. Hand a directory of those cards to
     # --check to run that again after changing any of it.
     if "--check" in sys.argv:
-        was = sys.argv[sys.argv.index("--check") + 1]
+        at = sys.argv.index("--check") + 1
+
+        if at >= len(sys.argv):
+            sys.exit("--check needs the directory of cards to compare against")
+
+        was = sys.argv[at]
 
         for name, arr in build(os.path.join(ART, "background.png")).items():
             print("  %-32s %.2f" % (name, difference(arr, os.path.join(was, name))))
