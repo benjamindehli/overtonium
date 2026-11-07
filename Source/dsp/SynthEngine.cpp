@@ -72,6 +72,7 @@ void SynthEngine::reset() noexcept {
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
   forgetLine();
+  legatoDepth = 0;
   smoothedMasterGain = -1.0f;
 
   // Past 1 so the first host sample of the next block draws a fresh frame
@@ -309,10 +310,6 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
     if (legatoDepth < (int)legatoHeld.size())
       legatoHeld[(size_t)legatoDepth++] = note;
-
-    legatoTemperament = p.global.temperament;
-    legatoRoot = p.global.tuningRoot;
-    legatoReferenceHz = p.global.referenceHz;
 
     // Whatever is still sounding and has not been let go carries the phrase.
     for (auto &v : voices) {
@@ -1264,9 +1261,11 @@ void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
-  if (legato && polyphony <= 1) {
-    legatoRelease(note);
+  // Whatever the mode, so a key pressed in mono legato and let go after
+  // switching out of it does not come back as held when legato is on again.
+  legatoRelease(note);
 
+  if (legato && polyphony <= 1) {
     // Another key is still down, so the phrase moves to it rather than
     // stopping. Falling back to the most recent is what makes a trill work.
     if (legatoDepth > 0) {
@@ -1445,6 +1444,9 @@ void SynthEngine::allNotesOff() noexcept {
     clearPedals(i);
   }
 
+  // Every key counts as up, so the next note starts a new legato phrase.
+  legatoDepth = 0;
+
   sustainDown = false;
   sostenutoDown = false;
   sustainDepth.fill(0.0f);
@@ -1460,6 +1462,7 @@ void SynthEngine::allSoundOff() noexcept {
     v.reset();
 
   sympathetic.reset();
+  legatoDepth = 0;
 
   heldBySustain.fill(false);
   caughtBySostenuto.fill(false);

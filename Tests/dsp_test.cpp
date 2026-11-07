@@ -4219,6 +4219,58 @@ void testLegato() {
   check(poly.getActiveVoiceCount() == 3,
         "and with legato off they are three again (" +
             std::to_string(poly.getActiveVoiceCount()) + ")");
+
+  // ---- keys forgotten by a panic or a change of mode -----------------------
+  //
+  // A key that was down when the sound was stopped, or when legato was
+  // switched off, must not come back as held. If it did, letting go of the
+  // next key would move the note to it rather than end it.
+  //
+  // A short release, so a note that ends is gone well inside the wait.
+  auto quick = p;
+  quick.osc[0].release = 0.1f;
+
+  const auto endsAfter = [&](const std::function<void(SynthEngine &)> &between,
+                             const std::string &what) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    e.setPolyphony(1);
+    e.setLegato(true);
+
+    std::vector<float> bl((size_t)(0.05 * sr)), br((size_t)(0.05 * sr));
+    const auto run = [&](double seconds) {
+      for (int done = 0; done < (int)(seconds * sr); done += (int)bl.size())
+        e.render(bl.data(), br.data(), (int)bl.size(), quick);
+    };
+
+    e.noteOn(60, 1.0f, quick);
+    e.noteOn(62, 1.0f, quick);
+    run(0.1);
+
+    between(e);
+
+    e.noteOn(64, 1.0f, quick);
+    run(0.1);
+    e.noteOff(64);
+    run(2.0);
+
+    check(e.getActiveVoiceCount() == 0,
+          "after " + what + ", letting go of the next key ends the note (" +
+              std::to_string(e.getActiveVoiceCount()) + " still sounding)");
+  };
+
+  endsAfter([](SynthEngine &e) { e.allSoundOff(); }, "all sound off");
+  endsAfter([](SynthEngine &e) { e.allNotesOff(); }, "all notes off");
+  endsAfter([](SynthEngine &e) { e.reset(); }, "a reset");
+  endsAfter(
+      [](SynthEngine &e) {
+        e.setLegato(false);
+        e.noteOff(60);
+        e.noteOff(62);
+        e.setLegato(true);
+      },
+      "the keys came up with legato off");
 }
 
 /// Glide: each partial travels to a new note's pitch over its own channel's
