@@ -289,14 +289,32 @@ jobs:
         run: |
           mkdir -p "$ARCHIVE"
 
-          for format in VST3 AU LV2 Standalone; do
+          # The formats CMakeLists builds on each platform. One missing means
+          # the build quietly left it out, and the archive would ship without
+          # it, so that fails here rather than on a user's machine.
+          case "$RUNNER_OS" in
+            macOS) formats="VST3 AU Standalone" ;;
+            Linux) formats="VST3 LV2 Standalone" ;;
+            *)     formats="VST3 Standalone" ;;
+          esac
+
+          missing=0
+
+          for format in $formats; do
             dir="build/Overtonium_artefacts/Release/$format"
-            [ -d "$dir" ] || continue
+
+            if [ ! -d "$dir" ] || [ -z "$(ls -A "$dir")" ]; then
+              echo "::error::the build made no $format"
+              missing=1
+              continue
+            fi
 
             mkdir -p "$ARCHIVE/$format"
             cp -R "$dir"/* "$ARCHIVE/$format/"
             echo "staged $format"
           done
+
+          [ "$missing" -eq 0 ] || exit 1
 
           cp README.md LICENSE "$ARCHIVE/"
           ls -R "$ARCHIVE"
