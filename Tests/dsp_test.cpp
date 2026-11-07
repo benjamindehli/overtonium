@@ -12007,6 +12007,47 @@ void testBusDriveIsSmooth() {
   check(worstOverall < 1.0e-4,
         "no sample stands off the wave at any level the bus is driven to (" +
             std::to_string(worstOverall) + " at the worst)");
+
+  // ---- switching into a curve ----------------------------------------------
+  //
+  // A character with no curve, or the lamp, passes the samples through. The
+  // first block on a curve after it must carry on from them, not start its
+  // filters from silence.
+  constexpr int kBlock = 512;
+  constexpr size_t kSwitch = 8 * kBlock;
+
+  for (auto from : {Character::Pure, Character::Bulb}) {
+    std::vector<float> l(kLength), r(kLength);
+
+    for (size_t n = 0; n < kLength; ++n)
+      l[n] = r[n] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)n / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+
+    for (size_t at = 0; at < kLength; at += kBlock) {
+      const auto c = at < kSwitch ? from : Character::Rail;
+      bus.process(l.data() + at, r.data() + at,
+                  (int)std::min((size_t)kBlock, kLength - at), c,
+                  (float)BusDrive::amountFor(c));
+    }
+
+    double worst = 0.0;
+
+    for (size_t n = kSwitch - 64; n < kSwitch + 256; ++n) {
+      const double predicted = (-(double)l[n - 2] + 4.0 * (double)l[n - 1] +
+                                4.0 * (double)l[n + 1] - (double)l[n + 2]) /
+                               6.0;
+      worst = std::max(worst, std::abs((double)l[n] - predicted));
+    }
+
+    std::printf("  from %s into Rail: worst sample %.1e off its neighbours\n",
+                characterName(from), worst);
+
+    check(worst < 0.01, std::string("switching from ") + characterName(from) +
+                            " into a curve does not drop out (" +
+                            std::to_string(worst) + ")");
+  }
 }
 
 /// The bus the whole series is summed onto, the one place two partials meet.
