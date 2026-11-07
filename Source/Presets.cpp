@@ -258,6 +258,7 @@ const char *const kNames[] = {
     "8-bit Choir",
     "Big Saw",
     "Cathedral",
+    "Chapel",
     "Combo Organ",
     "DigiLog",
     "Dire Dire EP",
@@ -1232,7 +1233,177 @@ void apply(APVTS &apvts, int index) {
     ap.set("clipType", 3.0f); // Limiter
     break;
   }
-  case 8: // Combo Organ
+  case 8: // Chapel
+  {
+    ap.neutralBase();
+
+    // A small pipe organ in a chapel, on the PD character. The fundamental
+    // carries it, with a quiet principal chorus of octaves and fifths that
+    // holds under it. The rest of the series falls back quickly to a low
+    // sustain and drifts, so it mostly colours the start of a note. Velocity
+    // does nothing, as on an organ, and aftertouch brings the chorus up.
+    // Every partial above the fundamental wavers on a slow random tremolo, as
+    // the wind into small pipes does, and is panned hard to one side, as
+    // pipes stand across a case. The noise channel gives each note a breath
+    // and a short chiff through its string. A short digital echo, the room
+    // and the resonator's open strings make the small stone room around it.
+
+    ap.allOsc(params::strikeSuffix, [](int) { return 0.0943; });
+    ap.oscTable(params::attackSuffix,
+                {0.0157f, 0.0173f, 0.0191f, 0.0196f, 0.0076f, 0.0199f, 0.0068f,
+                 0.0171f, 0.0033f, 0.0029f, 0.0026f, 0.0235f, 0.0021f, 0.0019f,
+                 0.0017f, 0.0235f, 0.0013f, 0.0012f, 0.0011f, 0.001f, 0.0009f,
+                 0.0008f, 0.0007f, 0.0006f, 0.0005f, 0.0005f, 0.0004f, 0.0004f,
+                 0.0004f, 0.0003f, 0.0003f, 0.0003f});
+    ap.oscTable(params::decaySuffix,
+                {0.6897f, 0.71f, 0.733f, 0.6322f, 0.3508f, 0.6303f, 0.3477f,
+                 0.522f, 0.0109f, 0.0104f, 0.0099f, 0.62f, 0.009f, 0.0086f,
+                 0.0082f, 0.6546f, 0.0075f, 0.0071f, 0.0068f, 0.0065f, 0.0062f,
+                 0.0059f, 0.0057f, 0.0054f, 0.0052f, 0.0049f, 0.0047f, 0.0045f,
+                 0.0043f, 0.0041f, 0.0039f, 0.0037f});
+    ap.oscTable(params::sustainSuffix,
+                {0.7638f, 0.4986f, 0.4963f, 0.5004f, 0.3013f, 0.502f, 0.3018f,
+                 0.5045f, 0.1383f, 0.1389f, 0.1395f, 0.4987f, 0.1407f, 0.1413f,
+                 0.1419f, 0.4999f, 0.143f, 0.1436f, 0.1442f, 0.1448f, 0.1454f,
+                 0.146f, 0.1466f, 0.1472f, 0.1478f, 0.1484f, 0.149f, 0.1496f,
+                 0.1502f, 0.1508f, 0.1514f, 0.152f});
+    ap.oscTable(params::swellSuffix,
+                {0.0028f, 0.0022f, 0.0019f, 0.0018f, 0.0017f, 0.0017f, 0.0017f,
+                 0.0017f, 0.0004f, 0.0004f, 0.0004f, 0.0022f, 0.0004f, 0.0004f,
+                 0.0004f, 0.0018f, 0.0004f, 0.0004f, 0.0004f, 0.0004f, 0.0004f,
+                 0.0004f, 0.0004f, 0.0004f, 0.0004f, 0.0004f, 0.0004f, 0.0004f,
+                 0.0004f, 0.0004f, 0.0004f, 0.0004f});
+    ap.oscTable(params::offLevelSuffix,
+                {1.0f, 0.7976f, 0.8034f, 0.7987f, 1.0f, 0.8811f, 1.0f, 0.8638f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.oscTable(params::releaseSuffix,
+                {0.0617f, 0.0617f, 0.0617f, 0.0617f, 0.0578f, 0.0617f, 0.0559f,
+                 0.0617f, 0.0148f, 0.0148f, 0.0148f, 0.0714f, 0.0148f, 0.0148f,
+                 0.0148f, 0.0658f, 0.0148f, 0.0148f, 0.0148f, 0.0148f, 0.0148f,
+                 0.0148f, 0.0148f, 0.0148f, 0.0148f, 0.0148f, 0.0148f, 0.0148f,
+                 0.0148f, 0.0148f, 0.0148f, 0.0148f});
+    ap.allOsc(params::amShapeSuffix, [](int) { return 6.0; });
+    ap.oscTable(params::amRateSuffix,
+                {1.7921f, 2.2614f, 1.8788f, 3.8385f, 3.7919f, 2.062f, 4.2696f,
+                 3.0844f, 1.2021f, 1.2977f, 1.401f, 1.5125f, 1.6329f, 1.7628f,
+                 1.9031f, 2.0546f, 2.2181f, 2.3946f, 2.5852f, 2.7909f, 3.013f,
+                 3.2528f, 3.5116f, 3.7911f, 4.0928f, 4.4185f, 4.7701f, 5.1497f,
+                 5.5595f, 6.002f, 6.4796f, 6.9952f});
+    ap.oscTable(params::amDepthSuffix,
+                {0.0388f, 0.171f, 0.273f, 0.368f, 0.8986f, 0.5013f, 0.9002f,
+                 0.5018f, 1.0f, 1.0f, 1.0f, 0.4984f, 1.0f, 1.0f, 1.0f, 0.5037f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f,
+                 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f});
+    ap.allOsc(params::velSuffix, [](int) { return 0.0; });
+    ap.oscTable(params::volumeSuffix,
+                {1.0f, 0.1398f, 0.0474f, 0.0324f, 0.0056f, 0.013f, 0.004f,
+                 0.0097f, 0.02f, 0.018f, 0.0161f, 0.0032f, 0.0131f, 0.0117f,
+                 0.0106f, 0.0032f, 0.0085f, 0.0077f, 0.0069f, 0.0062f, 0.0056f,
+                 0.005f, 0.0045f, 0.0041f, 0.0036f, 0.0033f, 0.003f, 0.0027f,
+                 0.0024f, 0.0021f, 0.0019f, 0.0017f});
+    ap.oscTable(params::panSuffix,
+                {0.0299f, -0.816f, 0.9584f, 0.9162f, -1.0f, -1.0f, 1.0f, 1.0f,
+                 -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f, 1.0f,
+                 -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f,
+                 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f});
+    ap.set("h01_delay", 0.0002f);
+    ap.set("h01_keyboard", -0.3832f);
+    ap.set("h01_tune", 0.0f);
+    ap.set("h02_aftertouch", 0.577f);
+    ap.set("h02_delay", 0.0006f);
+    ap.set("h02_keyboard", -0.1547f);
+    ap.set("h02_tune", 0.0f);
+    ap.set("h03_aftertouch", 0.2766f);
+    ap.set("h03_delay", 0.0012f);
+    ap.set("h03_tune", 0.0f);
+    ap.set("h04_aftertouch", 0.4148f);
+    ap.set("h04_delay", 0.0018f);
+    ap.set("h04_tune", 0.0f);
+    ap.set("h05_delay", 0.0025f);
+    ap.set("h06_aftertouch", 0.3697f);
+    ap.set("h06_delay", 0.0031f);
+    ap.set("h06_keyboard", 0.2906f);
+    ap.set("h06_tune", 0.0f);
+    ap.set("h07_delay", 0.0041f);
+    ap.set("h07_drift", 0.5094f);
+    ap.set("h08_aftertouch", 0.4166f);
+    ap.set("h08_delay", 0.004f);
+    ap.set("h08_keyboard", 0.2859f);
+    ap.set("h08_tune", 0.0f);
+    ap.set("h09_drift", 8.0302f);
+    ap.set("h10_drift", 8.0302f);
+    ap.set("h11_drift", 8.0302f);
+    ap.set("h12_aftertouch", 0.3959f);
+    ap.set("h12_delay", 0.0032f);
+    ap.set("h12_drift", 8.0302f);
+    ap.set("h12_keyboard", 0.6117f);
+    ap.set("h12_tune", 0.0f);
+    ap.set("h13_drift", 8.0302f);
+    ap.set("h14_drift", 8.0302f);
+    ap.set("h15_drift", 8.0302f);
+    ap.set("h16_aftertouch", 0.3996f);
+    ap.set("h16_delay", 0.0096f);
+    ap.set("h16_drift", 8.0302f);
+    ap.set("h16_keyboard", 0.6129f);
+    ap.set("h16_tune", 0.0f);
+    ap.set("h17_drift", 8.0302f);
+    ap.set("h18_drift", 8.0302f);
+    ap.set("h19_drift", 8.0302f);
+    ap.set("h20_drift", 8.0302f);
+    ap.set("h21_drift", 8.0302f);
+    ap.set("h22_drift", 8.0302f);
+    ap.set("h23_drift", 8.0302f);
+    ap.set("h24_drift", 8.0302f);
+    ap.set("h25_drift", 8.0302f);
+    ap.set("h26_drift", 8.0302f);
+    ap.set("h27_drift", 8.0302f);
+    ap.set("h28_drift", 8.0302f);
+    ap.set("h29_drift", 8.0302f);
+    ap.set("h30_drift", 8.0302f);
+    ap.set("h31_drift", 8.0302f);
+    ap.set("h32_drift", 8.0302f);
+    ap.set("character", 8.0f);
+    ap.set("echoAge", 0.08f);
+    ap.set("echoFeedback", 0.7094f);
+    ap.set("echoMix", 0.1041f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.043f);
+    ap.set("echoType", 2.0f);
+    ap.set("masterGain", -9.0f);
+    ap.set("noise_aftertouch", 0.1277f);
+    ap.set("noise_amDepth", 0.4556f);
+    ap.set("noise_amRate", 5.7517f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0085f);
+    ap.set("noise_colour", 0.092f);
+    ap.set("noise_decay", 0.0353f);
+    ap.set("noise_keyboard", 0.3527f);
+    ap.set("noise_offLevel", 1.0f);
+    ap.set("noise_release", 0.0168f);
+    ap.set("noise_strike", 0.2885f);
+    ap.set("noise_string", 0.4087f);
+    ap.set("noise_stringDamp", 1.0f);
+    ap.set("noise_stringDecay", 0.0577f);
+    ap.set("noise_stringPoint", 0.9891f);
+    ap.set("noise_sustain", 0.1506f);
+    ap.set("noise_swell", 0.0081f);
+    ap.set("noise_vel", 0.0f);
+    ap.set("noise_volume", 0.0769f);
+    ap.set("resonatorDamp", 0.1257f);
+    ap.set("resonatorDecay", 0.2868f);
+    ap.set("resonatorMix", 0.2194f);
+    ap.set("resonatorMode", 2.0f);
+    ap.set("reverbDamp", 0.0731f);
+    ap.set("reverbDecay", 1.2976f);
+    ap.set("reverbMix", 0.2593f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0402f);
+    ap.set("track", 3.5f);
+    break;
+  }
+  case 9: // Combo Organ
   {
     ap.neutralBase();
 
@@ -1359,7 +1530,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0507f);
     break;
   }
-  case 9: // DigiLog
+  case 10: // DigiLog
   {
     ap.neutralBase();
 
@@ -1494,7 +1665,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1476f);
     break;
   }
-  case 10: // Dire Dire EP
+  case 11: // Dire Dire EP
   {
     ap.neutralBase();
 
@@ -1638,7 +1809,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Valve);
     break;
   }
-  case 11: // Drawbar Organ
+  case 12: // Drawbar Organ
   {
     ap.neutralBase();
 
@@ -1717,7 +1888,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.5171f);
     break;
   }
-  case 12: // Dream Phase
+  case 13: // Dream Phase
   {
     ap.neutralBase();
 
@@ -2082,7 +2253,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1488f);
     break;
   }
-  case 13: // EP Chimes
+  case 14: // EP Chimes
   {
     ap.neutralBase();
 
@@ -2267,7 +2438,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1275f);
     break;
   }
-  case 14: // Equal Saw
+  case 15: // Equal Saw
   {
     ap.neutralBase();
 
@@ -2283,7 +2454,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 15: // FM Piano
+  case 16: // FM Piano
   {
     ap.neutralBase();
 
@@ -2391,7 +2562,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0823f);
     break;
   }
-  case 16: // Glass Armonica
+  case 17: // Glass Armonica
   {
     ap.neutralBase();
 
@@ -2438,7 +2609,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbDamp", 0.25f);
     break;
   }
-  case 17: // Glide
+  case 18: // Glide
   {
     ap.neutralBase();
 
@@ -2590,7 +2761,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.104f);
     break;
   }
-  case 18: // Glockenspiel
+  case 19: // Glockenspiel
   {
     ap.neutralBase();
 
@@ -2739,7 +2910,7 @@ void apply(APVTS &apvts, int index) {
     ap.character(Character::Bulb);
     break;
   }
-  case 19: // Init
+  case 20: // Init
   {
     ap.neutralBase();
 
@@ -2753,7 +2924,7 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f});
     break;
   }
-  case 20: // Just Saw
+  case 21: // Just Saw
   {
     ap.neutralBase();
 
@@ -2769,7 +2940,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.0f);
     break;
   }
-  case 21: // KarplusStrong
+  case 22: // KarplusStrong
   {
     ap.neutralBase();
 
@@ -2827,7 +2998,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0045f);
     break;
   }
-  case 22: // Lo-fi
+  case 23: // Lo-fi
   {
     ap.neutralBase();
 
@@ -2916,7 +3087,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0635f);
     break;
   }
-  case 23: // Metallic Piano
+  case 24: // Metallic Piano
   {
     ap.neutralBase();
 
@@ -3027,7 +3198,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 9.0f);
     break;
   }
-  case 24: // Music Box
+  case 25: // Music Box
   {
     ap.neutralBase();
 
@@ -3141,7 +3312,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.0992f);
     break;
   }
-  case 25: // Nylon EP
+  case 26: // Nylon EP
   {
     ap.neutralBase();
 
@@ -3297,7 +3468,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1946f);
     break;
   }
-  case 26: // Odd Harmonics
+  case 27: // Odd Harmonics
   {
     ap.neutralBase();
 
@@ -3322,7 +3493,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -10.0f);
     break;
   }
-  case 27: // Omni-84
+  case 28: // Omni-84
   {
     ap.neutralBase();
 
@@ -3379,7 +3550,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 7.0f);
     break;
   }
-  case 28: // Pendulum
+  case 29: // Pendulum
   {
     ap.neutralBase();
 
@@ -3511,7 +3682,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1298f);
     break;
   }
-  case 29: // Shimmer
+  case 30: // Shimmer
   {
     ap.neutralBase();
 
@@ -3538,7 +3709,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -9.0f);
     break;
   }
-  case 30: // Slow Pad
+  case 31: // Slow Pad
   {
     ap.neutralBase();
 
@@ -3603,7 +3774,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.015f);
     break;
   }
-  case 31: // Soft Trio
+  case 32: // Soft Trio
   {
     ap.neutralBase();
 
@@ -3768,7 +3939,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1078f);
     break;
   }
-  case 32: // Space Cowboy
+  case 33: // Space Cowboy
   {
     ap.neutralBase();
 
@@ -3943,7 +4114,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1618f);
     break;
   }
-  case 33: // Space Flute
+  case 34: // Space Flute
   {
     ap.neutralBase();
 
@@ -4068,7 +4239,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2795f);
     break;
   }
-  case 34: // Sparkle Pad
+  case 35: // Sparkle Pad
   {
     ap.neutralBase();
 
@@ -4277,7 +4448,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1346f);
     break;
   }
-  case 35: // Stepped
+  case 36: // Stepped
   {
     ap.neutralBase();
 
@@ -4464,7 +4635,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1661f);
     break;
   }
-  case 36: // Struck Bell
+  case 37: // Struck Bell
   {
     ap.neutralBase();
 
@@ -4495,7 +4666,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("clipType", 1.0f); // Hard
     break;
   }
-  case 37: // StyloPoly
+  case 38: // StyloPoly
   {
     ap.neutralBase();
 
@@ -4559,7 +4730,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("pmInPhase", 1.0f);
     break;
   }
-  case 38: // Synth Ensemble
+  case 39: // Synth Ensemble
   {
     ap.neutralBase();
 
@@ -4787,7 +4958,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.1011f);
     break;
   }
-  case 39: // Tape Choir
+  case 40: // Tape Choir
   {
     ap.neutralBase();
 
@@ -4819,7 +4990,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -13.0f);
     break;
   }
-  case 40: // Tape Pluck
+  case 41: // Tape Pluck
   {
     ap.neutralBase();
 
@@ -5009,7 +5180,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.2197f);
     break;
   }
-  case 41: // Vibraphone
+  case 42: // Vibraphone
   {
     ap.neutralBase();
 
@@ -5077,7 +5248,7 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_volume", 0.1882f);
     break;
   }
-  case 42: // Wurli
+  case 43: // Wurli
   {
     ap.neutralBase();
 

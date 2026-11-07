@@ -1,10 +1,10 @@
-Page: Overtonium presets: the forty-three that ship, and saving your own
+Page: Overtonium presets: the forty-four that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-11-04
+Last changed: 2026-11-07
 
 # Overtonium presets
 
-Forty-three presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-four presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -30,7 +30,7 @@ Straight to one of them:
 
 ## What ships
 
-Forty-three presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-four presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
@@ -67,6 +67,10 @@ A sawtooth with a little randomness in it, so it drifts and beats instead of sta
 **Cathedral**
 
 A principal chorus: octaves and fifths only, a registration an organ builder would recognise. It fades in slowly, the way pipes start to sound
+
+**Chapel**
+
+A small pipe organ in a chapel, on the PD character. The fundamental carries it over a quiet chorus of octaves and fifths, every pipe wavers a little on its wind, and each note starts with a breath. Velocity does nothing, as on an organ, and aftertouch brings the chorus up. It goes into a short digital echo, the room and the resonator's open strings
 
 **Combo Organ**
 
