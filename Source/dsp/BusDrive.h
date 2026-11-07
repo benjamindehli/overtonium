@@ -275,6 +275,16 @@ private:
   /// One sample in, one sample out, with the circuit run twice in between.
   double run(Channel &c, const Curve &k, double x, double dcCoef) noexcept;
 
+  /// The newest two samples at the doubled rate, from what has arrived.
+  static void doubled(const Channel &c, double &even, double &odd) noexcept;
+
+  /// Adds a pair to what came back from the circuit, newest first.
+  static void pushUp(Channel &c, double first, double second) noexcept;
+
+  /// Keeps a channel's history going while no curve runs, so a curve that
+  /// starts later does not start from stale filters.
+  static void follow(Channel &c, double late) noexcept;
+
   /// The samples that arrived, handed back the same but late. Used by a stage
   /// with nothing to do and by the lamp, which has no use for the doubled
   /// rate.

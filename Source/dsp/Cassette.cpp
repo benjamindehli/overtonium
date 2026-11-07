@@ -169,8 +169,6 @@ void Cassette::prepare(double rate) {
   const double hissLowW = warped(kHissLowHz, sr);
   const double hissShelfW = warped(kHissShelfHz, sr);
 
-  std::uint32_t seed = 0x9e3779b9u;
-
   for (auto &c : channels) {
     // Each a high pass, the band the side chain reads and the shelf lifts.
     c.encodeBand.design(1.0, 0.0, 1.0, encodeW, k);
@@ -196,15 +194,9 @@ void Cassette::prepare(double rate) {
     // One in the highs, kHissShelfHz / kHissLowHz below.
     c.hissShelf.design(1.0, hissShelfW, 1.0, hissLowW, k);
 
-    // The two tracks hiss independently, so each has its own stream.
-    c.rng = seed;
-    seed = seed * 1664525u + 1013904223u;
-
     lineLength = (int)std::ceil((kFlutterCentre + kFlutterSwing) * sr) + 4;
     c.line.assign((size_t)lineLength, 0.0f);
   }
-
-  transportRng = seed;
 
   flutterStep = kFlutterHz / sr;
   secondStep = kFlutterSecondHz / sr;
@@ -261,7 +253,15 @@ void Cassette::prepare(double rate) {
 }
 
 void Cassette::reset() noexcept {
+  // Seeded here rather than in prepare, so the hiss and the flutter start the
+  // same way after every reset and two renders of the same thing match.
+  std::uint32_t seed = 0x9e3779b9u;
+
   for (auto &c : channels) {
+    // The two tracks hiss independently, so each has its own stream.
+    c.rng = seed;
+    seed = seed * 1664525u + 1013904223u;
+
     c.encodeBand.clear();
     c.decodeBand.clear();
     c.encodeSense.clear();
@@ -296,6 +296,7 @@ void Cassette::reset() noexcept {
   refresh = true;
   delaySamples = centreSamples;
   writeIndex = 0;
+  transportRng = seed;
 }
 
 double Cassette::uniform(std::uint32_t &state) noexcept {

@@ -4219,6 +4219,58 @@ void testLegato() {
   check(poly.getActiveVoiceCount() == 3,
         "and with legato off they are three again (" +
             std::to_string(poly.getActiveVoiceCount()) + ")");
+
+  // ---- keys forgotten by a panic or a change of mode -----------------------
+  //
+  // A key that was down when the sound was stopped, or when legato was
+  // switched off, must not come back as held. If it did, letting go of the
+  // next key would move the note to it rather than end it.
+  //
+  // A short release, so a note that ends is gone well inside the wait.
+  auto quick = p;
+  quick.osc[0].release = 0.1f;
+
+  const auto endsAfter = [&](const std::function<void(SynthEngine &)> &between,
+                             const std::string &what) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    e.setPolyphony(1);
+    e.setLegato(true);
+
+    std::vector<float> bl((size_t)(0.05 * sr)), br((size_t)(0.05 * sr));
+    const auto run = [&](double seconds) {
+      for (int done = 0; done < (int)(seconds * sr); done += (int)bl.size())
+        e.render(bl.data(), br.data(), (int)bl.size(), quick);
+    };
+
+    e.noteOn(60, 1.0f, quick);
+    e.noteOn(62, 1.0f, quick);
+    run(0.1);
+
+    between(e);
+
+    e.noteOn(64, 1.0f, quick);
+    run(0.1);
+    e.noteOff(64);
+    run(2.0);
+
+    check(e.getActiveVoiceCount() == 0,
+          "after " + what + ", letting go of the next key ends the note (" +
+              std::to_string(e.getActiveVoiceCount()) + " still sounding)");
+  };
+
+  endsAfter([](SynthEngine &e) { e.allSoundOff(); }, "all sound off");
+  endsAfter([](SynthEngine &e) { e.allNotesOff(); }, "all notes off");
+  endsAfter([](SynthEngine &e) { e.reset(); }, "a reset");
+  endsAfter(
+      [](SynthEngine &e) {
+        e.setLegato(false);
+        e.noteOff(60);
+        e.noteOff(62);
+        e.setLegato(true);
+      },
+      "the keys came up with legato off");
 }
 
 /// Glide: each partial travels to a new note's pitch over its own channel's
@@ -11955,6 +12007,47 @@ void testBusDriveIsSmooth() {
   check(worstOverall < 1.0e-4,
         "no sample stands off the wave at any level the bus is driven to (" +
             std::to_string(worstOverall) + " at the worst)");
+
+  // ---- switching into a curve ----------------------------------------------
+  //
+  // A character with no curve, or the lamp, passes the samples through. The
+  // first block on a curve after it must carry on from them, not start its
+  // filters from silence.
+  constexpr int kBlock = 512;
+  constexpr size_t kSwitch = 8 * kBlock;
+
+  for (auto from : {Character::Pure, Character::Bulb}) {
+    std::vector<float> l(kLength), r(kLength);
+
+    for (size_t n = 0; n < kLength; ++n)
+      l[n] = r[n] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)n / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+
+    for (size_t at = 0; at < kLength; at += kBlock) {
+      const auto c = at < kSwitch ? from : Character::Rail;
+      bus.process(l.data() + at, r.data() + at,
+                  (int)std::min((size_t)kBlock, kLength - at), c,
+                  (float)BusDrive::amountFor(c));
+    }
+
+    double worst = 0.0;
+
+    for (size_t n = kSwitch - 64; n < kSwitch + 256; ++n) {
+      const double predicted = (-(double)l[n - 2] + 4.0 * (double)l[n - 1] +
+                                4.0 * (double)l[n + 1] - (double)l[n + 2]) /
+                               6.0;
+      worst = std::max(worst, std::abs((double)l[n] - predicted));
+    }
+
+    std::printf("  from %s into Rail: worst sample %.1e off its neighbours\n",
+                characterName(from), worst);
+
+    check(worst < 0.01, std::string("switching from ") + characterName(from) +
+                            " into a curve does not drop out (" +
+                            std::to_string(worst) + ")");
+  }
 }
 
 /// The bus the whole series is summed onto, the one place two partials meet.
@@ -14801,6 +14894,114 @@ void testOutputStage() {
           "and the smoothing is what the window was for (" +
               std::to_string(flat3 / std::max(1.0e-9, ahead3)) + " times)");
   }
+
+  // ---- the window's ring stays inside itself ------------------------------
+  //
+  // The front of the window moves on every time a peak falls out of it. A
+  // count that only goes up would overflow after about a day of sound, so it
+  // moves back a lap whenever it completes one. A second of a sine is many
+  // laps of a ring a millisecond long.
+  {
+    OutputStage stage;
+    stage.prepare(sr);
+
+    std::vector<float> l((size_t)sr), r((size_t)sr);
+
+    for (size_t n = 0; n < l.size(); ++n) {
+      const auto s =
+          (float)(2.0 * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
+      l[n] = s;
+      r[n] = s;
+    }
+
+    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Limiter, true,
+                  true);
+
+    const auto ring = OutputStage::lookaheadSamples(sr) / 2 + 1;
+
+    check(stage.wedgeFront() >= 0 && stage.wedgeFront() < ring,
+          "the limiter's window stays inside its ring after a second (" +
+              std::to_string(stage.wedgeFront()) + " of " +
+              std::to_string(ring) + ")");
+  }
+}
+
+/// Two renders of the same thing, with a reset between them, come out the same
+/// sample for sample. Every random stream and every running modulator starts
+/// again from where it started after prepare, so a bounce does not depend on
+/// what was played before it.
+void testRendersRepeatAfterReset() {
+  section("Renders repeat after a reset");
+
+  constexpr double sr = 48000.0;
+
+  const auto twice = [sr](const SynthParams &p) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+
+    const auto once = [&]() {
+      std::vector<float> l((size_t)(0.5 * sr)), r((size_t)(0.5 * sr));
+      engine.noteOn(60, 1.0f, p);
+
+      for (size_t at = 0; at < l.size(); at += 512)
+        engine.render(l.data() + at, r.data() + at,
+                      (int)std::min((size_t)512, l.size() - at), p);
+
+      engine.allSoundOff();
+      return l;
+    };
+
+    const auto first = once();
+    engine.reset();
+    const auto second = once();
+
+    int differed = 0;
+    for (size_t n = 0; n < first.size(); ++n)
+      if (!exactly(first[n], second[n]))
+        ++differed;
+
+    return differed;
+  };
+
+  auto base = makeFlatParams(0.2f);
+
+  {
+    auto p = base;
+    p.global.character = Character::Fm;
+    p.global.ampModInPhase = true;
+
+    for (auto &o : p.osc) {
+      o.amShape = LfoShape::Random;
+      o.amDepth = 0.8f;
+    }
+
+    const auto differed = twice(p);
+    check(differed == 0, "FM's hiss and a shared random tremolo repeat (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.echo.enabled = true;
+    p.echo.type = EchoType::Bucket;
+    p.echo.age = 1.0f;
+    p.echo.timeSeconds = 0.05f;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the bucket brigade's hiss repeats (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.global.safetyClip = true;
+    p.global.clipType = ClipType::Cassette;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the cassette's hiss and flutter repeat (" +
+                             std::to_string(differed) + " samples differed)");
+  }
 }
 
 int main() {
@@ -14884,6 +15085,7 @@ int main() {
   testSpringReverb();
   testLofi();
   testOutputStage();
+  testRendersRepeatAfterReset();
   testConsole();
   testCassette();
   testPrint();

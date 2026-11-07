@@ -196,6 +196,13 @@ float OutputStage::gainFor(float peak, float ceiling) noexcept {
   if (wedgeIndex[(size_t)(wedgeHead % capacity)] <= seen - (std::int64_t)window)
     ++wedgeHead;
 
+  // Both move back by a whole lap together, which keeps them on the same
+  // slots. Left to count, they overflow after about a day of sound at 48 kHz.
+  if (wedgeHead >= capacity) {
+    wedgeHead -= capacity;
+    wedgeTail -= capacity;
+  }
+
   ++seen;
 
   const float worst =

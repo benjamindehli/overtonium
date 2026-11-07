@@ -488,7 +488,8 @@ private:
 
   /// One stream for the shared modulators. Only the random shapes draw from
   /// it.
-  Xorshift sharedRandom{0x51ed270fu};
+  static constexpr std::uint32_t kSharedSeed = 0x51ed270fu;
+  Xorshift sharedRandom{kSharedSeed};
 
   /// Where the tonewheel organ's motor is in its turn. One for the whole
   /// instrument, because one motor drives every wheel. See SharedModulation.
@@ -496,7 +497,8 @@ private:
 
   /// The synthesizers' noise: its own stream, the gain each band reached at
   /// the end of the last block, and the low band's two filter stages.
-  Xorshift hissRandom{0x7f4a7c15u};
+  static constexpr std::uint32_t kHissSeed = 0x7f4a7c15u;
+  Xorshift hissRandom{kHissSeed};
   float hissLowGain = 0.0f;
   float hissHighGain = 0.0f;
   float hissFirst = 0.0f;

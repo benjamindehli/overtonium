@@ -139,6 +139,10 @@ public:
   /// How late this stage is, in samples, at the rate it was prepared with.
   int latency() const noexcept { return delay; }
 
+  /// Where the limiter's window starts in its ring, for the tests. It stays
+  /// inside the ring however long the stage runs.
+  int wedgeFront() const noexcept { return wedgeHead; }
+
   /// Shapes both channels in place, and delays them whether or not it shapes.
   ///
   /// @param type     which of the eight.
@@ -189,6 +193,9 @@ private:
   /// comparison. 64 bits because 32 overflow in twelve hours at 48 kHz, and
   /// long is 32 bits on Windows.
   std::vector<std::int64_t> wedgeIndex;
+
+  /// Positions in the ring. Both are moved back by a lap whenever the front
+  /// completes one, so they never overflow.
   int wedgeHead = 0, wedgeTail = 0;
   std::int64_t seen = 0;
 
