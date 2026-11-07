@@ -381,7 +381,8 @@ private:
   void sumChunk(float *left, float *right, int numFrames, const SynthParams &p,
                 Activity &into, const SharedModulation &shared) noexcept;
 
-  /// The noise under FM's and PD's notes, one source for the whole
+  /// The noise under the synthesizer characters' notes (FM, PD, 6581, VCO and
+  /// Combo), one source for the whole
   /// instrument and sized from every voice rendered in this chunk at once.
   /// Part of it follows the sum of the notes' powers, and a fixed share
   /// follows only the loudest note, so the hiss does not build up as keys are
@@ -475,6 +476,8 @@ private:
   /// large enough that a usual host buffer takes one pass.
   static constexpr int kModChunk = 2048;
   static constexpr int kModBoundaries = kModChunk / Voice::kControlBlock + 1;
+  static_assert(Voice::kMaxPowerBlocks >= kModBoundaries,
+                "a voice keeps a power for every block of the longest chunk");
 
   /// One channel's worth after another, the noise channel last, which is why
   /// there are 33 of them and not 32.
@@ -632,7 +635,6 @@ private:
     return sustainDepth[(size_t)std::clamp(v.getChannel(), 0, 16)];
   }
 
-  /// Negative == "snap to target on the next block".
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
   std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
   std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};

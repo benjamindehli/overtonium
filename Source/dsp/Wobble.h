@@ -9,10 +9,10 @@ namespace ovt {
 /// A warped record under the whole instrument.
 ///
 /// Pitch is bent by reading the output back through a delay line whose length
-/// keeps moving. Three things move it at once: a slow warp, the
-/// once-round-the-record wander, a faster wobble on top, and now and then a
-/// random slip that bends hard and settles back. Slips grow in rate and size
-/// faster than the wander as the amount comes up.
+/// keeps moving. Three things move it at once: a slow warp once round the
+/// record, a faster wobble on top, and now and then a random slip that bends
+/// hard and settles back. Slips grow in rate and size
+/// faster than the warp as the amount comes up.
 ///
 /// Both channels share the same modulation, so a centred source stays centred.
 ///

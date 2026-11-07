@@ -12,7 +12,7 @@ namespace ovt {
 
 /// What the mixer runs into on its way out.
 ///
-/// Seven types, each bounded by one, so the stage is also a safety clipper.
+/// Eight types, each bounded by one, so the stage is also a safety clipper.
 /// The master fader sits in front of it, so how hard it is driven is part of
 /// the patch.
 enum class ClipType {

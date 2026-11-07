@@ -110,9 +110,6 @@ public:
     return 0.0f;
   }
 
-  /// The phase in turns, [0, 1).
-  double turns() const noexcept { return phase; }
-
 private:
   double phase = 0.0;
   float points[4]{};

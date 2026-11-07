@@ -274,12 +274,13 @@ public:
   }
 
   /// Room for one power per control block of the longest call the engine
-  /// makes. See SynthEngine::kModChunk.
+  /// makes, SynthEngine::kModChunk samples. The engine checks the two agree.
   static constexpr int kMaxPowerBlocks = 2048 / kControlBlock + 1;
 
   /// How loud this note's partials were together in each control block of
-  /// the last call, as the sum of their squared amplitudes. Filled only on FM
-  /// and PD, whose noise the engine sizes from every note at once. See
+  /// the last call, as the sum of their squared amplitudes. Filled only on the
+  /// characters with hiss, whose noise the engine sizes from every note at
+  /// once. See
   /// SynthEngine::renderHiss.
   const std::array<float, kMaxPowerBlocks> &getBlockPowers() const noexcept {
     return blockPowers;

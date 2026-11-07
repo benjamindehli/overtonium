@@ -1,7 +1,5 @@
 #include "Voice.h"
 
-#include <type_traits>
-
 #include <algorithm>
 
 #include "Character.h"

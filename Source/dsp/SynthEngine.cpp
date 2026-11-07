@@ -1755,7 +1755,8 @@ void SynthEngine::renderHiss(
       hissFirst += split * (white - hissFirst);
       hissLowState += split * (hissFirst - hissLowState);
 
-      // One noise for both channels, since both synthesizers are mono.
+      // One noise for both channels, since the synthesizers it stands for are
+      // mono.
       const float s = low * hissLowState + high * (white - hissLowState);
 
       left[n] += s;
