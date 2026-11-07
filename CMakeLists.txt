@@ -317,7 +317,7 @@ endfunction()
 # The DSP core has no JUCE dependency at all, so the tests build and run anywhere with a
 # C++17 compiler -- including CI images with no GUI libraries installed.
 # ------------------------------------------------------------------------------------------
-option(OVERTONIUM_BUILD_TESTS "Build the DSP unit tests" ON)
+option(OVERTONIUM_BUILD_TESTS "Build the DSP and runtime tests" ON)
 
 if(OVERTONIUM_BUILD_TESTS)
     enable_testing()
