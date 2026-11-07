@@ -19,6 +19,19 @@ juce::Rectangle<float> meterTrack(juce::Rectangle<float> whole) {
       .reduced(0.0f, kMeterGlowSpread);
 }
 
+juce::Rectangle<float> meterLamp(juce::Rectangle<float> track, int count,
+                                 int i) {
+  const auto step = track.getHeight() / (float)count;
+  const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
+
+  const auto inner = track.reduced(1.0f);
+  const auto lampH =
+      (inner.getHeight() - gap * (float)(count - 1)) / (float)count;
+  const auto bottom = inner.getBottom() - (float)i * (lampH + gap);
+
+  return {inner.getX(), bottom - lampH, inner.getWidth(), lampH};
+}
+
 namespace {
 /// The macro colours: none first, then eight hues spread around the wheel
 /// at one lightness, told apart on a knob's ring.
@@ -460,7 +473,7 @@ namespace {
 // The two text rows are tall enough for seven-segment digits, which are as wide
 // as they are tall, to stay legible.
 constexpr int kRowHeights[kNumRows] = {
-    22, // Header
+    16, // Header
     38, // TuneKnob
     16, // TuneText
     15, // PitchModHeading
