@@ -645,16 +645,23 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     options = options.withTargetScreenArea({p.x, p.y, 1, 1});
   }
 
-  m.showMenuAsync(options, [this, settings, map, parameter](int result) {
+  // A SafePointer, since a menu with no target component outlives the window,
+  // and closing the window dismisses it with a call to this.
+  juce::Component::SafePointer<TopBar> self(this);
+
+  m.showMenuAsync(options, [self, settings, map, parameter](int result) {
+    if (self == nullptr || result == 0)
+      return;
+
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
       return;
 
-    if (glide::applyChoice(result, apvts))
+    if (glide::applyChoice(result, self->apvts))
       return;
 
     if (isClearSelectionChoice(result)) {
-      if (onSelectionCleared != nullptr)
-        onSelectionCleared();
+      if (self->onSelectionCleared != nullptr)
+        self->onSelectionCleared();
 
       return;
     }
@@ -662,8 +669,8 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     auto picked = PointerTool::Pointer;
 
     if (applyToolMenuChoice(result, picked)) {
-      if (onToolChosen != nullptr)
-        onToolChosen(picked);
+      if (self->onToolChosen != nullptr)
+        self->onToolChosen(picked);
 
       return;
     }
@@ -673,12 +680,12 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     if (!applyLinkMenuChoice(result, chosen))
       return;
 
-    linkOn = chosen.enabled;
-    scope = chosen.scope;
-    curve = chosen.curve;
+    self->linkOn = chosen.enabled;
+    self->scope = chosen.scope;
+    self->curve = chosen.curve;
 
-    if (onLinkSettingsChanged)
-      onLinkSettingsChanged();
+    if (self->onLinkSettingsChanged)
+      self->onLinkSettingsChanged();
   });
 }
 
@@ -1011,16 +1018,24 @@ void TopBar::askForPresetName() {
   nameWindow->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
   nameWindow->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
 
+  // A SafePointer, since the window is a member: closing the plugin window
+  // while it is open deletes it, and JUCE still calls this afterwards to say
+  // it was dismissed.
+  juce::Component::SafePointer<TopBar> self(this);
+
   nameWindow->enterModalState(
-      true, juce::ModalCallbackFunction::create([this](int result) {
-        const auto name = nameWindow != nullptr
-                              ? nameWindow->getTextEditorContents("name")
+      true, juce::ModalCallbackFunction::create([self](int result) {
+        if (self == nullptr)
+          return;
+
+        const auto name = self->nameWindow != nullptr
+                              ? self->nameWindow->getTextEditorContents("name")
                               : juce::String();
 
-        nameWindow.reset();
+        self->nameWindow.reset();
 
-        if (result == 1 && onSaveUserPreset)
-          onSaveUserPreset(name);
+        if (result == 1 && self->onSaveUserPreset)
+          self->onSaveUserPreset(name);
       }));
 }
 

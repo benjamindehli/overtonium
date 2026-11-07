@@ -32,6 +32,7 @@
 #include "UI/LookAndFeel.h"
 #include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/Notice.h"
 #include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
 #include "UI/Theme.h"
@@ -13999,6 +14000,42 @@ void testSoloAndMute(OvertoniumProcessor &p) {
 
 } // namespace
 
+/// An answer that puts up another notice replaces the action that is running.
+/// The notice keeps a copy of the action while it runs, so the action can go
+/// on using what it captured. Under the sanitizers the old way is a heap use
+/// after free.
+void testANoticeCanReplaceItself() {
+  section("A notice that answers with another");
+
+  ovt::ui::Notice notice;
+  std::string said;
+
+  const std::string first(64, 'a');
+
+  notice.show(
+      "First", "One", "Next", "Close",
+      [&notice, &said, first] {
+        notice.show(
+            "Second", "Two", "OK", "Close", [&said] { said += "second "; },
+            nullptr);
+
+        // Still the first action's own copy of what it captured.
+        said += first.substr(0, 5) + " ";
+      },
+      nullptr);
+
+  notice.primaryButton().onClick();
+
+  check(said == "aaaaa ",
+        "the first answer finishes after replacing itself (" + said + ")");
+  check(notice.isShowing() && notice.getMessage() == "Two",
+        "and the second notice is the one showing");
+
+  notice.primaryButton().onClick();
+
+  check(said == "aaaaa second ", "and its own answer runs (" + said + ")");
+}
+
 int main(int argc, char **argv) {
   // See the same line in dsp_test: unbuffered, so a crash keeps whatever it
   // printed before it, and not _IOLBF, which the Windows CRT ignores.
@@ -14028,6 +14065,7 @@ int main(int argc, char **argv) {
   testLegatoSwitch(processor);
   testGlideCaps();
   testRowNameHelp();
+  testANoticeCanReplaceItself();
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);

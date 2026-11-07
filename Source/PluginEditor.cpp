@@ -1619,12 +1619,17 @@ void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
                      .getScreenPosition()
                      .roundToInt();
 
+  // A SafePointer, since a menu with no target component outlives the window,
+  // and closing the window dismisses it with a call to this.
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withStandardItemHeight(22)
                       .withTargetScreenArea({p.x, p.y, 1, 1}),
-                  [this, parameter](int result) {
-                    ovt::ui::learn::applyChoice(result, plugin().midiLearn,
-                                                parameter);
+                  [self, parameter](int result) {
+                    if (self != nullptr)
+                      ovt::ui::learn::applyChoice(
+                          result, self->plugin().midiLearn, parameter);
                   });
 }
 
