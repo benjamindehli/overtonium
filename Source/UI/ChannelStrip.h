@@ -84,10 +84,6 @@ public:
 
   bool isUserDragging() const noexcept { return dragging; }
 
-  /// Whether this drag was handed to the drawing rather than moving the
-  /// slider. See onDrawStart.
-  bool isDrawing() const noexcept { return drawing; }
-
   std::function<void()> onUserDragStart, onUserDragEnd;
 
   /// Drawn from a cached picture when nothing that decides its look has
@@ -99,22 +95,6 @@ private:
   bool drawing = false;
 
   PaintCache looks;
-};
-
-/// An endless, relative control.
-///
-/// It reports how far it has been turned since the drag began and springs
-/// back to centre on release, so the strips it drives keep their spread.
-class RelativeKnob : public juce::Slider {
-public:
-  RelativeKnob();
-
-  void startedDragging() override;
-  void stoppedDragging() override;
-
-  /// Offset since the drag began, in normalised parameter units.
-  std::function<void(float delta)> onRelativeDelta;
-  std::function<void()> onRelativeStart, onRelativeEnd;
 };
 
 /// A knob with a caption underneath.

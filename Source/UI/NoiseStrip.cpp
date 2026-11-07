@@ -106,6 +106,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "ones.",
             "Noise string point");
 
+  // Over the knobs, as resized keeps it.
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
+
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
   keyboard.getProperties().set("bipolar", true);
@@ -183,9 +187,6 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
                                       : "Noise colour");
   s.setDescription(tooltip);
   addAndMakeVisible(s);
-
-  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
-  addAndMakeVisible(headerCap);
 
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));

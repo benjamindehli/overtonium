@@ -672,10 +672,6 @@ int rowsAroundTheFader(SectionMask collapsed) {
 }
 } // namespace
 
-int middleContentHeight(SectionMask collapsed) {
-  return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
-}
-
 Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
   Bands out;
 
@@ -1126,7 +1122,6 @@ LinkCurve linkCurveFromState(const juce::String &id, int legacy) {
 
 namespace {
 /// Menu ids, in separate blocks so they cannot clash.
-constexpr int kLinkToggleId = 1;
 constexpr int kClearSelectionId = 2;
 constexpr int kScopeBaseId = 100;
 constexpr int kCurveBaseId = 200;
@@ -1207,36 +1202,7 @@ bool applyToolMenuChoice(int id, PointerTool &tool) {
   return true;
 }
 
-juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
-  juce::PopupMenu m;
-
-  m.addItem(kLinkToggleId, "LINK", true, settings.enabled);
-  m.addSeparator();
-
-  // The lists grey out with the switch rather than disappear, so the items do
-  // not move.
-  m.addSectionHeader("Scope");
-  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
-    m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), settings.enabled,
-              i == (int)settings.scope);
-
-  m.addItem(kClearSelectionId, "Clear selection", settings.hasSelection);
-
-  m.addSeparator();
-  m.addSectionHeader("Curve");
-  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
-    m.addItem(kCurveBaseId + i, linkCurveName((LinkCurve)i), settings.enabled,
-              i == (int)settings.curve);
-
-  return m;
-}
-
 bool applyLinkMenuChoice(int id, LinkSettings &settings) {
-  if (id == kLinkToggleId) {
-    settings.enabled = !settings.enabled;
-    return true;
-  }
-
   if (id >= kCurveBaseId && id < kCurveBaseId + (int)LinkCurve::NumCurves) {
     settings.curve = (LinkCurve)(id - kCurveBaseId);
     return true;
