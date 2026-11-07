@@ -414,6 +414,12 @@ jobs:
   publish:
     name: Publish the release
     needs: package
+
+    # It pushes to main, so two releases publish one after the other rather
+    # than racing each other's push. Neither is cancelled.
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
