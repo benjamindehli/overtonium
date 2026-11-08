@@ -51,11 +51,7 @@ inline bool appendItems(juce::PopupMenu &menu,
 /// @return true when the id belonged here, so the caller stops looking.
 inline bool applyChoice(int result, juce::AudioProcessorValueTreeState &apvts) {
   const auto set = [&apvts](const char *id, float value) {
-    if (auto *param = apvts.getParameter(id)) {
-      param->beginChangeGesture();
-      param->setValueNotifyingHost(value);
-      param->endChangeGesture();
-    }
+    params::setAsOneStep(apvts.getParameter(id), value);
   };
 
   switch (result) {

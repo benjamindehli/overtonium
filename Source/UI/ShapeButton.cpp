@@ -1,8 +1,8 @@
 #include "ShapeButton.h"
 #include "SettingsMenus.h"
 
-#include <algorithm>
 #include <cstring>
+#include <iterator>
 #include <vector>
 
 #include "LookAndFeel.h"
@@ -212,14 +212,8 @@ bool ShapeButton::inPhase() const {
 }
 
 void ShapeButton::setInPhase(bool shouldShare) {
-  auto *param = apvts.getParameter(inPhaseId());
-
-  if (param == nullptr)
-    return;
-
-  param->beginChangeGesture();
-  param->setValueNotifyingHost(shouldShare ? 1.0f : 0.0f);
-  param->endChangeGesture();
+  params::setAsOneStep(apvts.getParameter(inPhaseId()),
+                       shouldShare ? 1.0f : 0.0f);
 }
 
 void ShapeButton::mouseEnter(const juce::MouseEvent &) {
@@ -241,18 +235,13 @@ void ShapeButton::applyToEveryChannel(int index) {
   // The noise channel has no pitch modulator, so it is left out there.
   every.push_back(apvts.getParameter(params::noiseParamId(sharedSuffix)));
 
-  every.erase(std::remove(every.begin(), every.end(), nullptr), every.end());
-
-  // Every gesture is open before anything moves and closed after, so the whole
-  // change is one step in the undo history, as a LINK drag is.
-  for (auto *param : every)
-    param->beginChangeGesture();
+  std::vector<params::Move> moves;
 
   for (auto *param : every)
-    param->setValueNotifyingHost(param->convertTo0to1((float)index));
+    if (param != nullptr)
+      moves.emplace_back(param, param->convertTo0to1((float)index));
 
-  for (auto *param : every)
-    param->endChangeGesture();
+  params::moveAsOneStep(moves);
 }
 
 void ShapeButton::mouseDown(const juce::MouseEvent &e) {

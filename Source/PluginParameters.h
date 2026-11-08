@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include "dsp/Params.h"
 
@@ -224,8 +225,9 @@ const char *macroColourName(int colour);
 /// Defined in Theme.cpp.
 juce::Colour macroColour(int colour);
 
-/// A macro's parameter ids. The amount is the one a host draws, and row 0
-/// (None) means the macro is not in use.
+/// A macro's parameter ids, "macro3_row" for macro 2 and "row". The amount
+/// is the one a host draws, and row 0 (None) means the macro is not in use.
+juce::String macroParamId(int macro, const char *suffix);
 juce::String macroAmountId(int macro);
 juce::String macroRowId(int macro);
 juce::String macroScopeId(int macro);
@@ -267,6 +269,17 @@ juce::String noiseParamId(const char *suffix);
 /// How many channels have this switch on, the noise channel among them.
 int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
                        const char *suffix);
+
+/// A parameter and the normalised value it is to be set to.
+using Move = std::pair<juce::RangedAudioParameter *, float>;
+
+/// Sets every one as one step in the undo history: every gesture is opened
+/// before anything moves and closed after, as a LINK drag is.
+void moveAsOneStep(const std::vector<Move> &);
+
+/// Sets one parameter in a gesture of its own, so a host records it as one
+/// step. Does nothing for nullptr.
+void setAsOneStep(juce::RangedAudioParameter *, float normalised);
 
 /// Turns it off wherever it is on, so a host sees a gesture only on the
 /// channels that moved. One step in the undo history.

@@ -286,29 +286,21 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
-juce::String macroAmountId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_amount";
+juce::String macroParamId(int macro, const char *suffix) {
+  return "macro" + juce::String(macro + 1) + "_" + suffix;
 }
 
-juce::String macroRowId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_row";
-}
+juce::String macroAmountId(int macro) { return macroParamId(macro, "amount"); }
 
-juce::String macroScopeId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_scope";
-}
+juce::String macroRowId(int macro) { return macroParamId(macro, "row"); }
 
-juce::String macroCurveId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_curve";
-}
+juce::String macroScopeId(int macro) { return macroParamId(macro, "scope"); }
 
-juce::String macroColourId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_colour";
-}
+juce::String macroCurveId(int macro) { return macroParamId(macro, "curve"); }
 
-juce::String macroAnchorId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_anchor";
-}
+juce::String macroColourId(int macro) { return macroParamId(macro, "colour"); }
+
+juce::String macroAnchorId(int macro) { return macroParamId(macro, "anchor"); }
 
 const char *macroScopeName(int scope) {
   switch ((MacroScope)scope) {
@@ -538,18 +530,25 @@ void setChannelSwitches(juce::AudioProcessorValueTreeState &apvts,
       moving.emplace_back(param, on ? 1.0f : 0.0f);
   }
 
-  // Every gesture is open before anything moves and closed after, so the
-  // whole change is one step in the undo history.
-  for (const auto &move : moving)
-    move.first->beginChangeGesture();
-
-  for (const auto &move : moving)
-    move.first->setValueNotifyingHost(move.second);
-
-  for (const auto &move : moving)
-    move.first->endChangeGesture();
+  moveAsOneStep(moving);
 }
 } // namespace
+
+void moveAsOneStep(const std::vector<Move> &moves) {
+  for (const auto &move : moves)
+    move.first->beginChangeGesture();
+
+  for (const auto &move : moves)
+    move.first->setValueNotifyingHost(move.second);
+
+  for (const auto &move : moves)
+    move.first->endChangeGesture();
+}
+
+void setAsOneStep(juce::RangedAudioParameter *param, float normalised) {
+  if (param != nullptr)
+    moveAsOneStep({{param, normalised}});
+}
 
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
                         const char *suffix) {
@@ -585,16 +584,8 @@ void switchVelocityCurve(juce::AudioProcessorValueTreeState &apvts) {
 
   moving.emplace_back(curve, toDecibels ? 1.0f : 0.0f);
 
-  // Every gesture is open before anything moves and closed after, so the
-  // switch and the amounts are one step in the undo history.
-  for (const auto &move : moving)
-    move.first->beginChangeGesture();
-
-  for (const auto &move : moving)
-    move.first->setValueNotifyingHost(move.second);
-
-  for (const auto &move : moving)
-    move.first->endChangeGesture();
+  // The switch and the amounts together, as one step.
+  moveAsOneStep(moving);
 }
 
 void switchOnlyChannel(juce::AudioProcessorValueTreeState &apvts,
