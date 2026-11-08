@@ -124,13 +124,7 @@ double Console::tape(Channel &c, double x) const noexcept {
     return a > 0.0 ? 0.5 * a * a : 0.0;
   };
 
-  const double step = q - c.lastTape;
-  const double clipped =
-      std::abs(step) < 1.0e-9
-          ? past(0.5 * (q + c.lastTape))
-          : (pastIntegral(q) - pastIntegral(c.lastTape)) / step;
-
-  c.lastTape = q;
+  const double clipped = antialiased(q, c.lastTape, 1.0e-9, past, pastIntegral);
 
   return c.coupling.run(c.bump.run(x - kTapeShare * clipped));
 }

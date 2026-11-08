@@ -13,6 +13,24 @@ inline float onePole(double hz, double sampleRate) noexcept {
   return (float)std::exp(-6.283185307179586 * hz / sampleRate);
 }
 
+/// A curve read through its antiderivative, averaged over the step from the
+/// last input, so a sharp bend does not alias. `last` moves on to `x`.
+///
+/// Below `flat` the divisor does more harm than the averaging does good, so
+/// the curve is read at the midpoint instead.
+template <typename Curve, typename Integral>
+double antialiased(double x, double &last, double flat, Curve &&curve,
+                   Integral &&integral) noexcept {
+  const double step = x - last;
+  const double y = std::abs(step) < flat
+                       ? curve(0.5 * (x + last))
+                       : (integral(x) - integral(last)) / step;
+
+  last = x;
+
+  return y;
+}
+
 /// The sections the console and the cassette machines are built from, and
 /// the designs they use.
 namespace filters {

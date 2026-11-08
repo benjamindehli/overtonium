@@ -245,13 +245,9 @@ double Cassette::clip(Channel &c, double u) const noexcept {
   // signal would act as a low pass on it.
   const auto lost = [this](double v) { return clipCurve(v) - v; };
 
-  const double step = u - c.lastClip;
   const double taken =
-      std::abs(step) < 1.0e-7
-          ? lost(0.5 * (u + c.lastClip))
-          : (lostIntegral(u) - lostIntegral(c.lastClip)) / step;
-
-  c.lastClip = u;
+      antialiased(u, c.lastClip, 1.0e-7, lost,
+                  [this](double v) { return lostIntegral(v); });
 
   return u + taken;
 }
