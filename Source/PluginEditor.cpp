@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "UI/LearnMenu.h"
+#include "UI/SettingsMenus.h"
 
 #include <cmath>
 
@@ -1486,11 +1487,7 @@ void OvertoniumEditor::chooseTool(ovt::ui::PointerTool which) {
 
 void OvertoniumEditor::followMacroTints() {
   const auto readInt = [this](const juce::String &id) {
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            plugin().apvts.getParameter(id)))
-      return (int)std::lround(p->convertFrom0to1(p->getValue()));
-
-    return 0;
+    return ovt::ui::settings::choiceIndex(plugin().apvts, id);
   };
 
   // The eight macros read once rather than per control. Not skipped when no
@@ -1651,7 +1648,8 @@ void OvertoniumEditor::showMacroMenu(int macro) {
   if (amount == nullptr || row == nullptr)
     return;
 
-  const bool made = std::lround(row->convertFrom0to1(row->getValue())) != 0;
+  const bool made = ovt::ui::settings::choiceIndex(
+                        plugin().apvts, ovt::params::macroRowId(macro)) != 0;
 
   auto m = PlayingBar::macroMenu(macro, made, plugin().midiLearn, amount);
   m.setLookAndFeel(&getLookAndFeel());

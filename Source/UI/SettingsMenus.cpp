@@ -38,12 +38,13 @@ void flip(juce::AudioProcessorValueTreeState &apvts, const char *id) {
 }
 } // namespace
 
-bool isOn(juce::AudioProcessorValueTreeState &apvts, const char *id) {
+bool isOn(const juce::AudioProcessorValueTreeState &apvts, juce::StringRef id) {
   auto *p = apvts.getParameter(id);
   return p != nullptr && p->getValue() > 0.5f;
 }
 
-int choiceIndex(juce::AudioProcessorValueTreeState &apvts, const char *id) {
+int choiceIndex(const juce::AudioProcessorValueTreeState &apvts,
+                juce::StringRef id) {
   auto *p = apvts.getParameter(id);
   return p != nullptr ? juce::roundToInt(p->convertFrom0to1(p->getValue())) : 0;
 }
@@ -82,11 +83,7 @@ juce::PopupMenu voices(juce::AudioProcessorValueTreeState &apvts) {
 }
 
 juce::PopupMenu bendRange(juce::AudioProcessorValueTreeState &apvts) {
-  auto *range = apvts.getParameter(params::bendRangeId);
-  const auto current =
-      range != nullptr
-          ? juce::roundToInt(range->convertFrom0to1(range->getValue()))
-          : 2;
+  const auto current = choiceIndex(apvts, params::bendRangeId);
 
   juce::PopupMenu m;
 

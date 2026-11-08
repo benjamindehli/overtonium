@@ -17,6 +17,17 @@ namespace ovt::ui {
 namespace {
 constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
 
+/// The settings menu's own items, clear of the ids settings::Id gives the
+/// items it shares with the bars.
+enum SettingsMenuId : int {
+  kUndo = 700,
+  kRedo = 701,
+  kCheckForUpdates = 702,
+  kUpdateAvailable = 703,
+  kZoomBase = 800,
+  kFitAllChannels = 820,
+};
+
 /// The space round the edges of the bar: the margin on the left and the
 /// right, which is also the space between the four buttons, and the padding
 /// above and below the row. The bottom padding is one more than the top
@@ -701,14 +712,8 @@ juce::String TopBar::getPresetName() const { return presetName; }
 juce::PopupMenu TopBar::buildClipMenu() {
   juce::PopupMenu m;
 
-  auto *on = apvts.getParameter(params::safetyClipId);
-  auto *type = apvts.getParameter(params::clipTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+  const bool running = settings::isOn(apvts, params::safetyClipId);
+  const auto which = settings::choiceIndex(apvts, params::clipTypeId);
 
   m.addItem(1, "Off", true, !running);
   m.addSeparator();
@@ -745,14 +750,8 @@ void TopBar::chooseClip(int id) {
 juce::PopupMenu TopBar::buildEchoMenu() {
   juce::PopupMenu m;
 
-  auto *on = apvts.getParameter(params::echoOnId);
-  auto *type = apvts.getParameter(params::echoTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+  const bool running = settings::isOn(apvts, params::echoOnId);
+  const auto which = settings::choiceIndex(apvts, params::echoTypeId);
 
   m.addItem(1, "Off", true, !running);
   m.addSeparator();
@@ -789,11 +788,7 @@ void TopBar::chooseEcho(int id) {
 juce::PopupMenu TopBar::buildResonatorMenu() {
   juce::PopupMenu m;
 
-  auto *mode = apvts.getParameter(params::resonatorModeId);
-  const auto which =
-      mode == nullptr
-          ? 0
-          : juce::roundToInt(mode->convertFrom0to1(mode->getValue()));
+  const auto which = settings::choiceIndex(apvts, params::resonatorModeId);
 
   // Off apart from the rest.
   for (int i = 0; i < (int)ResonatorMode::NumModes; ++i) {
@@ -817,14 +812,8 @@ void TopBar::chooseResonator(int id) {
 juce::PopupMenu TopBar::buildReverbMenu() {
   juce::PopupMenu m;
 
-  auto *on = apvts.getParameter(params::reverbOnId);
-  auto *type = apvts.getParameter(params::reverbTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
+  const bool running = settings::isOn(apvts, params::reverbOnId);
+  const auto which = settings::choiceIndex(apvts, params::reverbTypeId);
 
   m.addItem(1, "Off", true, !running);
   m.addSeparator();
@@ -866,8 +855,7 @@ void TopBar::showChoiceMenu(const char *paramId,
   if (param == nullptr)
     return;
 
-  const auto current =
-      juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  const auto current = settings::choiceIndex(apvts, paramId);
 
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
@@ -1044,10 +1032,6 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
-  auto *phase = apvts.getParameter(params::phaseResetId);
-  auto *clip = apvts.getParameter(params::safetyClipId);
-  auto *ahead = apvts.getParameter(params::lookaheadId);
-
   // A list the bars offer too, laid into this menu in place rather than a
   // level down.
   const auto addInPlace = [&m](const juce::PopupMenu &list) {
@@ -1059,18 +1043,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // header, since it is a fact rather than a choice. The bug report template
   // asks for this version.
   if (updateVersion.isNotEmpty()) {
-    m.addItem(703, "Overtonium " + updateVersion + " is available...");
+    m.addItem(kUpdateAvailable,
+              "Overtonium " + updateVersion + " is available...");
     m.addSeparator();
   }
 
   m.addSectionHeader(versionLine());
 
-  m.addItem(702, "Check for new versions", true,
+  m.addItem(kCheckForUpdates, "Check for new versions", true,
             isUpdateCheckAllowed && isUpdateCheckAllowed());
   m.addSeparator();
 
-  m.addItem(700, "Undo", canUndo && canUndo());
-  m.addItem(701, "Redo", canRedo && canRedo());
+  m.addItem(kUndo, "Undo", canUndo && canUndo());
+  m.addItem(kRedo, "Redo", canRedo && canRedo());
   m.addSeparator();
 
   m.addSectionHeader("Polyphony");
@@ -1128,28 +1113,28 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
     const auto percent = juce::roundToInt(kZoomChoices[i] * 100.0f);
 
-    zooms.addItem(800 + i, juce::String(percent) + "%", true,
+    zooms.addItem(kZoomBase + i, juce::String(percent) + "%", true,
                   std::abs(kZoomChoices[i] - zoom) < 0.01f);
   }
 
   m.addSeparator();
   m.addSectionHeader("Output");
-  m.addItem(300, "Phase reset", true,
-            phase != nullptr && phase->getValue() > 0.5f);
-  m.addItem(301, "Safety clip", true,
-            clip != nullptr && clip->getValue() > 0.5f);
+  m.addItem(settings::kPhaseReset, "Phase reset", true,
+            settings::isOn(apvts, params::phaseResetId));
+  m.addItem(settings::kSafetyClip, "Safety clip", true,
+            settings::isOn(apvts, params::safetyClipId));
 
   // The clipper's limiter. It changes the latency reported to the host, so
   // the item says so.
-  m.addItem(304, "Limiter lookahead (2 ms latency)", true,
-            ahead != nullptr && ahead->getValue() > 0.5f);
+  m.addItem(settings::kLookahead, "Limiter lookahead (2 ms latency)", true,
+            settings::isOn(apvts, params::lookaheadId));
 
   // Last, and apart, since it is about the window rather than the instrument.
   m.addSeparator();
   m.addSubMenu("Zoom", zooms);
 
   // Beside the zoom, since both are about the window.
-  m.addItem(820, "Fit all 32 channels");
+  m.addItem(kFitAllChannels, "Fit all 32 channels");
 
   return m;
 }
@@ -1168,11 +1153,11 @@ void TopBar::showSettingsMenu() {
                     if (settings::apply(apvts, result))
                       return;
 
-                    if (result == 820)
+                    if (result == kFitAllChannels)
                       return onFitAllChannels ? onFitAllChannels() : void();
 
-                    if (result >= 800) {
-                      const auto index = result - 800;
+                    if (result >= kZoomBase) {
+                      const auto index = result - kZoomBase;
 
                       if (index < (int)std::size(kZoomChoices) && onZoomChanged)
                         onZoomChanged(kZoomChoices[index]);
@@ -1180,18 +1165,18 @@ void TopBar::showSettingsMenu() {
                       return;
                     }
 
-                    if (result == 700)
+                    if (result == kUndo)
                       return onUndo ? onUndo() : void();
 
-                    if (result == 701)
+                    if (result == kRedo)
                       return onRedo ? onRedo() : void();
 
-                    if (result == 703) {
+                    if (result == kUpdateAvailable) {
                       juce::URL(updateUrl).launchInDefaultBrowser();
                       return;
                     }
 
-                    if (result == 702) {
+                    if (result == kCheckForUpdates) {
                       const bool now =
                           isUpdateCheckAllowed && isUpdateCheckAllowed();
 
@@ -1237,12 +1222,7 @@ void TopBar::setRingColour(std::vector<Control> &controls,
 
 void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
-    auto *p = apvts.getParameter(id);
-
-    return p == nullptr ? 0
-                        : juce::jlimit(0, count - 1,
-                                       juce::roundToInt(
-                                           p->convertFrom0to1(p->getValue())));
+    return juce::jlimit(0, count - 1, settings::choiceIndex(apvts, id));
   };
 
   const auto rate = params::kLofiRateChoices[(size_t)chosen(
@@ -1282,14 +1262,9 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   //
   // The machine's name when it is running and OFF when it is not.
   {
-    auto *on = apvts.getParameter(params::echoOnId);
-    auto *type = apvts.getParameter(params::echoTypeId);
-
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? EchoType::Tape
-                           : (EchoType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
+    const bool running = settings::isOn(apvts, params::echoOnId);
+    const auto which =
+        (EchoType)settings::choiceIndex(apvts, params::echoTypeId);
 
     const juce::String name = echoTypeName(which);
 
@@ -1310,14 +1285,10 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and what the resonator is tuned to, by the same rule ----------------
   {
-    auto *mode = apvts.getParameter(params::resonatorModeId);
 
-    const auto which =
-        mode == nullptr
-            ? ResonatorMode::Off
-            : (ResonatorMode)juce::jlimit(
-                  0, (int)ResonatorMode::NumModes - 1,
-                  juce::roundToInt(mode->convertFrom0to1(mode->getValue())));
+    const auto which = (ResonatorMode)juce::jlimit(
+        0, (int)ResonatorMode::NumModes - 1,
+        settings::choiceIndex(apvts, params::resonatorModeId));
 
     const bool running = which != ResonatorMode::Off;
     const juce::String name = resonatorModeName(which);
@@ -1338,14 +1309,9 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and which reverb, by the same rule ----------------------------------
   {
-    auto *on = apvts.getParameter(params::reverbOnId);
-    auto *type = apvts.getParameter(params::reverbTypeId);
-
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? ReverbType::Room
-                           : (ReverbType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
+    const bool running = settings::isOn(apvts, params::reverbOnId);
+    const auto which =
+        (ReverbType)settings::choiceIndex(apvts, params::reverbTypeId);
 
     const juce::String name = reverbTypeName(which);
 
@@ -1367,14 +1333,9 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and which output stage, by the same rule ----------------------------
   {
-    auto *on = apvts.getParameter(params::safetyClipId);
-    auto *type = apvts.getParameter(params::clipTypeId);
-
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? ClipType::Soft
-                           : (ClipType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
+    const bool running = settings::isOn(apvts, params::safetyClipId);
+    const auto which =
+        (ClipType)settings::choiceIndex(apvts, params::clipTypeId);
 
     const juce::String name = clipTypeName(which);
 
