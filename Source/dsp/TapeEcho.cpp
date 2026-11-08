@@ -120,19 +120,7 @@ void TapeEcho::reset() noexcept {
 }
 
 float TapeEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.type != EchoType::Tape || p.mix <= 0.0f)
-    return 0.0f;
-
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-
-  if (feedback < 0.01f)
-    return p.timeSeconds;
-
-  // How many passes it takes to fall 60 dB, which is where a repeat stops
-  // being audible under anything else.
-  const auto passes = std::log(0.001f) / std::log(feedback);
-
-  return std::min(30.0f, p.timeSeconds * passes);
+  return echo::tailSeconds(p, EchoType::Tape);
 }
 
 void TapeEcho::process(float *outL, float *outR, int numSamples,
@@ -151,19 +139,12 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
 
   wasEnabled = true;
 
-  const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto age = std::clamp(p.age, 0.0f, 1.0f);
-
-  const auto targetDelay =
-      (float)(std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds) * sampleRate);
+  const auto s = echo::settingsFor(p, sampleRate);
+  const auto mix = s.mix, feedback = s.feedback, age = s.age;
+  const auto targetDelay = s.targetDelay, glide = s.glide;
 
   if (smoothedDelay < 0.0f)
     smoothedDelay = targetDelay;
-
-  // ~90 ms to wind to a new head distance. Fast enough to feel like a knob,
-  // slow enough that the pitch slide is the point rather than a glitch.
-  const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // The repeats darken from the top and thin from the bottom. A new machine
   // keeps nearly everything, a worn one hands back very little. This filter is

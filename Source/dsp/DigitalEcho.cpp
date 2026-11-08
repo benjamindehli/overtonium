@@ -79,17 +79,7 @@ void DigitalEcho::reset() noexcept {
 }
 
 float DigitalEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.type != EchoType::Digital || p.mix <= 0.0f)
-    return 0.0f;
-
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-
-  if (feedback <= 0.0f)
-    return p.timeSeconds;
-
-  const auto passes = std::log(0.001f) / std::log(feedback);
-
-  return std::min(30.0f, p.timeSeconds * passes);
+  return echo::tailSeconds(p, EchoType::Digital);
 }
 
 void DigitalEcho::process(float *outL, float *outR, int numSamples,
@@ -106,17 +96,12 @@ void DigitalEcho::process(float *outL, float *outR, int numSamples,
 
   wasEnabled = true;
 
-  const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto age = std::clamp(p.age, 0.0f, 1.0f);
-  const auto time = std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds);
-
-  const auto targetDelay = (float)(time * sampleRate);
+  const auto s = echo::settingsFor(p, sampleRate);
+  const auto mix = s.mix, feedback = s.feedback, age = s.age;
+  const auto targetDelay = s.targetDelay, glide = s.glide;
 
   if (smoothedDelay < 0.0f)
     smoothedDelay = targetDelay;
-
-  const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // Rounded, because a converter runs at a rate rather than between two, and
   // held at one when there is no wear to speak of so the copy is a copy.

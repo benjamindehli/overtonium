@@ -3,6 +3,7 @@
 #include <vector>
 
 #include "Drift.h"
+#include "Echo.h"
 #include "Params.h"
 
 namespace ovt {
@@ -21,7 +22,7 @@ namespace ovt {
 /// envelope, so it swells behind a chord and a silent patch stays silent.
 class BucketEcho {
 public:
-  static constexpr float kMaxTimeSeconds = 2.0f;
+  static constexpr float kMaxTimeSeconds = echo::kMaxTimeSeconds;
 
   void prepare(double sampleRate);
   void reset() noexcept;

@@ -88,17 +88,7 @@ void BucketEcho::reset() noexcept {
 }
 
 float BucketEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.type != EchoType::Bucket || p.mix <= 0.0f)
-    return 0.0f;
-
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-
-  if (feedback <= 0.0f)
-    return p.timeSeconds;
-
-  const auto passes = std::log(0.001f) / std::log(feedback);
-
-  return std::min(30.0f, p.timeSeconds * passes);
+  return echo::tailSeconds(p, EchoType::Bucket);
 }
 
 void BucketEcho::process(float *outL, float *outR, int numSamples,
@@ -115,17 +105,12 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
 
   wasEnabled = true;
 
-  const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto age = std::clamp(p.age, 0.0f, 1.0f);
-  const auto time = std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds);
-
-  const auto targetDelay = (float)(time * sampleRate);
+  const auto s = echo::settingsFor(p, sampleRate);
+  const auto mix = s.mix, feedback = s.feedback, age = s.age;
+  const auto time = s.timeSeconds, targetDelay = s.targetDelay, glide = s.glide;
 
   if (smoothedDelay < 0.0f)
     smoothedDelay = targetDelay;
-
-  const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // The clock first, which is the setting, and then the wear on top of it.
   // Halved at the top of AGE, so an old pedal at a long setting is very dark
