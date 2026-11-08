@@ -4159,6 +4159,48 @@ void testSilencedChannel(OvertoniumProcessor &p) {
   check(back.controlsLit == heard.controlsLit && back.controlsUnlit == 0,
         "and it all comes back when the channel is audible again");
 
+  // ---- the readouts go dark with the controls
+  // --------------------------------
+  //
+  // The noise channel is silenced by another channel's solo like any other,
+  // so its level readout goes dark as a channel's does.
+  const auto readoutsLit = [](juce::Component &c) {
+    int lit = 0;
+
+    for (auto *d : descendantsOf<SegmentDisplay>(c))
+      lit += d->isActive() ? 1 : 0;
+
+    return lit;
+  };
+
+  auto *noise = firstOf<NoiseStrip>(*editor);
+
+  check(noise != nullptr, "the noise channel is there");
+
+  for (juce::Component *column :
+       {(juce::Component *)strip, (juce::Component *)noise}) {
+    auto *asColumn = dynamic_cast<StripColumn *>(column);
+
+    if (asColumn == nullptr)
+      continue;
+
+    const auto name =
+        std::string(column == strip ? "a channel's" : "the noise channel's");
+    const auto before = readoutsLit(*column);
+
+    asColumn->setSilencedByOthers(true);
+    const auto silenced = readoutsLit(*column);
+    asColumn->setSilencedByOthers(false);
+    const auto after = readoutsLit(*column);
+
+    check(before > 0 && silenced == 0 && after == before,
+          name +
+              " readouts go dark while it is silenced and light again "
+              "after (" +
+              std::to_string(before) + " lit, " + std::to_string(silenced) +
+              " silenced, " + std::to_string(after) + " after)");
+  }
+
   // ---- and a macro does not relight it --------------------------------------
   //
   // Read off a render, since the ring is painted in either the macro's colour

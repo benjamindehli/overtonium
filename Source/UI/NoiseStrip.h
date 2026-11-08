@@ -68,6 +68,7 @@ private:
   /// Outside the harmonic series, so no LINK preview.
   int hoverIndex() const override { return -1; }
   juce::Slider &fader() override { return volume; }
+  void silenceChanged() override;
 
   /// Colour on the tuning rows and the string on the pitch modulation rows.
   bool isOwnRow(Row) const override;
