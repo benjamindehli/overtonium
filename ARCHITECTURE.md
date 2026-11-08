@@ -50,6 +50,8 @@ Source/
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Velocity.h      what key velocity does to the fader, the attack and the
                     delay
+    Keyboard.h      what the KEYBOARD row does to a partial's level across
+                    the keyboard
     Params.h        plain-data parameter snapshot
     Exact.h         exact equality, for comparisons meant to be exact
     Voice.*         32 partials, one note

@@ -12,7 +12,7 @@ _Init_ is a preset like the others, not a reset to the parameter defaults. It cl
 
 The session is defined by where a control sits in the interface, not case by case: everything the Settings menu offers, plus the master fader. The menu is where the instrument is set up and the panel is where the sound is made, so a control's place says which kind it is. Adding a setting means adding it to `kSessionParamIds` in the same commit. Both kinds of preset follow that list and match each other. A preset you save carries the same set of controls as a factory one. A test checks this by comparing what `capture` writes against what `neutralBase` decides, in both directions.
 
-Thirty-three of them use STRETCH or TRACK, since most of them model something with a body. Picking odd partials is only a stand-in for inharmonicity, and six of these add the real thing on top of it:
+Thirty-four of them use STRETCH or TRACK, since most of them model something with a body. Picking odd partials is only a stand-in for inharmonicity, and six of these add the real thing on top of it:
 
 | Preset           | Stretch  | Tracking   | Why                                                                                                     |
 | ---------------- | -------- | ---------- | ------------------------------------------------------------------------------------------------------- |
@@ -20,6 +20,7 @@ Thirty-three of them use STRETCH or TRACK, since most of them model something wi
 | 60s Organ        |          | 6.0 dB/oct |                                                                                                         |
 | 8-bit Choir      | +3.3 ct  | 2.5 dB/oct |                                                                                                         |
 | Big Saw          | +2 ct    | 1.3 dB/oct | barely any of either, just enough to stop the partials locking in phase                                 |
+| Chapel           |          | 3.5 dB/oct |                                                                                                         |
 | DigiLog          | +30 ct   | 3.0 dB/oct | the series comes in from the bottom over five seconds, so the stretch is heard as arrival, not detuning |
 | Dire Dire EP     | +8 ct    | 6.0 dB/oct | steep tracking keeps it soft under the fingers rather than glassy                                       |
 | Drawbar Organ    |          | 3.2 dB/oct |                                                                                                         |
@@ -264,7 +265,7 @@ Every channel sits on the same grey. Alternating two shades to separate the stri
 
 Lightening the octaves, so the shape of the series would show when you are scrolled out at harmonic 28, or the noise channel, because it is not a partial, would both fail for the same reason. The hover highlight is a wash across a strip of about the same weight, so a mixer with either would have two kinds of lightened channel and no way to tell them apart without counting.
 
-Neither is needed, because something more visible already shows it in both cases. The colour bar at the head of every strip shows which interval it is, octaves included, in colours nothing else on the panel uses. And the noise channel is the only strip with no interval colour on it and the only one headed with a name rather than a number, which is a bigger difference than three per cent of brightness.
+Neither is needed, because something more visible already shows it in both cases. The knobs and the meter on every strip light in its interval colour, octaves included, in colours nothing else on the panel uses. And the noise channel is the only strip with no interval colour on it and the only one headed with a noise trace rather than a number, which is a bigger difference than three per cent of brightness.
 
 **Every switch on the panel is a lamp behind a square plastic cap**, like the buttons on an old mixer or tape machine. That covers the character button, RESONATOR, ECHO, REVERB, CLIP, the tool, the four buttons that open something, and the M and S on all thirty-three channels. The cap sits in a moulded well. The well is bevelled rather than a hole with straight sides: four facets slope in to the opening, mitred at the corners.
 
@@ -324,7 +325,7 @@ The mutes and solos are the most visible use of the cap, 66 of them across the m
 
 A macro's colour goes out with the rest. A macro is a light like any other, and a ring glowing on a channel nobody can hear would be misleading, whoever set it. So on a silenced channel where a macro has moved the value is not shown at all, and the pointer shows only what the patch holds. The pointer keeps the plain grey of the panel's writing rather than the channel's colour, since a lit pointer in a dark ring would read as one lamp left on.
 
-The meters and the activity lamps need no special handling. A silenced channel gives them nothing to show, so they go dark on their own. The colour bar at the head of the strip stays lit, because it shows which interval the channel is, not whether it is sounding.
+The meters and the activity lamps need no special handling. A silenced channel gives them nothing to show, so they go dark on their own.
 
 **The tool button is lit and stays lit.** A lamp going out means something is off, and there is no off here: the pointer is as much a choice as Link and Draw, and a dark cap would look like a disabled tool rather than the plain pointer being selected. The icon on it shows which tool is selected.
 

@@ -1,10 +1,24 @@
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-31
+Last changed: 2026-11-08
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.17.0, 9 November 2026
+
+**Velocity in decibels and a KEYBOARD row (#105, #106).** A dB switch beside the VELOCITY caption makes equal steps of the knob equal steps of loudness, up to 40 dB on the softest note, and older patches stay on the Classic curve. The KEYBOARD row in OUTPUT voices a partial across the keyboard, tilting it around middle C or fading it out of part of the keyboard.
+
+**Pedals and the resonator (#118 to #122).** The sostenuto pedal, and half-pedalling on a continuous sustain pedal. The resonator's strings follow STRETCH and ring back on the side of the partials that drive them, and two new modes: Fifths, a drone of the root and its fifth, and Chord, which keeps the last chord ringing under a line.
+
+**Smaller changes (#101 to #104).** Option-click or Alt-click on M or S mutes or solos only that channel. The shape menus can set every channel to any shape. Zoom goes to 175% and 200%. A row's name in the gutter says what the row does.
+
+**Three new presets and a quieter panel.** Chapel, Pendulum and Soft Trio, forty-four in all, and the factory presets moved to the dB curve. The meters and macro faders sit in recesses, and the noise channel is marked with a noise trace.
+
+**Fixes.** Switching from Pure or Bulb no longer drops the sound out, two bounces of the same passage come out the same, MIDI Learn replaces a control's controller, the tail counts macros on the release, a session file holding a value that is not a number no longer silences the plugin, and two ways the window could crash the host are closed.
+
+**Before upgrading.** The resonator's mode list grows from five choices to seven and each macro's row list from twenty to twenty-one, so automation drawn before lands a little further along. MIDI program changes from 8 up land later. The factory presets play softer notes differently. 884 parameters.
 
 ## 1.16.0, 1 November 2026
 
