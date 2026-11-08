@@ -71,7 +71,15 @@ jobs:
 
       - name: Fetch JUCE
         id: juce
-        uses: ./.github/actions/fetch-juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # Warnings are errors, which is now the default in CMakeLists and asked
       # for here anyway. The flag is what this job needs rather than what the
@@ -83,6 +91,7 @@ jobs:
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
           -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
           ${{ matrix.extra }}
 
       # The job count is given rather than left to the build tool. Without a
@@ -405,7 +414,15 @@ jobs:
 
       - name: Fetch JUCE
         id: juce
-        uses: ./.github/actions/fetch-juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # The tests only. The plugin targets are not built here: nothing runs
       # them, and a sanitized VST3 is not something anyone should load.
@@ -426,6 +443,7 @@ jobs:
           -DOVERTONIUM_SANITIZE=ON
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
 
       - name: Build
         run: >
@@ -486,7 +504,15 @@ jobs:
 
       - name: Fetch JUCE
         id: juce
-        uses: ./.github/actions/fetch-juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
       # which covers the two test programs. JUCE compiles into the plugin, so
@@ -507,6 +533,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
 
       - name: Build
         env:
@@ -578,14 +605,24 @@ jobs:
 
     # The README claims the DSP core has no JUCE dependency and compiles from a
     # bare compiler. That is worth holding to, so it is checked rather than
-    # asserted: no CMake, no JUCE, no third-party headers.
+    # asserted: no CMake, no JUCE, no third-party headers. The library it uses
+    # is plain C++17 too, and is compiled here with it.
     steps:
       - uses: actions/checkout@v7
 
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
+
       - name: Compile and run
+        env:
+          CORE: ${{ steps.core.outputs.path }}
         run: |
           c++ -std=c++17 -O2 -Wall -Wextra -Werror \
-            -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
+            -I Source -I "$CORE/include" \
+            Tests/dsp_test.cpp Source/dsp/*.cpp "$CORE"/src/dsp/*.cpp -o dsp_test
           ./dsp_test
 
       # The other half of compiling somewhere else, and the half no compiler

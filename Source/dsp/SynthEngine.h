@@ -11,7 +11,6 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
-#include "OutputStage.h"
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
@@ -19,6 +18,7 @@
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
+#include "dm/dsp/OutputStage.h"
 
 namespace ovt {
 
@@ -662,7 +662,7 @@ private:
   BusDrive busDrive;
 
   /// What the mix runs into on its way out. See OutputStage.
-  OutputStage outputStage;
+  dm::OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;

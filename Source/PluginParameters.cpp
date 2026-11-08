@@ -1079,12 +1079,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       (int)EchoType::Tape));
 
   juce::StringArray clipTypeChoices;
-  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
-    clipTypeChoices.add(clipTypeName((ClipType)i));
+  for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i)
+    clipTypeChoices.add(dm::clipTypeName((dm::ClipType)i));
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{clipTypeId, 1}, "Clip Type", clipTypeChoices,
-      (int)ClipType::Soft));
+      (int)dm::ClipType::Soft));
 
   juce::StringArray reverbTypeChoices;
   for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
@@ -1726,8 +1726,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
   out.global.lookahead = lookahead->load() > 0.5f;
-  out.global.clipType = (ClipType)juce::jlimit(
-      0, (int)ClipType::NumTypes - 1, (int)std::lround(clipType->load()));
+  out.global.clipType = (dm::ClipType)juce::jlimit(
+      0, (int)dm::ClipType::NumTypes - 1, (int)std::lround(clipType->load()));
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;

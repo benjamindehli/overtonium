@@ -12,6 +12,8 @@ There are three layers, and the boundary between the first two is the important 
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
 
+The output stage is not in this repository. The eight machines at the end of the signal chain, with Console and Cassette among them, and the small filters the effects share, are in [dehli-musikk-plugin-core](https://github.com/benjamindehli/dehli-musikk-plugin-core), the library the Dehli Musikk plugins share. It is plain C++17 with no dependencies, so the DSP core still compiles from a bare compiler with it. CMakeLists.txt pins it by commit and checks the archive's hash, as it does JUCE.
+
 ## Threading
 
 There are two threads, and neither waits for the other.
@@ -51,7 +53,6 @@ Source/
     Exact.h         exact equality, for comparisons meant to be exact
     Voice.*         32 partials, one note
     Halfband.h      the half-band filter the drive oversamples through
-    Filters.h       the small filters the effects and machines share
     DelayLine.h     the interpolated read the echoes, the room and the wobble share
     BusDrive.*      the drive each character puts on the summed mix
     Echo.h          the settings and tail length the three echoes share
@@ -65,9 +66,6 @@ Source/
                     resonator's 88
     SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
-    OutputStage.*   the eight machines at the end of the signal chain
-    Cassette.*      the cassette machine's Dolby, record side, tape and transport
-    Console.*       the console machine's transformer, compressor and tape stage
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
     AdaptiveSnapshot.h  Adaptive's result for the held chord, and the
                     triple buffer that hands it to the editor

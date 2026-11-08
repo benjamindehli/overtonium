@@ -458,13 +458,13 @@ juce::Colour reverbColour(ReverbType t) {
   return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 2)]);
 }
 
-juce::Colour clipColour(ClipType t) {
+juce::Colour clipColour(dm::ClipType t) {
   // Soft, Hard, Asymmetric, Limiter, Fold, Console, Cassette and Print, an
   // eighth apart.
   constexpr std::array<juce::uint32, 8> kLit{0xff00bbc3, 0xff43acfb, 0xffa492fb,
                                              0xffdd7eca, 0xfff47a7d, 0xffe48e26,
                                              0xffabac1d, 0xff43c07a};
-  static_assert(kLit.size() == (size_t)ClipType::NumTypes);
+  static_assert(kLit.size() == (size_t)dm::ClipType::NumTypes);
 
   return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 7)]);
 }

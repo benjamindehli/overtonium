@@ -165,7 +165,7 @@ def scan_text(source: str, label: str) -> list[str]:
         block = innermost(m.start())
 
         if block is not None and not block[2]:
-            locals_.append((m.start(), m.group(1)))
+            locals_.append((m.start(), m.group(1), block))
 
     problems = []
 
@@ -190,17 +190,17 @@ def scan_text(source: str, label: str) -> list[str]:
 
         body = text[opens:block[1] + 1]
 
-        # Which blocks enclose the lambda, so a constant in a sibling scope is
-        # not mistaken for one it can see.
-        enclosing = [b for b in blocks if b[0] < opens < b[1]]
-
         missing = set()
 
-        for where, name in locals_:
+        for where, name, scope in locals_:
             if where >= opens or name in captured:
                 continue
 
-            if not any(o < where < c for o, c, _ in enclosing):
+            # The lambda can only see the constant if it is inside the block
+            # the constant was declared in. Any block around both is not
+            # enough: a namespace holding two functions holds the constants of
+            # one and the lambdas of the other.
+            if not scope[0] < opens < scope[1]:
                 continue
 
             # Reached through nothing, or it is somebody's member.
@@ -326,6 +326,19 @@ void f() {
 
 void h() {
   const auto g = [](double x) { return x / sr; };
+}
+"""),
+    ("a constant in another function of the same namespace is not seen", 0, """
+namespace {
+void f() {
+  constexpr double sr = 48000.0;
+  (void)sr;
+}
+void g() {
+  static constexpr double sr = 44100.0;
+  const auto h = [](double x) { return x / sr; };
+  (void)h;
+}
 }
 """),
 ]

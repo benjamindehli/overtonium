@@ -72,7 +72,7 @@ xvfb-run -a env LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
 
 pluginval itself is not built with the sanitizers, so their runtime has to be preloaded into it, and the plugin will not load without it. Preload it into pluginval alone. Given to `xvfb-run` as well, it reports the leaks in Xvfb and stops before pluginval starts.
 
-**The DSP core on its own.** A separate job compiles `Source/dsp/` and its tests with a bare compiler and `-Werror`, so the claim that the core needs no build system and no JUCE is checked, not just stated. The command is under [Tests](#tests). The same job runs the lambda scan below.
+**The DSP core on its own.** A separate job compiles `Source/dsp/`, the library's sources and the DSP tests with a bare compiler and `-Werror`, so the claim that the core needs no build system and no JUCE is checked, not just stated. The command is under [Tests](#tests). The same job runs the lambda scan below.
 
 **One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard requires no capture, and gcc and clang agree, but MSVC refuses it with C3493. So the fault only shows up in the Windows job. That job runs last and takes twenty minutes to report. Run the script before pushing:
 
@@ -102,6 +102,8 @@ Nothing in `Source/` holds anything in a static except plain data, such as table
 ## Building
 
 You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead. The download is the archive of one JUCE commit, and the configure stops if its SHA-256 differs from the one in `CMakeLists.txt`. To move to a new JUCE release, put in the archive of the commit its tag points to, with that archive's hash.
+
+The output stage comes from [dehli-musikk-plugin-core](https://github.com/benjamindehli/dehli-musikk-plugin-core), the library the Dehli Musikk plugins share, and is downloaded at configure time in the same way. To work on the library and Overtonium together, clone it beside this repository and pass `-DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=../dehli-musikk-plugin-core`. To move Overtonium to a newer library, put in the archive of the library's merge commit on `main`, with that archive's hash. The CI jobs read both pins from `CMakeLists.txt`, so nothing else needs to change.
 
 The build copies the plugins into your user plugin folders. Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip that. CI does this, and you want it on any machine with no host to rescan them.
 
@@ -151,10 +153,11 @@ cmake --build build -j
 
 ### Tests
 
-The DSP core has no JUCE dependency, so its tests compile with a compiler alone, with no build system and no third-party headers:
+The DSP core has no JUCE dependency, so its tests compile with a compiler alone, with no build system and no third-party headers. They need the library's sources too, from a clone of it beside this repository at the commit `CMakeLists.txt` pins:
 
 ```sh
-c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
+c++ -std=c++17 -O2 -I Source -I ../dehli-musikk-plugin-core/include \
+  Tests/dsp_test.cpp Source/dsp/*.cpp ../dehli-musikk-plugin-core/src/dsp/*.cpp -o dsp_test
 ./dsp_test
 ```
 
@@ -166,7 +169,7 @@ cmake --build build --target overtonium_dsp_test
 ./build/overtonium_dsp_test
 ```
 
-The tests cover every block in the core: the tuning tables, the temperaments and Adaptive, which is checked against all 125 chord types in `Tests/music_utils_chord_types.h`, the oscillators and characters, envelopes, modulation, glide, voice allocation, the noise channel's string, the resonator, the bus drive, wobble, the three echoes, the three reverbs, the converter and the output stage. They also check that parameter changes do not click, and they end by printing a CPU benchmark.
+The tests cover every block in the core: the tuning tables, the temperaments and Adaptive, which is checked against all 125 chord types in `Tests/music_utils_chord_types.h`, the oscillators and characters, envelopes, modulation, glide, voice allocation, the noise channel's string, the resonator, the bus drive, wobble, the three echoes, the three reverbs, the converter and the output stage through the whole instrument. The output stage's own tests are in the library. They also check that parameter changes do not click, and they end by printing a CPU benchmark.
 
 In the DSP tests, a `SynthEngine` is created with `make_unique` and used through a reference, not declared as a local variable. One engine is about 260 kB. MSVC gives the main thread a 1 MB stack, where macOS and Linux give 8, so a test that holds a few of them overflows it on Windows alone.
 

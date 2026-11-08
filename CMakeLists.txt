@@ -51,6 +51,21 @@ else()
 endif()
 
 # ------------------------------------------------------------------------------------------
+# dehli-musikk-plugin-core
+#
+# The output stage and its machines, shared with the other Dehli Musikk plugins. Pinned the
+# same way as JUCE, by the archive of a commit and that archive's hash. To work on the
+# library and Overtonium together, point CMake at a checkout of it:
+#
+#   -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=../dehli-musikk-plugin-core
+# ------------------------------------------------------------------------------------------
+include(FetchContent)
+FetchContent_Declare(dm_plugin_core
+    URL      https://github.com/benjamindehli/dehli-musikk-plugin-core/archive/4f57c1b0ba747dcf6c7a3d6d7011caefbe57625a.tar.gz
+    URL_HASH SHA256=c58e59dfa1e51f7685bd36428bfefbb654c8d0fcf6e5a9c2a7e53d2dea08555f)
+FetchContent_MakeAvailable(dm_plugin_core)
+
+# ------------------------------------------------------------------------------------------
 # Plugin
 # ------------------------------------------------------------------------------------------
 # On a workstation the point of a build is to have the plugin installed and
@@ -106,16 +121,13 @@ juce_add_plugin(Overtonium
     MICROPHONE_PERMISSION_ENABLED FALSE)
 
 # The DSP core, which builds with no JUCE at all. The DSP tests compile this
-# list alone.
+# list alone, with the library.
 set(OVERTONIUM_DSP_SOURCES
     Source/dsp/BucketEcho.cpp
     Source/dsp/DigitalEcho.cpp
     Source/dsp/PlateReverb.cpp
     Source/dsp/SpringReverb.cpp
     Source/dsp/BusDrive.cpp
-    Source/dsp/OutputStage.cpp
-    Source/dsp/Cassette.cpp
-    Source/dsp/Console.cpp
     Source/dsp/Voice.cpp
     Source/dsp/SynthEngine.cpp
     Source/dsp/TapeEcho.cpp
@@ -215,6 +227,7 @@ endif()
 target_link_libraries(Overtonium
     PRIVATE
         OvertoniumResources
+        dm::plugin_core
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -363,6 +376,7 @@ function(overtonium_add_console target source)
     target_link_libraries(${target}
         PRIVATE
             OvertoniumResources
+            dm::plugin_core
             juce::juce_audio_utils
             ${ARGN}
         PUBLIC
@@ -389,7 +403,10 @@ if(OVERTONIUM_BUILD_TESTS)
 
     target_include_directories(overtonium_dsp_test PRIVATE Source)
     target_compile_features(overtonium_dsp_test PRIVATE cxx_std_17)
+    target_link_libraries(overtonium_dsp_test PRIVATE dm::plugin_core)
 
+    # The library too, since both test programs run its code.
+    overtonium_set_sanitizers(dm_plugin_core)
     overtonium_set_sanitizers(overtonium_dsp_test)
 
     add_test(NAME dsp COMMAND overtonium_dsp_test)
