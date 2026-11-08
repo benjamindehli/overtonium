@@ -98,6 +98,19 @@ jobs:
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
 
+      # The clips on the site are rendered by the plugin and committed. A change
+      # to the audio path changes what they should hold, and this is what
+      # notices when they were not rendered again. Linux only: the committed
+      # clips are rendered there, and another compiler can round a sample the
+      # other way without anything being wrong. See audio_clips.py.
+      - name: The clips on the site are what the plugin plays
+        if: runner.os == 'Linux'
+        run: |
+          python3 .github/scripts/audio_clips.py --self-test
+          build/overtonium_render_docs_audio_artefacts/Release/overtonium_render_docs_audio \
+            "$RUNNER_TEMP/clips"
+          python3 .github/scripts/audio_clips.py docs/audio "$RUNNER_TEMP/clips"
+
       # pluginval is a host that loads the plugin and misuses it on purpose:
       # silly block sizes, parameters set from the wrong thread, state saved
       # and restored mid-render, buses enabled that nothing asked for. None of
