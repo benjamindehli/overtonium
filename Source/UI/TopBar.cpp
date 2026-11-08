@@ -768,9 +768,9 @@ void TopBar::showMenuUnder(juce::Button &button, juce::PopupMenu menu,
   menu.showMenuAsync(juce::PopupMenu::Options()
                          .withTargetComponent(&button)
                          .withStandardItemHeight(22),
-                     [self, chosen = std::move(chosen)](int result) {
+                     [self, callback = std::move(chosen)](int result) {
                        if (self != nullptr)
-                         chosen(result);
+                         callback(result);
                      });
 }
 
