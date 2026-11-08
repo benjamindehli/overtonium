@@ -258,6 +258,15 @@ function(overtonium_set_warnings_as_errors target)
     else()
         target_compile_options(${target} PRIVATE -Werror)
     endif()
+
+    # A function defined with no declaration before it, which is almost always
+    # one that belongs in an anonymous namespace. JUCE's recommended flags ask
+    # Clang for this as -Wmissing-prototypes, and GCC has it under this name,
+    # so the Linux build catches it before the macOS one does.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-Wmissing-declarations>)
+    endif()
 endfunction()
 
 overtonium_set_warnings_as_errors(Overtonium)
@@ -274,6 +283,15 @@ if(OVERTONIUM_WARNINGS_AS_ERRORS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
     set_source_files_properties(
         "${JUCE_MODULES_DIR}/juce_gui_basics/juce_gui_basics_2.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-dangling-reference")
+endif()
+
+# The Ogg Vorbis library JUCE carries inside juce_audio_formats is C compiled as
+# C++, and declares nothing before it defines it. Our own code keeps
+# -Wmissing-declarations. See overtonium_set_warnings_as_errors.
+if(OVERTONIUM_WARNINGS_AS_ERRORS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(
+        "${JUCE_MODULES_DIR}/juce_audio_formats/juce_audio_formats.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-missing-declarations")
 endif()
 
 # ------------------------------------------------------------------------------------------
