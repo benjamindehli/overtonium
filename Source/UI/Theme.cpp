@@ -338,10 +338,11 @@ void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
       getLocalBounds().toFloat(), OvertoniumLookAndFeel::lampGangOf(*this));
 
   // An icon takes a flat opaque ink, mixed against the plastic here. Icons are
-  // overlapping shapes, and a translucent colour would show the overlaps.
+  // overlapping shapes, and a translucent colour would show the overlaps. The
+  // plastic is the lamp the face lights, not the cap colour asked for.
   if (onIcon != nullptr) {
-    const auto plastic =
-        OvertoniumLookAndFeel::lampFace(fill, getToggleState());
+    const auto plastic = OvertoniumLookAndFeel::lampFace(
+        OvertoniumLookAndFeel::lampColourOf(*this, fill), getToggleState());
 
     onIcon(g, cap,
            colour.interpolatedWith(plastic, getToggleState() ? 0.14f : 0.06f));

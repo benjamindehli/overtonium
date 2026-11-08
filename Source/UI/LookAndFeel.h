@@ -45,6 +45,10 @@ public:
   /// cap is the same grey.
   static juce::Colour lampFace(juce::Colour lamp, bool on);
 
+  /// The colour a button's lamp lights: the colour it asked for as its face,
+  /// if any, otherwise its lit text colour, otherwise the accent.
+  static juce::Colour lampColourOf(const juce::Button &, juce::Colour fill);
+
   /// A rectangle on whole pixels, so a filled shape gets no row of partial
   /// coverage round its edge.
   static juce::Rectangle<float> snapToPixels(juce::Rectangle<float>);

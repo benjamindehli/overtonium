@@ -1081,6 +1081,17 @@ OvertoniumLookAndFeel::lampCapBounds(juce::Rectangle<float> bounds,
   return cap;
 }
 
+juce::Colour OvertoniumLookAndFeel::lampColourOf(const juce::Button &button,
+                                                 juce::Colour fill) {
+  // A face asked for decides, such as the macro panel's colour swatches.
+  if (!fill.isTransparent() && fill != colours::panelAlt)
+    return fill;
+
+  const auto lit = button.findColour(juce::TextButton::textColourOnId);
+
+  return lit.isTransparent() ? colours::accent : lit;
+}
+
 juce::Colour OvertoniumLookAndFeel::lampFace(juce::Colour lamp, bool on) {
   if (!on)
     // Unlit grey. It has to stay darker than every lit lamp, the reds being
@@ -1283,21 +1294,8 @@ void OvertoniumLookAndFeel::drawButtonFace(juce::Graphics &g,
   else if (gang == LampGang::Right)
     bounds.setLeft(bounds.getX() - 0.5f);
 
-  // The lamp colour is the button's lit text colour, or the accent if it
-  // names none.
-  auto lamp = button.findColour(juce::TextButton::textColourOnId);
-
-  if (lamp.isTransparent())
-    lamp = colours::accent;
-
-  // backgroundColour still decides for anything that asked for a particular
-  // face, such as the macro panel's colour swatches.
-  if (!backgroundColour.isTransparent() &&
-      backgroundColour != colours::panelAlt)
-    lamp = backgroundColour;
-
-  drawLampCap(g, bounds, lamp, on, shouldDrawButtonAsHighlighted,
-              shouldDrawButtonAsDown, gang);
+  drawLampCap(g, bounds, lampColourOf(button, backgroundColour), on,
+              shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown, gang);
 
   // Waiting for a controller, drawn on the cap's own edge, since a mute
   // button is too small for a second ring outside it.
