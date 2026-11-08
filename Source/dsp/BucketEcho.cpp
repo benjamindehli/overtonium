@@ -1,4 +1,5 @@
 #include "BucketEcho.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -27,10 +28,6 @@ constexpr float kDriftDepth = 0.0020f;
 /// proportion as the delay gets longer.
 constexpr float kClockToneHz = 9000.0f;
 constexpr float kClockRefSeconds = 0.05f;
-
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
 
 /// The line clipping, which it does early and softly.
 inline float squeeze(float x, float drive) noexcept {

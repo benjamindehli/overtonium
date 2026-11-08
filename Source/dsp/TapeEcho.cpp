@@ -1,4 +1,5 @@
 #include "TapeEcho.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -33,10 +34,10 @@ inline float worn(float x, float age) noexcept {
   return x + age * (lean(x, 0.6f) - x);
 }
 
-/// One-pole coefficient for a given cutoff.
-inline float onePole(float cutoffHz, double sampleRate) noexcept {
-  const auto f = std::clamp((double)cutoffHz, 10.0, sampleRate * 0.45);
-  return (float)std::exp(-kTwoPi * f / sampleRate);
+/// A one-pole coefficient for a cutoff that may come from a knob.
+inline float clampedPole(float cutoffHz, double sampleRate) noexcept {
+  return onePole(std::clamp((double)cutoffHz, 10.0, sampleRate * 0.45),
+                 sampleRate);
 }
 } // namespace
 
@@ -190,8 +191,8 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
   // almost all of what wear does to a repeat.
   const auto brightness = 1.0f - age;
   const auto toneHz = 900.0f + brightness * brightness * 14000.0f;
-  const auto lpCoef = onePole(toneHz, sampleRate);
-  const auto hpCoef = onePole(90.0f, sampleRate);
+  const auto lpCoef = clampedPole(toneHz, sampleRate);
+  const auto hpCoef = clampedPole(90.0f, sampleRate);
 
   for (int n = 0; n < numSamples; ++n) {
     smoothedDelay = targetDelay + (smoothedDelay - targetDelay) * glide;

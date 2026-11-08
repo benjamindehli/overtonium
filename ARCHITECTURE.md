@@ -51,6 +51,7 @@ Source/
     Exact.h         exact equality, for comparisons meant to be exact
     Voice.*         32 partials, one note
     Halfband.h      the half-band filter the drive oversamples through
+    Filters.h       the small filters the effects and machines share
     BusDrive.*      the drive each character puts on the summed mix
     TapeEcho.*      the master echo as a tape loop
     BucketEcho.*    the same as a bucket-brigade delay
