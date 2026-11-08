@@ -442,6 +442,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
       playingBar(p.apvts, *this), tuningBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
+  for (int i = 0; i < kNumHarmonics; ++i)
+    for (int r = 0; r < kNumRoles; ++r)
+      oscParams[(size_t)i][(size_t)r] =
+          p.apvts.getParameter(params::oscParamId(roleSuffix((Role)r), i));
+
   setLookAndFeel(&lookAndFeel);
 
   // The background is filled edge to edge.
@@ -1085,8 +1090,7 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
   if (sideways || e.mods.isShiftDown()) {
     if (viewport.useMouseWheelMoveIfNeeded(e, wheel))
       return;
-  } else if (scrollParameters(
-                 -juce::roundToInt(wheel.deltaY * 14.0f * 16.0f))) {
+  } else if (scrollParameters(ovt::ui::wheelPixels(wheel))) {
     return;
   }
 
@@ -1242,8 +1246,11 @@ void OvertoniumEditor::complain(const juce::String &title,
 
 juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
                                                            int index) const {
-  return plugin().apvts.getParameter(
-      params::oscParamId(roleSuffix(role), index));
+  if (!juce::isPositiveAndBelow(index, kNumHarmonics) ||
+      !juce::isPositiveAndBelow((int)role, kNumRoles))
+    return nullptr;
+
+  return oscParams[(size_t)index][(size_t)role];
 }
 
 bool OvertoniumEditor::drawStarted(juce::Point<int> onScreen) {

@@ -9,18 +9,6 @@
 namespace ovt::ui {
 
 namespace {
-/// A wheel notch in pixels, by the same arithmetic a Viewport uses, so
-/// scrolling the parameters and the mixer move by the same amount.
-int wheelDistance(const juce::MouseWheelDetails &wheel) {
-  constexpr float kViewportSingleStep = 16.0f;
-
-  // deltaY as the platform gives it, ignoring isReversed. The platform has
-  // already applied natural scrolling, so undoing it would scroll backwards.
-  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
-}
-} // namespace
-
-namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
@@ -2019,7 +2007,7 @@ void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
 }
 
 bool ChannelStrip::scrollParametersBy(const juce::MouseWheelDetails &wheel) {
-  return link.scrollParameters(wheelDistance(wheel));
+  return link.scrollParameters(wheelPixels(wheel));
 }
 
 } // namespace ovt::ui

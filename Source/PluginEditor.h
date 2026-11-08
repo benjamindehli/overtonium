@@ -361,7 +361,14 @@ private:
   /// Deliberately never reseeded, so each spread differs from the last.
   ovt::Xorshift spreadRandom{0x9e3779b9u};
 
+  /// A channel's parameter for a row, or nullptr for a row with none.
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
+
+  /// Every channel's parameters, looked up once. The macro tints read all of
+  /// them 30 times a second, and a lookup builds the id and searches a map.
+  std::array<std::array<juce::RangedAudioParameter *, ovt::ui::kNumRoles>,
+             ovt::kNumHarmonics>
+      oscParams{};
 
   /// The processor the base class holds, cast to its real type rather than
   /// kept in a second reference.

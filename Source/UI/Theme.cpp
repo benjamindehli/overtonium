@@ -1318,6 +1318,14 @@ Role roleForSuffix(const char *suffix) {
   return Role::NumRoles;
 }
 
+int wheelPixels(const juce::MouseWheelDetails &wheel) {
+  constexpr float kViewportSingleStep = 16.0f;
+
+  // deltaY as the platform gives it, ignoring isReversed. The platform has
+  // already applied natural scrolling, so undoing it would scroll backwards.
+  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
+}
+
 const char *roleSuffix(Role r) {
   switch (r) {
   case Role::Tune:
