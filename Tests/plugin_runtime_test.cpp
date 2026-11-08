@@ -2447,11 +2447,30 @@ void testPresets(OvertoniumProcessor &p) {
 
   const auto names = ovt::presets::names();
 
-  // Counted rather than spelt. Every name needs a case of its own, which is
-  // what the loop below tests: a name with no case applies nothing and the
-  // preset comes out silent.
+  // Counted rather than spelt. Every name needs a block of its own, found by
+  // the name: a name with no block applies nothing.
   check(names.size() > 0,
         "there are factory presets (" + std::to_string(names.size()) + ")");
+
+  // A value no preset sets, which every block's neutralBase puts back. One
+  // still there after a preset is applied means the preset had no block.
+  {
+    auto *probe = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, 4));
+    juce::StringArray missing;
+
+    for (int i = 0; i < names.size() && probe != nullptr; ++i) {
+      probe->setValueNotifyingHost(0.123f);
+      ovt::presets::apply(p.apvts, i);
+
+      if (std::abs(probe->getValue() - 0.123f) < 1.0e-6f)
+        missing.add(names[i]);
+    }
+
+    check(probe != nullptr && missing.isEmpty(),
+          "every factory preset has a block of code (missing: " +
+              missing.joinIntoString(", ").toStdString() + ")");
+  }
 
   bool unique = true;
   for (int i = 0; i < names.size(); ++i)
@@ -5295,7 +5314,8 @@ void testUserPresets(OvertoniumProcessor &p) {
 
     const auto code = presets::factoryCode(p.apvts, "Test Patch");
 
-    check(code.contains("case N: // Test Patch"), "the case is named");
+    check(code.contains("if (name == \"Test Patch\") {"),
+          "the block is found by its name");
     check(code.contains("ap.neutralBase();"),
           "it starts from the neutral base");
     check(code.contains(params::oscParamId(params::driftSuffix, 0)),

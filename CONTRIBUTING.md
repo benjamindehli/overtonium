@@ -34,7 +34,7 @@ pip install clang-format==23.1.1
 clang-format --style=LLVM -i $(find Source Tests Tools -name '*.cpp' -o -name '*.h')
 ```
 
-One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. If they were reformatted, a preset regenerated from the same patch would no longer match the file it came from. That match is how a preset is checked against what its author actually set.
+One region is deliberately exempt. The factory presets inside `build` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. If they were reformatted, a preset regenerated from the same patch would no longer match the file it came from. That match is how a preset is checked against what its author actually set.
 
 **pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. pluginval is a host that misuses the plugin on purpose. It reaches things the suites here cannot, because they drive the processor directly, not through a plugin format. To run it yourself, point it at a built or installed plugin:
 
@@ -178,18 +178,18 @@ Both run in CI on macOS, Windows and Linux on every push and pull request. CI bu
 
 ### Factory presets
 
-Factory presets are code, not embedded data. The cases in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and give a table of thirty-two figures where it does not. That makes a preset something you can read and argue with, not a blob. The cost is one extra step between setting up a patch and shipping it, and `Tools/preset_to_code.cpp` is that step:
+Factory presets are code, not embedded data. The blocks in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and give a table of thirty-two figures where it does not. That makes a preset something you can read and argue with, not a blob. The cost is one extra step between setting up a patch and shipping it, and `Tools/preset_to_code.cpp` is that step:
 
 ```sh
 cmake --build build --target overtonium_preset_to_code
-./build/overtonium_preset_to_code_artefacts/Release/overtonium_preset_to_code "Synth Ensemble.ovtpreset" 31
+./build/overtonium_preset_to_code_artefacts/Release/overtonium_preset_to_code "Synth Ensemble.ovtpreset"
 ```
 
-Save the patch from the plugin's own preset menu, run the tool on the file it saved, and paste the result over the case it names. The second argument is the case number. Without it, the output says `case N:` for you to fill in by hand. It writes to stdout so you can diff it against what is already there. That is the quickest way to see what a patch actually changed.
+Save the patch from the plugin's own preset menu, run the tool on the file it saved, and paste the result over the block with the same name. Each block is found by the preset's name, so a new preset goes anywhere in the list, with its name added to `kNames` in alphabetical order. It writes to stdout so you can diff it against what is already there. That is the quickest way to see what a patch actually changed.
 
 It loads the preset into a processor and calls `presets::factoryCode`, the same function the plugin's own authoring menu entry calls, instead of reimplementing the generation. That menu entry is only built with `-DOVERTONIUM_PRESET_AUTHORING=ON`, which is off by default. A second implementation that agreed most of the time would be worse than none. The runtime test already checks that `factoryCode` reproduces every factory preset it is given, so the tool gets that check without needing one of its own.
 
-There are two things it does not do. It does not edit `Presets.cpp`, because each case has a hand-written comment above it saying what the patch is and why, and a generator writing the file in place would lose them without notice. It also writes no session parameters. The polyphony, the temperament and the reference pitch belong to the player, not to the sound, so `factoryCode` leaves them out, and a test fails the build if one ever appears in a case.
+There are two things it does not do. It does not edit `Presets.cpp`, because each block has a hand-written comment saying what the patch is and why, and a generator writing the file in place would lose them without notice. It also writes no session parameters. The polyphony, the temperament and the reference pitch belong to the player, not to the sound, so `factoryCode` leaves them out, and a test fails the build if one ever appears in a block.
 
 Regenerating an existing preset is how to check that a patch really is what you think. Running the tool on the file and diffing against the committed case shows every row that changed and nothing else.
 
