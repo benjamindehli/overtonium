@@ -62,13 +62,10 @@ void setPlain(OvertoniumProcessor &p, const juce::String &id, float plain) {
     param->setValueNotifyingHost(param->convertTo0to1(plain));
 }
 
-/// Notes held together, then let go, with a short fade at each end so a file
-/// cannot begin or end on a step.
-juce::AudioBuffer<float> render(OvertoniumProcessor &p,
-                                const juce::String &preset,
-                                const std::vector<int> &notes,
-                                double heldSeconds, double tailSeconds,
-                                const Move &move = {}) {
+/// Loads the preset into a freshly prepared processor and sets the controls
+/// where the clip starts them.
+void prepare(OvertoniumProcessor &p, const juce::String &preset,
+             const Move &move) {
   ovt::presets::apply(p.apvts, indexOf(preset));
 
   p.setRateAndBufferSizeDetails(kRate, kBlock);
@@ -77,6 +74,32 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
 
   if (move)
     move(p, 0.0);
+}
+
+/// A short fade at each end so a file cannot begin or end on a step, and one
+/// channel when both carry the same samples, which is every patch here.
+juce::AudioBuffer<float> finish(juce::AudioBuffer<float> &out) {
+  const int fade = (int)(0.03 * kRate);
+  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
+  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
+
+  for (int n = 0; n < out.getNumSamples(); ++n)
+    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
+      return out;
+
+  juce::AudioBuffer<float> mono(1, out.getNumSamples());
+  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
+
+  return mono;
+}
+
+/// Notes held together, then let go.
+juce::AudioBuffer<float> render(OvertoniumProcessor &p,
+                                const juce::String &preset,
+                                const std::vector<int> &notes,
+                                double heldSeconds, double tailSeconds,
+                                const Move &move = {}) {
+  prepare(p, preset, move);
 
   const int held = (int)(heldSeconds * kRate);
   const int tail = (int)(tailSeconds * kRate);
@@ -117,20 +140,7 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
     done += n;
   }
 
-  const int fade = (int)(0.03 * kRate);
-  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
-  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
-
-  // Mono when both channels carry the same samples, which is every patch here,
-  // and stereo otherwise.
-  for (int n = 0; n < out.getNumSamples(); ++n)
-    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
-      return out;
-
-  juce::AudioBuffer<float> mono(1, out.getNumSamples());
-  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
-
-  return mono;
+  return finish(out);
 }
 
 /// One note in a run: which, when it goes down, how long it is held, and how
@@ -148,14 +158,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
                                    const juce::String &preset,
                                    const std::vector<Step> &steps,
                                    double totalSeconds, const Move &move = {}) {
-  ovt::presets::apply(p.apvts, indexOf(preset));
-
-  p.setRateAndBufferSizeDetails(kRate, kBlock);
-  p.prepareToPlay(kRate, kBlock);
-  p.reset();
-
-  if (move)
-    move(p, 0.0);
+  prepare(p, preset, move);
 
   juce::AudioBuffer<float> out(2, (int)(totalSeconds * kRate));
   out.clear();
@@ -197,18 +200,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
     done += n;
   }
 
-  const int fade = (int)(0.03 * kRate);
-  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
-  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
-
-  for (int n = 0; n < out.getNumSamples(); ++n)
-    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
-      return out;
-
-  juce::AudioBuffer<float> mono(1, out.getNumSamples());
-  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
-
-  return mono;
+  return finish(out);
 }
 
 bool write(const juce::AudioBuffer<float> &buffer, const juce::File &file,
