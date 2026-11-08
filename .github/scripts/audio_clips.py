@@ -1,20 +1,27 @@
 """Checks that the clips on the site are what the plugin plays now.
 
-The clips in docs/audio are rendered by overtonium_render_docs_audio and
-committed. A change to the audio path changes what they should hold, and
-nothing else notices when they are not rendered again: thirteen of them sat a
-step out of date for two weeks that way. The build job renders them afresh and
-this compares the two sets.
+The clips in docs/audio are rendered by overtonium_render_docs_audio in the
+Linux build job and committed. A change to the audio path changes what they
+should hold, and nothing else notices when they are not rendered again:
+thirteen of them sat a step out of date for two weeks that way. The build job
+renders them afresh and this compares the two sets.
+
+The comparison is exact, so the committed clips have to come from that job.
+Another compiler, or another version of the same one, rounds some samples the
+other way, by a step of 16-bit audio, without anything being wrong. With
+--changed-to, the clips that differ are copied there, FLAC and Ogg, for the job
+to keep as an artifact to be committed.
 
 What is compared is the MD5 of the unencoded audio that every FLAC file stores
 in its own header. The encoded bytes can change without the sound changing,
 for example across a JUCE upgrade, and the Ogg files differ on every render
 because the container carries a random stream serial.
 
-    audio_clips.py <committed directory> <fresh directory>
+    audio_clips.py <committed directory> <fresh directory> [--changed-to DIR]
     audio_clips.py --self-test
 """
 
+import shutil
 import sys
 from pathlib import Path
 
@@ -82,20 +89,49 @@ def main():
         self_test()
         return
 
-    if len(sys.argv) != 3:
+    args = sys.argv[1:]
+    changed_to = None
+
+    if "--changed-to" in args:
+        at = args.index("--changed-to")
+
+        if at + 1 >= len(args):
+            sys.exit(__doc__)
+
+        changed_to = Path(args[at + 1])
+        del args[at:at + 2]
+
+    if len(args) != 2:
         sys.exit(__doc__)
 
-    problems, checked = compare(sys.argv[1], sys.argv[2])
+    committed, fresh = args
+    problems, checked = compare(committed, fresh)
 
     for problem in problems:
         print(f"::error::{problem}")
 
-    if problems:
-        print("Render them again with overtonium_render_docs_audio docs/audio "
-              "and commit the clips that changed. CONTRIBUTING.md has the step.")
-        sys.exit(1)
+    if not problems:
+        print(f"all {checked} clips match what the plugin plays")
+        return
 
-    print(f"all {checked} clips match what the plugin plays")
+    if changed_to is not None:
+        changed_to.mkdir(parents=True, exist_ok=True)
+
+        for flac in sorted(Path(fresh).glob("*.flac")):
+            old = Path(committed) / flac.name
+
+            if old.exists() and audio_md5(old) == audio_md5(flac):
+                continue
+
+            for clip in (flac, flac.with_suffix(".ogg")):
+                if clip.exists():
+                    shutil.copy2(clip, changed_to / clip.name)
+
+        print("The clips that changed are in the clips-changed artifact of "
+              "this run. Unpack it into docs/audio and commit them. "
+              "CONTRIBUTING.md has the step.")
+
+    sys.exit(1)
 
 
 if __name__ == "__main__":
