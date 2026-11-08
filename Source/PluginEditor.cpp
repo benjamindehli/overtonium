@@ -695,11 +695,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // A switch click flips the parameter in one gesture. The switch lights
   // from the parameter, so presets and menus that move it show too.
   const auto flip = [this](const char *id) {
-    if (auto *param = plugin().apvts.getParameter(id)) {
-      param->beginChangeGesture();
-      param->setValueNotifyingHost(param->getValue() > 0.5f ? 0.0f : 1.0f);
-      param->endChangeGesture();
-    }
+    if (auto *param = plugin().apvts.getParameter(id))
+      ovt::params::setAsOneStep(param, param->getValue() > 0.5f ? 0.0f : 1.0f);
 
     syncSharedModulators();
   };

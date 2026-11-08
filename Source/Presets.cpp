@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
+#include <iterator>
 #include <map>
 #include <vector>
 
@@ -501,8 +502,7 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
 
   juce::StringArray lines;
 
-  lines.add("  case N: // " + name);
-  lines.add("  {");
+  lines.add("  if (name == \"" + name + "\") {");
   lines.add("    ap.neutralBase();");
   lines.add("");
 
@@ -656,23 +656,24 @@ juce::String factoryCode(APVTS &apvts, const juce::String &name) {
         lines.add("    ap.set(\"" + entry.first + "\", " +
                   number(entry.second) + ");");
 
-  lines.add("    break;");
+  lines.add("    return true;");
   lines.add("  }");
 
   return lines.joinIntoString("\n") + "\n";
 }
 
-void apply(APVTS &apvts, int index) {
-  const Applier ap{apvts};
-
-  switch (index) {
-    // clang-format off
-    //
-    // Everything to the closing marker is written by factoryCode and pasted in
-    // whole. Formatting it would stop a regenerated preset matching the file.
-    // See Tools/preset_to_code.cpp.
-  case 0: // 2-bit Fuzz Organ
-  {
+namespace {
+/// Queues the factory preset of that name on `ap`.
+///
+/// @return false when there is no preset of that name.
+bool build(const Applier &ap, const juce::String &name) {
+  // clang-format off
+  //
+  // Everything to the closing marker is written by factoryCode and pasted in
+  // whole. Formatting it would stop a regenerated preset matching the file.
+  // See Tools/preset_to_code.cpp. Each block is found by its name, so adding a
+  // preset leaves the others where they are.
+  if (name == "2-bit Fuzz Organ") {
     ap.neutralBase();
 
     // An organ at 8 kHz and 2 bits, where the converter is the sound.
@@ -723,10 +724,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.6f);
     ap.character(Character::Valve);
     ap.set("wobble", 0.0762f);
-    break;
+    return true;
   }
-  case 1: // 60s Organ
-  {
+  if (name == "60s Organ") {
     ap.neutralBase();
 
     // A combo organ that has not been serviced: detuned partials that beat, a
@@ -839,10 +839,9 @@ void apply(APVTS &apvts, int index) {
     // A line of buckets driven hard, and a tray of springs it falls into.
     ap.echo(0.2109f, 0.2015f, 0.7962f, 0.63f, EchoType::Bucket);
     ap.reverb(0.1981f, 5.4535f, 0.1714f, ReverbType::Spring);
-    break;
+    return true;
   }
-  case 2: // 6581 Pulse
-  {
+  if (name == "6581 Pulse") {
     ap.neutralBase();
 
     // The 6581's pulse at half width, a square, on Op-amp, which hardens the
@@ -878,10 +877,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
-    break;
+    return true;
   }
-  case 3: // 6581 Sawtooth
-  {
+  if (name == "6581 Sawtooth") {
     ap.neutralBase();
 
     // The 6581's sawtooth, on the 6581 character.
@@ -906,10 +904,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
-    break;
+    return true;
   }
-  case 4: // 6581 Triangle
-  {
+  if (name == "6581 Triangle") {
     ap.neutralBase();
 
     // The 6581's triangle, on the 6581 character, with partial 2 low since
@@ -952,10 +949,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_vel", 0.0f);
     ap.set("noise_volume", 0.0087f);
     ap.set("reverbType", 1.0f);
-    break;
+    return true;
   }
-  case 5: // 8-bit Choir
-  {
+  if (name == "8-bit Choir") {
     ap.neutralBase();
 
     // A breathy choir on 6581 through a 16 kHz 8-bit converter, with slow
@@ -1124,10 +1120,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", 3.2932f);
     ap.set("track", 2.5f);
     ap.set("wobble", 0.1924f);
-    break;
+    return true;
   }
-  case 6: // Big Saw
-  {
+  if (name == "Big Saw") {
     ap.neutralBase();
 
     // A sawtooth with a little randomness, so it drifts and beats.
@@ -1197,10 +1192,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_release", 0.009f);
     ap.set("noise_amDepth", 0.6765f);
     ap.set("noise_volume", 0.0337f);
-    break;
+    return true;
   }
-  case 7: // Cathedral
-  {
+  if (name == "Cathedral") {
     ap.neutralBase();
 
     // Principal chorus: octaves and fifths only, arriving slowly.
@@ -1231,10 +1225,9 @@ void apply(APVTS &apvts, int index) {
 
     ap.reverb(0.5f, 9.0f, 0.35f);
     ap.set("clipType", 3.0f); // Limiter
-    break;
+    return true;
   }
-  case 8: // Chapel
-  {
+  if (name == "Chapel") {
     ap.neutralBase();
 
     // A small pipe organ in a chapel, on the PD character. The fundamental
@@ -1401,10 +1394,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbOn", 1.0f);
     ap.set("reverbPreDelay", 0.0402f);
     ap.set("track", 3.5f);
-    break;
+    return true;
   }
-  case 9: // Combo Organ
-  {
+  if (name == "Combo Organ") {
     ap.neutralBase();
 
     // A transistor combo organ on Combo, with one vibrato for the whole
@@ -1528,10 +1520,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0011f);
     ap.set("reverbType", 2.0f);
     ap.set("wobble", 0.0507f);
-    break;
+    return true;
   }
-  case 10: // DigiLog
-  {
+  if (name == "DigiLog") {
     ap.neutralBase();
 
     // A digital instrument through worn analogue gear. Envelope delays climb
@@ -1663,10 +1654,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 3.0f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.1476f);
-    break;
+    return true;
   }
-  case 11: // Dire Dire EP
-  {
+  if (name == "Dire Dire EP") {
     ap.neutralBase();
 
     // A soft, round electric piano, with the 13th and 15th partials standing
@@ -1807,10 +1797,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", 7.9525f);
     ap.set("track", 6.0f);
     ap.character(Character::Valve);
-    break;
+    return true;
   }
-  case 12: // Drawbar Organ
-  {
+  if (name == "Drawbar Organ") {
     ap.neutralBase();
 
     // Nine drawbars on Wheel, with the key-off stage as a release click.
@@ -1886,10 +1875,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_offLevel", 0.3948f);
     ap.set("noise_release", 0.0029f);
     ap.set("noise_volume", 0.5171f);
-    break;
+    return true;
   }
-  case 13: // Dream Phase
-  {
+  if (name == "Dream Phase") {
     ap.neutralBase();
 
     // A strike that becomes a pad: attacks from the fastest to the slowest
@@ -2251,10 +2239,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 2.6f);
     ap.character(Character::Bulb);
     ap.set("wobble", 0.1488f);
-    break;
+    return true;
   }
-  case 14: // EP Chimes
-  {
+  if (name == "EP Chimes") {
     ap.neutralBase();
 
     // A round electric piano with bright chimes, through a 16 kHz 8-bit
@@ -2436,10 +2423,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 1.4f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.1275f);
-    break;
+    return true;
   }
-  case 15: // Equal Saw
-  {
+  if (name == "Equal Saw") {
     ap.neutralBase();
 
     // Just Saw in equal temperament, to compare against it.
@@ -2452,10 +2438,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
-    break;
+    return true;
   }
-  case 16: // FM Piano
-  {
+  if (name == "FM Piano") {
     ap.neutralBase();
 
     // An FM electric piano on FM: a hard metallic attack over a near sine
@@ -2560,10 +2545,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", -0.3302f);
     ap.set("track", 2.1f);
     ap.set("wobble", 0.0823f);
-    break;
+    return true;
   }
-  case 17: // Glass Armonica
-  {
+  if (name == "Glass Armonica") {
     ap.neutralBase();
 
     // Wet fingers on glass. Each partial arrives later and vibrates faster
@@ -2607,10 +2591,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbMix", 0.45f);
     ap.set("reverbDecay", 6.0f);
     ap.set("reverbDamp", 0.25f);
-    break;
+    return true;
   }
-  case 18: // Glide
-  {
+  if (name == "Glide") {
     ap.neutralBase();
 
     // A pad that arrives from the bottom up: glide times grow up the series,
@@ -2759,10 +2742,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", 0.1942f);
     ap.set("track", 2.6f);
     ap.set("wobble", 0.104f);
-    break;
+    return true;
   }
-  case 19: // Glockenspiel
-  {
+  if (name == "Glockenspiel") {
     ap.neutralBase();
 
     // A struck bar. Nothing sustains, the 4th and 11th partials carry the
@@ -2908,10 +2890,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", -293.8754f);
     ap.set("track", 3.9f);
     ap.character(Character::Bulb);
-    break;
+    return true;
   }
-  case 20: // Init
-  {
+  if (name == "Init") {
     ap.neutralBase();
 
     // The neutral starting point: the first three partials and nothing else.
@@ -2922,10 +2903,9 @@ void apply(APVTS &apvts, int index) {
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
                  0.0f, 0.0f, 0.0f});
-    break;
+    return true;
   }
-  case 21: // Just Saw
-  {
+  if (name == "Just Saw") {
     ap.neutralBase();
 
     // Equal Saw with every partial at its just interval, to compare against
@@ -2938,10 +2918,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("masterGain", -16.0f);
     ap.set("stretch", -0.0515f);
     ap.set("track", 1.0f);
-    break;
+    return true;
   }
-  case 22: // KarplusStrong
-  {
+  if (name == "KarplusStrong") {
     ap.neutralBase();
 
     // A struck fundamental on Diode and a Karplus-Strong string from the
@@ -2996,10 +2975,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbMix", 0.2494f);
     ap.set("reverbOn", 1.0f);
     ap.set("reverbPreDelay", 0.0045f);
-    break;
+    return true;
   }
-  case 23: // Lo-fi
-  {
+  if (name == "Lo-fi") {
     ap.neutralBase();
 
     // 8 kHz and 8 bits, soft, with very short partials arriving at different
@@ -3085,10 +3063,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_sustain", 0.045f);
     ap.set("noise_amDepth", 0.7308f);
     ap.set("noise_volume", 0.0635f);
-    break;
+    return true;
   }
-  case 24: // Metallic Piano
-  {
+  if (name == "Metallic Piano") {
     ap.neutralBase();
 
     // A thin, metallic upright piano.
@@ -3196,10 +3173,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0115f);
     ap.set("stretch", 23.901f);
     ap.set("track", 9.0f);
-    break;
+    return true;
   }
-  case 25: // Music Box
-  {
+  if (name == "Music Box") {
     ap.neutralBase();
 
     // Plucked steel teeth: irregular vibrato per partial, one bent far
@@ -3310,10 +3286,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_release", 0.021f);
     ap.set("noise_amDepth", 0.4371f);
     ap.set("noise_volume", 0.0992f);
-    break;
+    return true;
   }
-  case 26: // Nylon EP
-  {
+  if (name == "Nylon EP") {
     ap.neutralBase();
 
     // A very round electric piano on PD, with almost nothing above the low
@@ -3466,10 +3441,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 3.2f);
     ap.character(Character::Pd);
     ap.set("wobble", 0.1946f);
-    break;
+    return true;
   }
-  case 27: // Odd Harmonics
-  {
+  if (name == "Odd Harmonics") {
     ap.neutralBase();
 
     // Every even partial silent, which is the hollow tone of a stopped pipe.
@@ -3491,10 +3465,9 @@ void apply(APVTS &apvts, int index) {
     // Rail clips both halves alike, so it adds no even harmonics.
     ap.character(Character::Rail);
     ap.set("masterGain", -10.0f);
-    break;
+    return true;
   }
-  case 28: // Omni-84
-  {
+  if (name == "Omni-84") {
     ap.neutralBase();
 
     // The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two.
@@ -3548,10 +3521,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbOn", 1.0f);
     ap.set("reverbPreDelay", 0.0011f);
     ap.set("track", 7.0f);
-    break;
+    return true;
   }
-  case 29: // Pendulum
-  {
+  if (name == "Pendulum") {
     ap.neutralBase();
 
     // Every partial's tremolo and pitch modulation run faster the higher it
@@ -3680,10 +3652,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", -0.214f);
     ap.set("track", 0.7f);
     ap.set("wobble", 0.1298f);
-    break;
+    return true;
   }
-  case 30: // Shimmer
-  {
+  if (name == "Shimmer") {
     ap.neutralBase();
 
     ap.allOsc(params::volumeSuffix, [](int n) {
@@ -3707,10 +3678,9 @@ void apply(APVTS &apvts, int index) {
     ap.reverb(0.45f, 8.0f, 0.4f, ReverbType::Plate);
     ap.echo(0.28f, 0.66f, 0.55f, 0.6f);
     ap.set("masterGain", -9.0f);
-    break;
+    return true;
   }
-  case 31: // Slow Pad
-  {
+  if (name == "Slow Pad") {
     ap.neutralBase();
 
     // Staggered envelope delays so the spectrum unfolds, with mirrored pans.
@@ -3772,10 +3742,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_sustain", 0.4765f);
     ap.set("noise_amDepth", 0.6246f);
     ap.set("noise_volume", 0.015f);
-    break;
+    return true;
   }
-  case 32: // Soft Trio
-  {
+  if (name == "Soft Trio") {
     ap.neutralBase();
 
     // A Karplus-Strong string on the noise channel over the first two
@@ -3937,10 +3906,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0097f);
     ap.set("track", 6.0f);
     ap.set("wobble", 0.1078f);
-    break;
+    return true;
   }
-  case 33: // Space Cowboy
-  {
+  if (name == "Space Cowboy") {
     ap.neutralBase();
 
     // A tremolo guitar plucked from the noise string, over a stepping pad and
@@ -4112,10 +4080,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", 0.0642f);
     ap.set("track", 3.8f);
     ap.set("wobble", 0.1618f);
-    break;
+    return true;
   }
-  case 34: // Space Flute
-  {
+  if (name == "Space Flute") {
     ap.neutralBase();
 
     // A synthesised pan flute far off. The breath is the held noise channel.
@@ -4237,10 +4204,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 2.0f);
     ap.character(Character::Bulb);
     ap.set("wobble", 0.2795f);
-    break;
+    return true;
   }
-  case 35: // Sparkle Pad
-  {
+  if (name == "Sparkle Pad") {
     ap.neutralBase();
 
     // Two instruments split across the series: the bottom three partials are
@@ -4446,10 +4412,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 0.7f);
     ap.character(Character::Opamp);
     ap.set("wobble", 0.1346f);
-    break;
+    return true;
   }
-  case 36: // Stepped
-  {
+  if (name == "Stepped") {
     ap.neutralBase();
 
     // A slow pad that will not hold still: partials trill on squares set to
@@ -4633,10 +4598,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("track", 2.0f);
     ap.character(Character::Bulb);
     ap.set("wobble", 0.1661f);
-    break;
+    return true;
   }
-  case 37: // Struck Bell
-  {
+  if (name == "Struck Bell") {
     ap.neutralBase();
 
     ap.allOsc(params::volumeSuffix,
@@ -4664,10 +4628,9 @@ void apply(APVTS &apvts, int index) {
     // A small, quick room.
     ap.reverb(0.22f, 1.8f, 0.5f);
     ap.set("clipType", 1.0f); // Hard
-    break;
+    return true;
   }
-  case 38: // StyloPoly
-  {
+  if (name == "StyloPoly") {
     ap.neutralBase();
 
     // Voice 3 of a Dubreq Stylophone S-1 with vibrato on, made polyphonic.
@@ -4728,10 +4691,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("wobble", 0.0408f);
     // One shared vibrato, as a single oscillator would have.
     ap.set("pmInPhase", 1.0f);
-    break;
+    return true;
   }
-  case 39: // Synth Ensemble
-  {
+  if (name == "Synth Ensemble") {
     ap.neutralBase();
 
     // Strings and brass as an ensemble: a strike amount stretches the attack
@@ -4956,10 +4918,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", 9.5576f);
     ap.set("track", 3.0f);
     ap.set("wobble", 0.1011f);
-    break;
+    return true;
   }
-  case 40: // Tape Choir
-  {
+  if (name == "Tape Choir") {
     ap.neutralBase();
 
     // Vowel-ish: a formant hump in the low partials, breathing on every
@@ -4988,10 +4949,9 @@ void apply(APVTS &apvts, int index) {
     ap.echo(0.33f, 0.5f, 0.55f, 0.8f);
     ap.reverb(0.4f, 4.5f, 0.5f, ReverbType::Plate);
     ap.set("masterGain", -13.0f);
-    break;
+    return true;
   }
-  case 41: // Tape Pluck
-  {
+  if (name == "Tape Pluck") {
     ap.neutralBase();
 
     // A plucked string on VCO over a quiet pad, with one tremolo for the
@@ -5178,10 +5138,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("stretch", -0.3618f);
     ap.set("track", 8.0f);
     ap.set("wobble", 0.2197f);
-    break;
+    return true;
   }
-  case 42: // Vibraphone
-  {
+  if (name == "Vibraphone") {
     ap.neutralBase();
 
     // A fast strike where the fundamental rings for seconds and the rest is
@@ -5246,10 +5205,9 @@ void apply(APVTS &apvts, int index) {
     ap.set("noise_sustain", 0.0f);
     ap.set("noise_amDepth", 0.711f);
     ap.set("noise_volume", 0.1882f);
-    break;
+    return true;
   }
-  case 43: // Wurli
-  {
+  if (name == "Wurli") {
     ap.neutralBase();
 
     // A Wurlitzer 200A electric piano.
@@ -5363,13 +5321,24 @@ void apply(APVTS &apvts, int index) {
     ap.set("reverbPreDelay", 0.0059f);
     ap.set("stretch", 0.1305f);
     ap.set("track", 3.1f);
-    break;
+    return true;
   }
-    // clang-format on
+  // clang-format on
 
-  default:
-    break;
-  }
+  return false;
+}
+} // namespace
+
+void apply(APVTS &apvts, int index) {
+  const Applier ap{apvts};
+
+  if (!juce::isPositiveAndBelow(index, (int)std::size(kNames)))
+    return;
+
+  // Every name has a block. A test checks it.
+  const bool found = build(ap, kNames[index]);
+  jassert(found);
+  juce::ignoreUnused(found);
 
   // The only place the preset reaches the host, one write per changed
   // parameter.

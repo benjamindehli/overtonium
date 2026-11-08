@@ -8,6 +8,7 @@
 #include "dsp/Velocity.h"
 
 #include <cmath>
+#include <iterator>
 #include <utility>
 #include <vector>
 
@@ -285,29 +286,21 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
-juce::String macroAmountId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_amount";
+juce::String macroParamId(int macro, const char *suffix) {
+  return "macro" + juce::String(macro + 1) + "_" + suffix;
 }
 
-juce::String macroRowId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_row";
-}
+juce::String macroAmountId(int macro) { return macroParamId(macro, "amount"); }
 
-juce::String macroScopeId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_scope";
-}
+juce::String macroRowId(int macro) { return macroParamId(macro, "row"); }
 
-juce::String macroCurveId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_curve";
-}
+juce::String macroScopeId(int macro) { return macroParamId(macro, "scope"); }
 
-juce::String macroColourId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_colour";
-}
+juce::String macroCurveId(int macro) { return macroParamId(macro, "curve"); }
 
-juce::String macroAnchorId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_anchor";
-}
+juce::String macroColourId(int macro) { return macroParamId(macro, "colour"); }
+
+juce::String macroAnchorId(int macro) { return macroParamId(macro, "anchor"); }
 
 const char *macroScopeName(int scope) {
   switch ((MacroScope)scope) {
@@ -537,18 +530,25 @@ void setChannelSwitches(juce::AudioProcessorValueTreeState &apvts,
       moving.emplace_back(param, on ? 1.0f : 0.0f);
   }
 
-  // Every gesture is open before anything moves and closed after, so the
-  // whole change is one step in the undo history.
-  for (const auto &move : moving)
-    move.first->beginChangeGesture();
-
-  for (const auto &move : moving)
-    move.first->setValueNotifyingHost(move.second);
-
-  for (const auto &move : moving)
-    move.first->endChangeGesture();
+  moveAsOneStep(moving);
 }
 } // namespace
+
+void moveAsOneStep(const std::vector<Move> &moves) {
+  for (const auto &move : moves)
+    move.first->beginChangeGesture();
+
+  for (const auto &move : moves)
+    move.first->setValueNotifyingHost(move.second);
+
+  for (const auto &move : moves)
+    move.first->endChangeGesture();
+}
+
+void setAsOneStep(juce::RangedAudioParameter *param, float normalised) {
+  if (param != nullptr)
+    moveAsOneStep({{param, normalised}});
+}
 
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
                         const char *suffix) {
@@ -584,16 +584,8 @@ void switchVelocityCurve(juce::AudioProcessorValueTreeState &apvts) {
 
   moving.emplace_back(curve, toDecibels ? 1.0f : 0.0f);
 
-  // Every gesture is open before anything moves and closed after, so the
-  // switch and the amounts are one step in the undo history.
-  for (const auto &move : moving)
-    move.first->beginChangeGesture();
-
-  for (const auto &move : moving)
-    move.first->setValueNotifyingHost(move.second);
-
-  for (const auto &move : moving)
-    move.first->endChangeGesture();
+  // The switch and the amounts together, as one step.
+  moveAsOneStep(moving);
 }
 
 void switchOnlyChannel(juce::AudioProcessorValueTreeState &apvts,
@@ -1226,6 +1218,89 @@ std::optional<float> valueInOlderFiles(juce::StringRef id) {
   return std::nullopt;
 }
 
+namespace {
+/// Every parameter on a channel strip: its id's suffix, where the cache keeps
+/// it, and the field of the snapshot it goes to as a plain number. The shapes,
+/// MUTE and SOLO have no such field, since snapshot turns them into something
+/// else, and are read by name.
+struct OscRow {
+  const char *suffix;
+  std::atomic<float> *Cache::Osc::*cached;
+  float OscParams::*field;
+};
+
+constexpr OscRow kOscRows[] = {
+    {tuneSuffix, &Cache::Osc::tune, &OscParams::tuneBlend},
+    {glideSuffix, &Cache::Osc::glide, &OscParams::glideSeconds},
+    {pmRateSuffix, &Cache::Osc::pmRate, &OscParams::pmRateHz},
+    {pmDepthSuffix, &Cache::Osc::pmDepth, &OscParams::pmDepthCents},
+    {pmShapeSuffix, &Cache::Osc::pmShape, nullptr},
+    {driftSuffix, &Cache::Osc::drift, &OscParams::driftCents},
+    {strikeSuffix, &Cache::Osc::strike, &OscParams::strikeAmount},
+    {delaySuffix, &Cache::Osc::delay, &OscParams::delay},
+    {attackSuffix, &Cache::Osc::attack, &OscParams::attack},
+    {decaySuffix, &Cache::Osc::decay, &OscParams::decay},
+    {sustainSuffix, &Cache::Osc::sustain, &OscParams::sustain},
+    {swellSuffix, &Cache::Osc::swell, &OscParams::swell},
+    {offLevelSuffix, &Cache::Osc::offLevel, &OscParams::offLevel},
+    {releaseSuffix, &Cache::Osc::release, &OscParams::release},
+    {amRateSuffix, &Cache::Osc::amRate, &OscParams::amRateHz},
+    {amDepthSuffix, &Cache::Osc::amDepth, &OscParams::amDepth},
+    {amShapeSuffix, &Cache::Osc::amShape, nullptr},
+    {velSuffix, &Cache::Osc::vel, &OscParams::velAmount},
+    {atSuffix, &Cache::Osc::at, &OscParams::atAmount},
+    {keySuffix, &Cache::Osc::key, &OscParams::keyAmount},
+    {muteSuffix, &Cache::Osc::mute, nullptr},
+    {soloSuffix, &Cache::Osc::solo, nullptr},
+    {volumeSuffix, &Cache::Osc::volume, &OscParams::volume},
+    {panSuffix, &Cache::Osc::pan, &OscParams::pan},
+};
+
+/// The same for the noise channel.
+struct NoiseRow {
+  const char *suffix;
+  std::atomic<float> *Cache::NoiseChannel::*cached;
+  float NoiseParams::*field;
+};
+
+constexpr NoiseRow kNoiseRows[] = {
+    {colourSuffix, &Cache::NoiseChannel::colour, &NoiseParams::colour},
+    {strikeSuffix, &Cache::NoiseChannel::strike, &NoiseParams::strikeAmount},
+    {delaySuffix, &Cache::NoiseChannel::delay, &NoiseParams::delay},
+    {attackSuffix, &Cache::NoiseChannel::attack, &NoiseParams::attack},
+    {decaySuffix, &Cache::NoiseChannel::decay, &NoiseParams::decay},
+    {sustainSuffix, &Cache::NoiseChannel::sustain, &NoiseParams::sustain},
+    {swellSuffix, &Cache::NoiseChannel::swell, &NoiseParams::swell},
+    {offLevelSuffix, &Cache::NoiseChannel::offLevel, &NoiseParams::offLevel},
+    {releaseSuffix, &Cache::NoiseChannel::release, &NoiseParams::release},
+    {amRateSuffix, &Cache::NoiseChannel::amRate, &NoiseParams::amRateHz},
+    {amDepthSuffix, &Cache::NoiseChannel::amDepth, &NoiseParams::amDepth},
+    {amShapeSuffix, &Cache::NoiseChannel::amShape, nullptr},
+    {velSuffix, &Cache::NoiseChannel::vel, &NoiseParams::velAmount},
+    {atSuffix, &Cache::NoiseChannel::at, &NoiseParams::atAmount},
+    {keySuffix, &Cache::NoiseChannel::key, &NoiseParams::keyAmount},
+    {muteSuffix, &Cache::NoiseChannel::mute, nullptr},
+    {soloSuffix, &Cache::NoiseChannel::solo, nullptr},
+    {volumeSuffix, &Cache::NoiseChannel::volume, &NoiseParams::volume},
+    {panSuffix, &Cache::NoiseChannel::pan, &NoiseParams::pan},
+    {stringSuffix, &Cache::NoiseChannel::string, &NoiseParams::stringAmount},
+    {stringDecaySuffix, &Cache::NoiseChannel::stringDecay,
+     &NoiseParams::stringDecay},
+    {stringDampSuffix, &Cache::NoiseChannel::stringDamp,
+     &NoiseParams::stringDamp},
+    {stringPointSuffix, &Cache::NoiseChannel::stringPoint,
+     &NoiseParams::stringPoint},
+};
+
+// Every pointer the cache keeps for a channel is in its table.
+static_assert(std::size(kOscRows) ==
+                  sizeof(Cache::Osc) / sizeof(std::atomic<float> *),
+              "a channel parameter is missing from kOscRows");
+static_assert(std::size(kNoiseRows) ==
+                  sizeof(Cache::NoiseChannel) / sizeof(std::atomic<float> *),
+              "a noise parameter is missing from kNoiseRows");
+} // namespace
+
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
@@ -1324,63 +1399,16 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &o = osc[(size_t)i];
 
-    o.tune = apvts.getRawParameterValue(oscParamId(tuneSuffix, i));
-    o.glide = apvts.getRawParameterValue(oscParamId(glideSuffix, i));
-    o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
-    o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
-    o.pmShape = apvts.getRawParameterValue(oscParamId(pmShapeSuffix, i));
-    o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
-    o.strike = apvts.getRawParameterValue(oscParamId(strikeSuffix, i));
-    o.delay = apvts.getRawParameterValue(oscParamId(delaySuffix, i));
-    o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
-    o.decay = apvts.getRawParameterValue(oscParamId(decaySuffix, i));
-    o.sustain = apvts.getRawParameterValue(oscParamId(sustainSuffix, i));
-    o.swell = apvts.getRawParameterValue(oscParamId(swellSuffix, i));
-    o.offLevel = apvts.getRawParameterValue(oscParamId(offLevelSuffix, i));
-    o.release = apvts.getRawParameterValue(oscParamId(releaseSuffix, i));
-    o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
-    o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
-    o.amShape = apvts.getRawParameterValue(oscParamId(amShapeSuffix, i));
-    o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
-    o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
-    o.key = apvts.getRawParameterValue(oscParamId(keySuffix, i));
-    o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
-    o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
-    o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
-    o.pan = apvts.getRawParameterValue(oscParamId(panSuffix, i));
-
-    jassert(o.tune != nullptr && o.volume != nullptr && o.key != nullptr);
+    for (const auto &row : kOscRows) {
+      o.*row.cached = apvts.getRawParameterValue(oscParamId(row.suffix, i));
+      jassert(o.*row.cached != nullptr);
+    }
   }
 
-  noise.colour = apvts.getRawParameterValue(noiseParamId(colourSuffix));
-  noise.strike = apvts.getRawParameterValue(noiseParamId(strikeSuffix));
-  noise.delay = apvts.getRawParameterValue(noiseParamId(delaySuffix));
-  noise.attack = apvts.getRawParameterValue(noiseParamId(attackSuffix));
-  noise.decay = apvts.getRawParameterValue(noiseParamId(decaySuffix));
-  noise.sustain = apvts.getRawParameterValue(noiseParamId(sustainSuffix));
-  noise.swell = apvts.getRawParameterValue(noiseParamId(swellSuffix));
-  noise.offLevel = apvts.getRawParameterValue(noiseParamId(offLevelSuffix));
-  noise.release = apvts.getRawParameterValue(noiseParamId(releaseSuffix));
-  noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
-  noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
-  noise.amShape = apvts.getRawParameterValue(noiseParamId(amShapeSuffix));
-  noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
-  noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
-  noise.key = apvts.getRawParameterValue(noiseParamId(keySuffix));
-  noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
-  noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
-  noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
-  noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
-  noise.string = apvts.getRawParameterValue(noiseParamId(stringSuffix));
-  noise.stringDecay =
-      apvts.getRawParameterValue(noiseParamId(stringDecaySuffix));
-  noise.stringDamp = apvts.getRawParameterValue(noiseParamId(stringDampSuffix));
-  noise.stringPoint =
-      apvts.getRawParameterValue(noiseParamId(stringPointSuffix));
-
-  jassert(noise.colour != nullptr && noise.volume != nullptr &&
-          noise.key != nullptr && noise.string != nullptr &&
-          noise.stringPoint != nullptr);
+  for (const auto &row : kNoiseRows) {
+    noise.*row.cached = apvts.getRawParameterValue(noiseParamId(row.suffix));
+    jassert(noise.*row.cached != nullptr);
+  }
 }
 
 namespace {
@@ -1580,28 +1608,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     const auto &c = osc[(size_t)i];
     auto &o = out.osc[(size_t)i];
 
-    o.tuneBlend = c.tune->load();
-    o.pmRateHz = c.pmRate->load();
+    for (const auto &row : kOscRows)
+      if (row.field != nullptr)
+        o.*row.field = (c.*row.cached)->load();
+
     o.pmShape = pitchShapeAt((int)c.pmShape->load());
-    o.pmDepthCents = c.pmDepth->load();
-    o.glideSeconds = c.glide->load();
-    o.driftCents = c.drift->load();
-    o.strikeAmount = c.strike->load();
-    o.delay = c.delay->load();
-    o.attack = c.attack->load();
-    o.decay = c.decay->load();
-    o.sustain = c.sustain->load();
-    o.swell = c.swell->load();
-    o.offLevel = c.offLevel->load();
-    o.release = c.release->load();
-    o.amRateHz = c.amRate->load();
     o.amShape = ampShapeAt((int)c.amShape->load());
-    o.amDepth = c.amDepth->load();
-    o.velAmount = c.vel->load();
-    o.atAmount = c.at->load();
-    o.keyAmount = c.key->load();
-    o.volume = c.volume->load();
-    o.pan = c.pan->load();
 
     const bool muted = c.mute->load() > 0.5f;
     const bool soloed = c.solo->load() > 0.5f;
@@ -1667,27 +1679,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   {
     auto &n = out.noise;
 
-    n.colour = noise.colour->load();
-    n.strikeAmount = noise.strike->load();
-    n.delay = noise.delay->load();
-    n.attack = noise.attack->load();
-    n.decay = noise.decay->load();
-    n.sustain = noise.sustain->load();
-    n.swell = noise.swell->load();
-    n.offLevel = noise.offLevel->load();
-    n.release = noise.release->load();
-    n.amRateHz = noise.amRate->load();
+    for (const auto &row : kNoiseRows)
+      if (row.field != nullptr)
+        n.*row.field = (noise.*row.cached)->load();
+
     n.amShape = ampShapeAt((int)noise.amShape->load());
-    n.amDepth = noise.amDepth->load();
-    n.velAmount = noise.vel->load();
-    n.atAmount = noise.at->load();
-    n.keyAmount = noise.key->load();
-    n.volume = noise.volume->load();
-    n.pan = noise.pan->load();
-    n.stringAmount = noise.string->load();
-    n.stringDecay = noise.stringDecay->load();
-    n.stringDamp = noise.stringDamp->load();
-    n.stringPoint = noise.stringPoint->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;
