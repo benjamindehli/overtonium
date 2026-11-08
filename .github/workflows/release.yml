@@ -125,12 +125,16 @@ jobs:
       # macOS binary, so x86_64 is compiled here and nowhere else, and a
       # warning from that slice is not a reason to withhold a release that is
       # otherwise ready. It fails the next push to main instead.
+      #
+      # The docs renderers and the preset generator are left out. Nothing here
+      # uses them, and the build workflow keeps them compiling on every push.
       - name: Configure
         run: >
           cmake -B build
           -DCMAKE_BUILD_TYPE=Release
           -DOVERTONIUM_WARNINGS_AS_ERRORS=OFF
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DOVERTONIUM_BUILD_TOOLS=OFF
 
       - name: Build
         run: cmake --build build --config Release --parallel 2
