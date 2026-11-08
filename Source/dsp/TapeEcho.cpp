@@ -1,4 +1,5 @@
 #include "TapeEcho.h"
+#include "DelayLine.h"
 #include "Filters.h"
 
 #include <algorithm>
@@ -79,29 +80,7 @@ float TapeEcho::Head::wander(float delaySamples, float age,
 }
 
 float TapeEcho::Head::read(float delaySamples) const noexcept {
-  const auto length = (int)buffer.size();
-
-  if (length <= 1)
-    return 0.0f;
-
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(length - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  // Reading backwards from the write head, blending the two taps either side
-  // of the fractional position.
-  auto index = write - whole;
-  while (index < 0)
-    index += length;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += length;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
 void TapeEcho::prepare(double newSampleRate) {

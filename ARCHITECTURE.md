@@ -52,6 +52,7 @@ Source/
     Voice.*         32 partials, one note
     Halfband.h      the half-band filter the drive oversamples through
     Filters.h       the small filters the effects and machines share
+    DelayLine.h     the interpolated read the echoes, the room and the wobble share
     BusDrive.*      the drive each character puts on the summed mix
     TapeEcho.*      the master echo as a tape loop
     BucketEcho.*    the same as a bucket-brigade delay

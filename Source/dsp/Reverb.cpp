@@ -1,4 +1,5 @@
 #include "Reverb.h"
+#include "DelayLine.h"
 #include "Filters.h"
 
 #include <algorithm>
@@ -59,23 +60,7 @@ void Reverb::Line::clear() noexcept {
 }
 
 float Reverb::Line::read(float delaySamples) const noexcept {
-  const auto size = (int)buffer.size();
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(size - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  auto index = write - whole;
-  while (index < 0)
-    index += size;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += size;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
 void Reverb::Line::push(float x) noexcept {

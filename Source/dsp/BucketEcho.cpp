@@ -1,4 +1,5 @@
 #include "BucketEcho.h"
+#include "DelayLine.h"
 #include "Filters.h"
 
 #include <algorithm>
@@ -49,27 +50,7 @@ void BucketEcho::Line::clear() noexcept {
 }
 
 float BucketEcho::Line::read(float delaySamples) const noexcept {
-  const auto length = (int)buffer.size();
-
-  if (length <= 1)
-    return 0.0f;
-
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(length - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  auto index = write - whole;
-  while (index < 0)
-    index += length;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += length;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
 void BucketEcho::prepare(double newSampleRate) {
