@@ -69,6 +69,10 @@ jobs:
         with:
           extra-packages: xvfb gdb
 
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
+
       # Warnings are errors, which is now the default in CMakeLists and asked
       # for here anyway. The flag is what this job needs rather than what the
       # file happens to default to, and it costs one line to say so.
@@ -78,6 +82,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
           ${{ matrix.extra }}
 
       # The job count is given rather than left to the build tool. Without a
@@ -373,6 +378,10 @@ jobs:
         timeout-minutes: 10
         uses: ./.github/actions/linux-deps
 
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
+
       # The tests only. The plugin targets are not built here: nothing runs
       # them, and a sanitized VST3 is not something anyone should load.
       #
@@ -391,6 +400,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_SANITIZE=ON
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
 
       - name: Build
         run: >
@@ -449,6 +459,10 @@ jobs:
         with:
           extra-packages: xvfb
 
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
+
       # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
       # which covers the two test programs. JUCE compiles into the plugin, so
       # this instruments it too, and a bad write inside the framework on our
@@ -467,6 +481,7 @@ jobs:
           cmake -B build-san-vst3
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
 
       - name: Build
         env:

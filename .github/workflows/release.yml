@@ -90,6 +90,10 @@ jobs:
         timeout-minutes: 10
         uses: ./.github/actions/linux-deps
 
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
+
       # No architecture override here, unlike the build workflow. That one
       # builds for the runner's own architecture to keep every push quick.
       # A release is the case the universal binary exists for, so the default
@@ -112,6 +116,7 @@ jobs:
           -DOVERTONIUM_WARNINGS_AS_ERRORS=OFF
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_BUILD_TOOLS=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
 
       - name: Build
         run: cmake --build build --config Release --parallel 2
