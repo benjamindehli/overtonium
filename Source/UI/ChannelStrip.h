@@ -10,6 +10,7 @@
 #include "MuteSoloButton.h"
 #include "PaintCache.h"
 #include "ShapeButton.h"
+#include "StripColumn.h"
 #include "Theme.h"
 
 namespace ovt::ui {
@@ -377,8 +378,7 @@ private:
 };
 
 /// One vertical channel: everything that belongs to a single partial.
-class ChannelStrip : public juce::Component,
-                     public juce::SettableTooltipClient {
+class ChannelStrip : public StripColumn {
 public:
   ChannelStrip(juce::AudioProcessorValueTreeState &state,
                LinkTarget &linkTarget, HoverTarget &hoverTarget,
@@ -386,41 +386,8 @@ public:
 
   void paint(juce::Graphics &) override;
 
-  /// The channel highlight, drawn over everything rather than behind it.
-  ///
-  /// Over the children because the meter and the lamps paint opaque
-  /// backgrounds that would hide it.
-  void paintOverChildren(juce::Graphics &) override;
-
   void resized() override;
 
-  /// Which groups of rows are folded away. Set by the editor on every strip at
-  /// once, since the rows are shared across the whole mixer.
-  void setCollapsedSections(SectionMask);
-
-  /// How far the parameters are scrolled, shared by every column.
-  ///
-  /// The gutter and every strip get the same number, so captions line up with
-  /// their knobs. Snapped to a row boundary inside layoutRows.
-  void setScroll(int);
-
-  /// Asked for when a click lands on one of the rules between sections, which
-  /// line up with the gutter's headings and do the same thing.
-  std::function<void(Section)> onSectionToggled;
-
-  /// Sets this channel's fader from a height, for a drag that is drawing
-  /// across the mixer rather than moving one fader.
-  ///
-  /// @p y is in this strip's own coordinates. Read through the slider, whose
-  /// range is skewed to match the parameter's.
-  void drawFaderAt(int y);
-
-  /// The row the pointer is on, with the rules between sections counted as
-  /// rows of their own. See reportHover.
-  static Row rowUnder(const RowBounds &, juce::Point<int>);
-
-  void mouseEnter(const juce::MouseEvent &) override;
-  void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseDrag(const juce::MouseEvent &) override;
@@ -433,10 +400,6 @@ public:
   /// control has taken does not scroll the mixer as well.
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
-
-  /// Turns the strip's lights and screens off when another strip's solo is
-  /// silencing it. Its mute and solo stay lit.
-  void setSilencedByOthers(bool shouldDim);
 
   /// @returns the region of this strip that needs redrawing, empty if the
   /// meter did not move. The editor merges these and invalidates once.
@@ -467,13 +430,6 @@ public:
   ///
   /// Full deflection is always params::kPitchNeedleFullScaleCents.
   static float needlePosition(float cents);
-
-  /// Whether the pointer is on this channel, which is what lights the column.
-  bool isHovered() const noexcept { return hovered; }
-
-  /// Picks out one row, or kNoRow to clear. Every strip is told the same row,
-  /// so the highlight runs the width of the mixer.
-  void setHighlightedRow(Row);
 
   /// Arms the control LINK would move on this strip.
   ///
@@ -512,13 +468,9 @@ private:
   void updateTuneReadout();
   void updateLevelReadout();
 
-  /// Tells the editor which row the pointer is on. Called for the strip's own
-  /// mouse events and for those of every control on it.
-  void reportHover(const juce::MouseEvent &);
-
-  /// Lets go of the hover without a mouse event to say so, for when a modal
-  /// menu is about to take the pointer away.
-  void clearHover();
+  int hoverIndex() const override { return index; }
+  juce::Slider &fader() override { return volume; }
+  void silenceChanged() override;
 
   LinkableSlider *sliderForRole(Role);
 
@@ -535,7 +487,6 @@ private:
 
   juce::AudioProcessorValueTreeState &apvts;
   LinkTarget &link;
-  HoverTarget &hover;
   juce::Component &popupHost;
 
   const int index;
@@ -562,24 +513,10 @@ private:
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
 
-  bool silenced = false;
-
-  Row highlighted = kNoRow;
-
-  /// Folded groups, set by the editor. Every layout and hit test here follows
-  /// it.
-  SectionMask collapsed = 0;
-  int scroll = 0;
-
   /// What hides a row that has scrolled under the pinned header. See HeaderCap.
   HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
-  bool hovered = false;
-
-  /// Set when a menu takes the pointer away, and cleared when the pointer
-  /// moves under its own steam again. See clearHover.
-  bool hoverSuppressed = false;
 
   /// When the last click on this strip happened, so the same click arriving a
   /// second time cannot act twice. See mouseDown.

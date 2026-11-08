@@ -32,7 +32,7 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
-    : apvts(state), hover(hoverTarget), popupHost(popupParent),
+    : StripColumn(hoverTarget), apvts(state), popupHost(popupParent),
       colour(kNoiseColour),
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
@@ -197,58 +197,6 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
 }
 
-void NoiseStrip::setCollapsedSections(SectionMask mask) {
-  if (mask == collapsed)
-    return;
-
-  collapsed = mask;
-
-  if (rowIsCollapsed(highlighted, collapsed))
-    highlighted = kNoRow;
-
-  resized();
-  repaint();
-}
-
-void NoiseStrip::setScroll(int s) {
-  if (s == scroll)
-    return;
-
-  scroll = s;
-  resized();
-  repaint();
-}
-
-void NoiseStrip::setSilencedByOthers(bool shouldDim) {
-  if (silenced == shouldDim)
-    return;
-
-  silenced = shouldDim;
-
-  // Greys the controls rather than washing the whole strip, so the mute and
-  // solo stay readable.
-  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      // Not the mute and solo pair.
-      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
-        continue;
-
-      // Sliders and the waveform displays, which carry colour of their own.
-      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
-          dynamic_cast<ShapeButton *>(child) != nullptr) {
-        child->getProperties().set("unlit", silenced);
-        child->repaint();
-      }
-
-      drain(*child);
-    }
-  };
-
-  drain(*this);
-
-  repaint();
-}
-
 void NoiseStrip::setDrawGlow(bool on) {
   if (on == drawGlow)
     return;
@@ -258,19 +206,6 @@ void NoiseStrip::setDrawGlow(bool on) {
   volume.getProperties().set("linkGlow", on ? 1.0 : 0.0);
   volume.getProperties().set("glowAccent", on);
   volume.repaint();
-}
-
-void NoiseStrip::drawFaderAt(int y) {
-  const auto track = volume.getBounds();
-
-  if (track.getHeight() <= 1)
-    return;
-
-  const auto fromTop = juce::jlimit(
-      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
-
-  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
-                  juce::sendNotificationSync);
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
@@ -306,84 +241,8 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
     onSectionToggled(section);
 }
 
-void NoiseStrip::clearHover() {
-  // Held until the pointer moves again, since the exit a menu sends still
-  // carries a position inside this strip.
-  hoverSuppressed = true;
-
-  hover.hoverChanged(-1, kNoRow);
-
-  if (hovered) {
-    hovered = false;
-    repaint();
-  }
-}
-
 // Only a real move or entry ends a suppression. See clearHover.
-void NoiseStrip::mouseEnter(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-}
-
-void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-
-  // The pointing hand over a rule that folds, as on the gutter's headings.
-  if (e.originalComponent == this) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
-                           Section::NumSections
-                       ? juce::MouseCursor::PointingHandCursor
-                       : juce::MouseCursor::ParentCursor);
-  }
-}
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
-
-void NoiseStrip::reportHover(const juce::MouseEvent &e) {
-  const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-  const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
-
-  // -1 says the pointer is off the harmonic series, so no LINK preview.
-  const auto row = inside ? ChannelStrip::rowUnder(rows, p) : kNoRow;
-  hover.hoverChanged(-1, ownRow(row) ? kNoRow : row);
-
-  if (inside != hovered) {
-    hovered = inside;
-    repaint();
-  }
-}
-
-void NoiseStrip::paintOverChildren(juce::Graphics &g) {
-  // A heading's wash goes over the children, since the activity lamps fill
-  // their rows with an opaque backdrop.
-  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted) &&
-      !ownRow(highlighted)) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    paintRowHighlight(g, rows[rowIndex(highlighted)]);
-  }
-
-  if (hovered)
-    paintColumnHighlight(g, getLocalBounds());
-}
-
-void NoiseStrip::setHighlightedRow(Row row) {
-  if (row == highlighted)
-    return;
-
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-
-  repaintRowHighlight(*this, rows, highlighted);
-  highlighted = row;
-  repaintRowHighlight(*this, rows, highlighted);
-}
 
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
@@ -413,17 +272,10 @@ void NoiseStrip::paint(juce::Graphics &g) {
 }
 
 void NoiseStrip::updateLevelReadout() {
-  const auto v = (float)volume.getValue();
-
-  // See ChannelStrip::updateLevelReadout.
-  if (params::isSilentGain(v))
-    return levelReadout.setReading("-inF", true);
-
-  const auto db = params::levelDecibels(v);
-
-  levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
+  levelReadout.setReading(levelReading((float)volume.getValue()), true);
 }
+
+bool NoiseStrip::isOwnRow(Row r) const { return ownRow(r); }
 
 void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
                              float keyGain, float pressure,
