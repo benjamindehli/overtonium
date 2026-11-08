@@ -461,13 +461,7 @@ void Voice::render(float *left, float *right, int numSamples,
   const double wanderScale =
       kVcoWanderCents * std::sqrt(3.0 * (2.0 - wanderPole) / wanderPole);
 
-  // The characters whose noise the engine adds from every note's power at
-  // once. See SynthEngine::renderHiss.
-  const bool hiss = p.global.character == Character::Fm ||
-                    p.global.character == Character::Pd ||
-                    p.global.character == Character::Sid ||
-                    p.global.character == Character::Vco ||
-                    p.global.character == Character::Combo;
+  const bool hiss = hasSynthHiss(p.global.character);
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, like every other

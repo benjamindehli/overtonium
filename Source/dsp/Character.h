@@ -81,6 +81,34 @@ inline const char *characterName(Character c) {
   return "Pure";
 }
 
+/// Whether a character carries the hiss of the synthesizer it was recorded
+/// from, which the engine adds from every note's power at once. See
+/// SynthEngine::renderHiss.
+inline bool hasSynthHiss(Character c) noexcept {
+  switch (c) {
+  case Character::Fm:
+  case Character::Pd:
+  case Character::Sid:
+  case Character::Vco:
+  case Character::Combo:
+    return true;
+
+  // Listed rather than left to a default, so adding a character is a compiler
+  // error here until it has been decided.
+  case Character::Pure:
+  case Character::Bulb:
+  case Character::Rail:
+  case Character::Diode:
+  case Character::Valve:
+  case Character::Opamp:
+  case Character::Wheel:
+  case Character::NumCharacters:
+    break;
+  }
+
+  return false;
+}
+
 /// How hard each unit's circuit is driven, as a multiple of the nominal.
 ///
 /// Three variants rather than one per channel, since the drive is baked into a
