@@ -71,6 +71,10 @@ protected:
   /// menu is about to take the pointer away.
   void clearHover();
 
+  /// The colour of the column's background at a height, for a meter or a
+  /// lamp that paints an opaque backdrop.
+  juce::Colour backdropAt(int y) const;
+
   /// The level a fader's gain reads as, -inF at the bottom.
   static juce::String levelReading(float gain);
 

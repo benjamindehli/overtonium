@@ -428,22 +428,12 @@ void NoiseStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      return top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-    };
-
-    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
+    meter.setBackdrop(backdropAt(meter.getY()), backdropAt(meter.getBottom()));
 
     const auto place = [&](ActivityLamp &lamp, Row row) {
       const auto r = rows[rowIndex(row)];
       lamp.setBounds(r);
-      lamp.setBackdrop(at(r.getCentreY()));
+      lamp.setBackdrop(backdropAt(r.getCentreY()));
     };
 
     place(envLamp, Row::EnvHeading);
@@ -451,7 +441,7 @@ void NoiseStrip::resized() {
     place(tremoloLamp, Row::AmpModHeading);
     // One slot for the three rows under it, as on a numbered channel.
     outputLamp.setBounds(rows[rowIndex(Row::OutputHeading)]);
-    outputLamp.setBackdrop(at(outputLamp.getBounds().getCentreY()));
+    outputLamp.setBackdrop(backdropAt(outputLamp.getBounds().getCentreY()));
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

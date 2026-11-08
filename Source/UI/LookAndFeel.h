@@ -136,6 +136,11 @@ juce::Font makeFont(float height, bool bold = false);
 void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                             juce::Colour base);
 
+/// The colour that background has at height `y` of `height`, leaving out
+/// the grain and the shade, for a control that paints an opaque backdrop to
+/// match it.
+juce::Colour channelBackgroundAt(juce::Colour base, int y, int height);
+
 /// The same, through the component's look and feel when it is this
 /// plugin's, so the picture it keeps is used.
 void paintChannelBackground(juce::Component &, juce::Graphics &,

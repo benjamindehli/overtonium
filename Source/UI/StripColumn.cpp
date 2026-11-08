@@ -162,6 +162,10 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
   repaint();
 }
 
+juce::Colour StripColumn::backdropAt(int y) const {
+  return channelBackgroundAt(colours::channel, y, getHeight());
+}
+
 juce::String StripColumn::levelReading(float gain) {
   // A fader all the way down reads -inF. Everything above counts down to
   // params::kQuietestLevelDb, which is as far as the cells reach.

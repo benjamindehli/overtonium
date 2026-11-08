@@ -121,13 +121,25 @@ void OvertoniumLookAndFeel::drawChannelBackground(juce::Graphics &g,
   g.drawImage(picture, bounds.toFloat());
 }
 
+namespace {
+/// The ends of a channel's gradient, lighter at the top.
+juce::Colour backgroundTop(juce::Colour base) { return base.brighter(0.10f); }
+juce::Colour backgroundBottom(juce::Colour base) { return base.darker(0.06f); }
+} // namespace
+
+juce::Colour channelBackgroundAt(juce::Colour base, int y, int height) {
+  return backgroundTop(base).interpolatedWith(
+      backgroundBottom(base),
+      juce::jlimit(0.0f, 1.0f, (float)y / (float)juce::jmax(1, height)));
+}
+
 void paintChannelBackground(juce::Graphics &g, juce::Rectangle<int> bounds,
                             juce::Colour base) {
   const auto r = bounds.toFloat();
 
-  g.setGradientFill(juce::ColourGradient(base.brighter(0.10f), r.getX(),
-                                         r.getY(), base.darker(0.06f), r.getX(),
-                                         r.getBottom(), false));
+  g.setGradientFill(juce::ColourGradient(backgroundTop(base), r.getX(),
+                                         r.getY(), backgroundBottom(base),
+                                         r.getX(), r.getBottom(), false));
   g.fillRect(r);
 
   // The header casts onto the top of every channel.

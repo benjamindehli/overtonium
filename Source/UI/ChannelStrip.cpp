@@ -1718,21 +1718,7 @@ void ChannelStrip::resized() {
 
   // The strip's background is a gradient, so the meter is told the colours
   // at its own edges.
-  {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      auto shade = top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-
-      return shade;
-    };
-
-    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
-  }
+  meter.setBackdrop(backdropAt(meter.getY()), backdropAt(meter.getBottom()));
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
@@ -1751,22 +1737,10 @@ void ChannelStrip::resized() {
   // The lamps stand on the rules that divide the strip into groups, each at
   // the head of the group it reports on.
   {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      auto shade = top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-
-      return shade;
-    };
-
     const auto place = [&](juce::Component &lamp, Row row) {
       const auto r = rows[rowIndex(row)];
       lamp.setBounds(r);
-      return at(r.getCentreY());
+      return backdropAt(r.getCentreY());
     };
 
     pitchLamp.setBackdrop(place(pitchLamp, Row::PitchModHeading));
