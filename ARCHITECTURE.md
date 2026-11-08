@@ -14,6 +14,8 @@ There are three layers, and the boundary between the first two is the important 
 
 The output stage is not in this repository. The eight machines at the end of the signal chain, with Console and Cassette among them, and the small filters the effects share, are in [dehli-musikk-plugin-core](https://github.com/benjamindehli/dehli-musikk-plugin-core), the library the Dehli Musikk plugins share. It is plain C++17 with no dependencies, so the DSP core still compiles from a bare compiler with it. CMakeLists.txt pins it by commit and checks the archive's hash, as it does JUCE.
 
+The look is shared the same way. The look and feel, the knobs, the lamp buttons, the segment readouts, the meters, the paint cache, the grain and the palette are in the library's `dm_gui` JUCE module, which each plugin compiles with its own JUCE settings. `Source/UI/Theme.h` brings them into `ovt::ui` under the names the editor uses.
+
 ## Threading
 
 There are two threads, and neither waits for the other.
@@ -34,7 +36,6 @@ packaging/
   windows/            Inno Setup script for the installer .exe
 Resources/
   logo.png            the overtonium wordmark, compiled into the binary
-  dehli-musikk.svg    the maker's logo, vector since it is drawn small
   icon.png            the standalone build's program icon, 1024 square
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
@@ -76,12 +77,11 @@ Source/
   PluginEditor.*      window, zoom, LINK, gutter
   UpdateCheck.*       the opt-in check for a new version, in the background,
                       and the settings file its answer is kept in
-  UI/                 theme, look and feel, channel and noise strips, top bar,
-                      the Playing and Tuning bars, the Settings lists both
-                      share, macro panel
+  UI/                 Overtonium's colours, rows and layout, channel and noise
+                      strips, top bar, the Playing and Tuning bars, the
+                      Settings lists both share, macro panel
     Notice.*          the in-window dialog the update question and a new
                       release are shown in
-    PaintCache.h      the last two looks of a control, kept as pictures
     StripColumn.*     what the channel strips and the noise strip share: rows,
                       scroll, folding, hover, the drawn fader and solo dimming
 Tests/
