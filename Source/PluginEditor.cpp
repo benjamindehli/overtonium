@@ -338,7 +338,8 @@ void RowGutter::mouseExit(const juce::MouseEvent &) {
 void RowGutter::paintHeaderBand(juce::Graphics &g) {
   // The header holds the tool button, which sits in front of this cap. See
   // resized.
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   // The right-edge divider too, so the cap does not cover the top of it.
   g.setColour(colours::outline);
@@ -346,7 +347,8 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
 }
 
 void RowGutter::paint(juce::Graphics &g) {
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
