@@ -279,6 +279,16 @@ private:
   /// And for the resonator.
   void chooseResonator(int id);
 
+  /// Shows a machine with an on switch and a type on its button: the short
+  /// name lit in the machine's colour, or OFF.
+  static void showMachine(juce::Button &, const juce::String &label,
+                          bool running, const juce::String &name,
+                          const juce::String &shortName, juce::Colour colour);
+
+  /// Opens a menu below a button on the bar and hands back what was picked.
+  void showMenuUnder(juce::Button &, juce::PopupMenu,
+                     std::function<void(int)> chosen);
+
 public:
 private:
   /// Puts up the preset menu.
