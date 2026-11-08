@@ -59,37 +59,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The hosted runners reach apt through an Azure mirror that intermittently
-      # stops answering. Apt's own default is to wait on it for a very long
-      # time and then fall back, which turns a mirror having a bad afternoon
-      # into a job that sits for hours instead of failing. Short timeouts and a
-      # few retries make it either work or give up quickly enough to re-run.
+      # xvfb is for pluginval rather than the build. It opens the editor, and
+      # the runner has no display for one to open on. gdb prints where a crash
+      # in it happened.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 10
-        run: |
-          sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
-          Acquire::Retries "3";
-          Acquire::http::Timeout "20";
-          Acquire::https::Timeout "20";
-          CONF
-
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
-
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          # xvfb is for pluginval rather than the build. It opens the editor,
-          # and the runner has no display for one to open on.
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev xvfb gdb
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb gdb
 
       # Warnings are errors, which is now the default in CMakeLists and asked
       # for here anyway. The flag is what this job needs rather than what the
@@ -393,21 +371,7 @@ jobs:
 
       - name: Install Linux dependencies
         timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
-
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev
+        uses: ./.github/actions/linux-deps
 
       # The tests only. The plugin targets are not built here: nothing runs
       # them, and a sanitized VST3 is not something anyone should load.
@@ -481,21 +445,9 @@ jobs:
 
       - name: Install Linux dependencies
         timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
-
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev xvfb
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb
 
       # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
       # which covers the two test programs. JUCE compiles into the plugin, so

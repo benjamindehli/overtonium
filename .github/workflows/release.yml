@@ -85,33 +85,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # Same treatment as the build workflow: the hosted runners reach apt
-      # through a mirror that intermittently stops answering, and apt's own
-      # defaults wait on it far longer than anyone wants to watch.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 10
-        run: |
-          sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
-          Acquire::Retries "3";
-          Acquire::http::Timeout "20";
-          Acquire::https::Timeout "20";
-          CONF
-
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
-
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev
+        uses: ./.github/actions/linux-deps
 
       # No architecture override here, unlike the build workflow. That one
       # builds for the runner's own architecture to keep every push quick.
