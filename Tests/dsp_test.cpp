@@ -83,6 +83,28 @@ double binMagnitude(const std::vector<float> &x, double freq,
   return std::sqrt(re * re + im * im) / norm;
 }
 
+/// The amplitude of one frequency between two samples, through a Hann window
+/// over just that stretch, so a sine at full scale reads one. Each sample is
+/// measured at its place in the whole buffer, so stretches can be compared by
+/// phase as well.
+double levelBetween(const std::vector<float> &x, size_t from, size_t to,
+                    double hz, double sr) {
+  constexpr double kTwoPi = 6.283185307179586;
+  double re = 0.0, im = 0.0, norm = 0.0;
+
+  for (size_t n = from; n < to && n < x.size(); ++n) {
+    const auto w =
+        0.5 *
+        (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
+
+    re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
+    im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
+    norm += w;
+  }
+
+  return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+}
+
 /// Mean magnitude across a band. A single bin of noise varies wildly, so a
 /// spectral claim about noise needs many bins averaged.
 double bandMagnitude(const std::vector<float> &x, double lowHz, double highHz,
@@ -10932,21 +10954,9 @@ void testDigitalEcho() {
     return s;
   };
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   const auto through = [&](float age, float time, float feedback) {
@@ -11128,21 +11138,9 @@ void testBucketEcho() {
     return s;
   };
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   const auto through = [&](float age, float time, double freq) {
@@ -12064,20 +12062,8 @@ void testBusDrive() {
 
   /// Amplitude at one frequency, windowed, since the question is always whether
   /// a partial is present and how loud.
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = 0; n < x.size(); ++n) {
-      const auto win =
-          0.5 * (1.0 - std::cos(kTwoPi * (double)n / (double)x.size()));
-      const auto t = kTwoPi * hz * (double)n / sr;
-
-      re += win * (double)x[n] * std::cos(t);
-      im -= win * (double)x[n] * std::sin(t);
-      norm += win;
-    }
-
-    return 2.0 * std::hypot(re, im) / norm;
+  const auto levelAt = [sr](const std::vector<float> &x, double hz) {
+    return levelBetween(x, 0, x.size(), hz, sr);
   };
 
   const auto through = [kTwoPi, sr, kSettle,
@@ -12620,21 +12606,9 @@ void testFirstRepeatIsAlreadyWorn() {
   constexpr double sr = 48000.0;
   constexpr double kTwoPi = 6.283185307179586;
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   TapeEcho echo;
