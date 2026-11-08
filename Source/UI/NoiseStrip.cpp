@@ -272,8 +272,11 @@ void NoiseStrip::paint(juce::Graphics &g) {
 }
 
 void NoiseStrip::updateLevelReadout() {
-  levelReadout.setReading(levelReading((float)volume.getValue()), true);
+  // Dark while another channel's solo silences this one, as a channel's is.
+  levelReadout.setReading(levelReading((float)volume.getValue()), !silenced);
 }
+
+void NoiseStrip::silenceChanged() { updateLevelReadout(); }
 
 bool NoiseStrip::isOwnRow(Row r) const { return ownRow(r); }
 

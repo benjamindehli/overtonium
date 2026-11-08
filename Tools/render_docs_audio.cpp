@@ -231,6 +231,15 @@ int main(int argc, char **argv) {
 
   const juce::File dir{juce::String(argc > 1 ? argv[1] : ".")};
 
+  // Made if it is not there, so a fresh folder can be named, and a file that
+  // cannot be written fails the run rather than leaving the last copy behind.
+  if (!dir.createDirectory()) {
+    std::printf("cannot create %s\n", dir.getFullPathName().toRawUTF8());
+    return 1;
+  }
+
+  int failed = 0;
+
   juce::OggVorbisAudioFormat ogg;
   juce::FlacAudioFormat flac;
 
@@ -249,14 +258,18 @@ int main(int argc, char **argv) {
                 20.0 * std::log10(juce::jmax(1.0e-9, rms)),
                 buffer.getNumSamples() / kRate);
 
-    if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5))
+    if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5)) {
       std::printf("    ogg FAILED\n");
+      ++failed;
+    }
 
     // The fallback is lossless, since it is the file the page links to for
     // anyone who cannot play either. Level 8 is the slowest encoder setting,
     // which costs nothing for files rendered once.
-    if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8))
+    if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8)) {
       std::printf("    flac FAILED\n");
+      ++failed;
+    }
   };
 
   // ---- TUNE, at each end and then across the whole of it --------------------
@@ -432,6 +445,11 @@ int main(int argc, char **argv) {
                         ovt::params::oscParamId(ovt::params::driftSuffix, i),
                         drift);
                 }));
+  }
+
+  if (failed > 0) {
+    std::printf("%d files could not be written\n", failed);
+    return 1;
   }
 
   return 0;
