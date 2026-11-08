@@ -5,6 +5,7 @@
 #include <cmath>
 
 #include "Character.h"
+#include "Filters.h"
 #include "Halfband.h"
 
 namespace ovt {
@@ -216,15 +217,9 @@ private:
   static constexpr double kFlat = 1.0e-9;
 
   static double processSample(const Curve &k, double x, double &last) noexcept {
-    const auto dx = x - last;
-
-    const auto y = std::abs(dx) < kFlat
-                       ? shape(k, 0.5 * (x + last))
-                       : (integral(k, x) - integral(k, last)) / dx;
-
-    last = x;
-
-    return y;
+    return antialiased(
+        x, last, kFlat, [&k](double v) { return shape(k, v); },
+        [&k](double v) { return integral(k, v); });
   }
 
   /// How much the filter that brings the curve back down lifts the top, to

@@ -2,6 +2,7 @@
 
 #include <vector>
 
+#include "Echo.h"
 #include "Params.h"
 
 namespace ovt {
@@ -18,7 +19,7 @@ namespace ovt {
 /// the repeat is an exact copy.
 class DigitalEcho {
 public:
-  static constexpr float kMaxTimeSeconds = 2.0f;
+  static constexpr float kMaxTimeSeconds = echo::kMaxTimeSeconds;
 
   void prepare(double sampleRate);
   void reset() noexcept;

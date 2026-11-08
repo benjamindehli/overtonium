@@ -1,111 +1,18 @@
 #include "Cassette.h"
+#include "Filters.h"
 
 #include <algorithm>
-#include <complex>
 
 namespace ovt {
 
 namespace {
-constexpr double kPi = 3.14159265358979323846;
-
-/// A corner frequency in radians per second, prewarped so the digital
-/// filter's corner lands where the analogue one's was.
-double warped(double hz, double sampleRate) noexcept {
-  const double nyquistSafe = std::min(hz, 0.45 * sampleRate);
-  return 2.0 * sampleRate * std::tan(kPi * nyquistSafe / sampleRate);
-}
+using filters::kPi;
+using filters::warped;
 
 /// Decibels to a gain.
 double db(double x) noexcept { return std::pow(10.0, x / 20.0); }
 
-/// A peaking section, the analogue prototype's response at w0 by the bilinear
-/// transform, as the cookbook gives it.
-void peaking(double hz, double gainDb, double q, double sampleRate, double &b0,
-             double &b1, double &b2, double &a1, double &a2) noexcept {
-  const double w = 2.0 * kPi * std::min(hz, 0.45 * sampleRate) / sampleRate;
-  const double a = std::pow(10.0, gainDb / 40.0);
-  const double alpha = std::sin(w) / (2.0 * q);
-  const double cosw = std::cos(w);
-  const double a0 = 1.0 + alpha / a;
-
-  b0 = (1.0 + alpha * a) / a0;
-  b1 = -2.0 * cosw / a0;
-  b2 = (1.0 - alpha * a) / a0;
-  a1 = -2.0 * cosw / a0;
-  a2 = (1.0 - alpha / a) / a0;
-}
-
-/// A second order low pass, as the cookbook gives it.
-void lowPass(double hz, double q, double sampleRate, double &b0, double &b1,
-             double &b2, double &a1, double &a2) noexcept {
-  const double w = 2.0 * kPi * std::min(hz, 0.45 * sampleRate) / sampleRate;
-  const double alpha = std::sin(w) / (2.0 * q);
-  const double cosw = std::cos(w);
-  const double a0 = 1.0 + alpha;
-
-  b0 = (1.0 - cosw) / 2.0 / a0;
-  b1 = (1.0 - cosw) / a0;
-  b2 = (1.0 - cosw) / 2.0 / a0;
-  a1 = -2.0 * cosw / a0;
-  a2 = (1.0 - alpha) / a0;
-}
-
-/// A band pass whose peak is one, and its noise bandwidth in hertz, which is
-/// what sizes the white noise through it to a wanted rms.
-double bandPass(double lowHz, double highHz, double sampleRate, double &b0,
-                double &b1, double &b2, double &a1, double &a2) noexcept {
-  const double centre = std::sqrt(lowHz * highHz);
-  const double q = centre / (highHz - lowHz);
-  const double w = 2.0 * kPi * centre / sampleRate;
-  const double alpha = std::sin(w) / (2.0 * q);
-  const double cosw = std::cos(w);
-  const double a0 = 1.0 + alpha;
-
-  b0 = alpha / a0;
-  b1 = 0.0;
-  b2 = -alpha / a0;
-  a1 = -2.0 * cosw / a0;
-  a2 = (1.0 - alpha) / a0;
-
-  return 0.5 * kPi * centre / q;
-}
-
-/// A biquad's gain at a frequency.
-template <typename Section>
-double magnitudeAt(const Section &s, double hz, double sampleRate) noexcept {
-  const std::complex<double> z1 = std::polar(1.0, -2.0 * kPi * hz / sampleRate);
-
-  return std::abs((s.b0 + s.b1 * z1 + s.b2 * z1 * z1) /
-                  (1.0 + s.a1 * z1 + s.a2 * z1 * z1));
-}
 } // namespace
-
-void Cassette::FirstOrder::design(double c1, double c0, double d1, double d0,
-                                  double k) noexcept {
-  const double norm = d1 * k + d0;
-
-  b0 = (c1 * k + c0) / norm;
-  b1 = (c0 - c1 * k) / norm;
-  a1 = (d0 - d1 * k) / norm;
-}
-
-double Cassette::FirstOrder::run(double x) noexcept {
-  const double y = b0 * x + b1 * x1 - a1 * y1;
-
-  x1 = x;
-  y1 = y;
-
-  return y;
-}
-
-double Cassette::Biquad::run(double x) noexcept {
-  const double y = b0 * x + z1;
-
-  z1 = b1 * x - a1 * y + z2;
-  z2 = b2 * x - a2 * y;
-
-  return y;
-}
 
 double Cassette::Follower::run(double x, double attackCoef, double fastCoef,
                                double slowCoef) noexcept {
@@ -183,10 +90,8 @@ void Cassette::prepare(double rate) {
     c.preHigh.design(highG / highW, 1.0, 1.0 / highW, 1.0, k);
     c.postHigh.design(1.0 / highW, 1.0, highG / highW, 1.0, k);
 
-    peaking(kBumpHz, kBumpDb, kBumpQ, sr, c.bump.b0, c.bump.b1, c.bump.b2,
-            c.bump.a1, c.bump.a2);
-    lowPass(kGapHz, kGapQ, sr, c.gap.b0, c.gap.b1, c.gap.b2, c.gap.a1,
-            c.gap.a2);
+    filters::peaking(c.bump, kBumpHz, kBumpDb, kBumpQ, sr);
+    filters::lowPass(c.gap, kGapHz, kGapQ, sr);
     c.top.design(0.0, topW, 1.0, topW, k);
     c.riseBand.design(1.0, 0.0, 1.0, riseW, k);
     c.riseTop.design(0.0, topW, 1.0, topW, k);
@@ -203,9 +108,9 @@ void Cassette::prepare(double rate) {
 
   for (size_t b = 0; b < kFlutterBands.size(); ++b) {
     auto &f = flutterBands[b];
-    const double bandwidth = bandPass(
-        kFlutterBands[b].lowHz, std::min(kFlutterBands[b].highHz, 0.45 * sr),
-        sr, f.b0, f.b1, f.b2, f.a1, f.a2);
+    const double bandwidth =
+        filters::bandPass(f, kFlutterBands[b].lowHz,
+                          std::min(kFlutterBands[b].highHz, 0.45 * sr), sr);
 
     flutterBandScale[b] =
         kFlutterBands[b].rms * std::sqrt(3.0 * (sr / 2.0) / bandwidth);
@@ -213,8 +118,7 @@ void Cassette::prepare(double rate) {
 
   {
     const double bandwidth =
-        bandPass(kWobbleHz / 1.6, kWobbleHz * 1.6, sr, wobble.b0, wobble.b1,
-                 wobble.b2, wobble.a1, wobble.a2);
+        filters::bandPass(wobble, kWobbleHz / 1.6, kWobbleHz * 1.6, sr);
     wobbleScale = kWobbleDb * std::sqrt(3.0 * (sr / 2.0) / bandwidth);
   }
 
@@ -242,12 +146,10 @@ void Cassette::prepare(double rate) {
   // back out. The record equaliser and its inverse cancel, and Dolby at a
   // quiet level is left as it is, since the way it mistracks is the sound.
   const auto &c = channels[0];
-  const std::complex<double> z1 = std::polar(1.0, -2.0 * kPi * 1000.0 / sr);
-  const double top =
-      std::abs((c.top.b0 + c.top.b1 * z1) / (1.0 + c.top.a1 * z1));
 
-  trim = 1.0 / (magnitudeAt(c.bump, 1000.0, sr) *
-                magnitudeAt(c.gap, 1000.0, sr) * top);
+  trim = 1.0 / (filters::magnitudeAt(c.bump, 1000.0, sr) *
+                filters::magnitudeAt(c.gap, 1000.0, sr) *
+                filters::magnitudeAt(c.top, 1000.0, sr));
 
   reset();
 }
@@ -343,13 +245,9 @@ double Cassette::clip(Channel &c, double u) const noexcept {
   // signal would act as a low pass on it.
   const auto lost = [this](double v) { return clipCurve(v) - v; };
 
-  const double step = u - c.lastClip;
   const double taken =
-      std::abs(step) < 1.0e-7
-          ? lost(0.5 * (u + c.lastClip))
-          : (lostIntegral(u) - lostIntegral(c.lastClip)) / step;
-
-  c.lastClip = u;
+      antialiased(u, c.lastClip, 1.0e-7, lost,
+                  [this](double v) { return lostIntegral(v); });
 
   return u + taken;
 }

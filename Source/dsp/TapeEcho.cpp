@@ -1,4 +1,6 @@
 #include "TapeEcho.h"
+#include "DelayLine.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -33,10 +35,10 @@ inline float worn(float x, float age) noexcept {
   return x + age * (lean(x, 0.6f) - x);
 }
 
-/// One-pole coefficient for a given cutoff.
-inline float onePole(float cutoffHz, double sampleRate) noexcept {
-  const auto f = std::clamp((double)cutoffHz, 10.0, sampleRate * 0.45);
-  return (float)std::exp(-kTwoPi * f / sampleRate);
+/// A one-pole coefficient for a cutoff that may come from a knob.
+inline float clampedPole(float cutoffHz, double sampleRate) noexcept {
+  return onePole(std::clamp((double)cutoffHz, 10.0, sampleRate * 0.45),
+                 sampleRate);
 }
 } // namespace
 
@@ -78,29 +80,7 @@ float TapeEcho::Head::wander(float delaySamples, float age,
 }
 
 float TapeEcho::Head::read(float delaySamples) const noexcept {
-  const auto length = (int)buffer.size();
-
-  if (length <= 1)
-    return 0.0f;
-
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(length - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  // Reading backwards from the write head, blending the two taps either side
-  // of the fractional position.
-  auto index = write - whole;
-  while (index < 0)
-    index += length;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += length;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
 void TapeEcho::prepare(double newSampleRate) {
@@ -140,19 +120,7 @@ void TapeEcho::reset() noexcept {
 }
 
 float TapeEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.type != EchoType::Tape || p.mix <= 0.0f)
-    return 0.0f;
-
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-
-  if (feedback < 0.01f)
-    return p.timeSeconds;
-
-  // How many passes it takes to fall 60 dB, which is where a repeat stops
-  // being audible under anything else.
-  const auto passes = std::log(0.001f) / std::log(feedback);
-
-  return std::min(30.0f, p.timeSeconds * passes);
+  return echo::tailSeconds(p, EchoType::Tape);
 }
 
 void TapeEcho::process(float *outL, float *outR, int numSamples,
@@ -171,27 +139,20 @@ void TapeEcho::process(float *outL, float *outR, int numSamples,
 
   wasEnabled = true;
 
-  const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto age = std::clamp(p.age, 0.0f, 1.0f);
-
-  const auto targetDelay =
-      (float)(std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds) * sampleRate);
+  const auto s = echo::settingsFor(p, sampleRate);
+  const auto mix = s.mix, feedback = s.feedback, age = s.age;
+  const auto targetDelay = s.targetDelay, glide = s.glide;
 
   if (smoothedDelay < 0.0f)
     smoothedDelay = targetDelay;
-
-  // ~90 ms to wind to a new head distance. Fast enough to feel like a knob,
-  // slow enough that the pitch slide is the point rather than a glitch.
-  const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // The repeats darken from the top and thin from the bottom. A new machine
   // keeps nearly everything, a worn one hands back very little. This filter is
   // almost all of what wear does to a repeat.
   const auto brightness = 1.0f - age;
   const auto toneHz = 900.0f + brightness * brightness * 14000.0f;
-  const auto lpCoef = onePole(toneHz, sampleRate);
-  const auto hpCoef = onePole(90.0f, sampleRate);
+  const auto lpCoef = clampedPole(toneHz, sampleRate);
+  const auto hpCoef = clampedPole(90.0f, sampleRate);
 
   for (int n = 0; n < numSamples; ++n) {
     smoothedDelay = targetDelay + (smoothedDelay - targetDelay) * glide;

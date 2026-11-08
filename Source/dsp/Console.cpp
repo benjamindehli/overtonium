@@ -1,19 +1,13 @@
 #include "Console.h"
+#include "Filters.h"
 
 #include <algorithm>
-#include <complex>
 
 namespace ovt {
 
 namespace {
-constexpr double kPi = 3.14159265358979323846;
-
-/// A corner frequency in radians per second, prewarped so the digital
-/// filter's corner lands where the analogue one's was.
-double warped(double hz, double sampleRate) noexcept {
-  const double nyquistSafe = std::min(hz, 0.45 * sampleRate);
-  return 2.0 * sampleRate * std::tan(kPi * nyquistSafe / sampleRate);
-}
+using filters::kPi;
+using filters::warped;
 
 /// The gain the compressor takes off, in dB, for a level in dB: nothing below
 /// the knee, the ratio above it, and a quadratic across it.
@@ -33,33 +27,6 @@ double staticReduction(double levelDb) noexcept {
   return slope * into * into / (2.0 * kCompKneeDb);
 }
 } // namespace
-
-void Console::FirstOrder::design(double c1, double c0, double d1, double d0,
-                                 double k) noexcept {
-  const double norm = d1 * k + d0;
-
-  b0 = (c1 * k + c0) / norm;
-  b1 = (c0 - c1 * k) / norm;
-  a1 = (d0 - d1 * k) / norm;
-}
-
-double Console::FirstOrder::run(double x) noexcept {
-  const double y = b0 * x + b1 * x1 - a1 * y1;
-
-  x1 = x;
-  y1 = y;
-
-  return y;
-}
-
-double Console::Biquad::run(double x) noexcept {
-  const double y = b0 * x + z1;
-
-  z1 = b1 * x - a1 * y + z2;
-  z2 = b2 * x - a2 * y;
-
-  return y;
-}
 
 void Console::prepare(double sampleRate) noexcept {
   using namespace console;
@@ -86,18 +53,7 @@ void Console::prepare(double sampleRate) noexcept {
 
   // The sidechain's high-pass, a Butterworth pair.
   Biquad hp;
-  {
-    const double w = 2.0 * kPi * std::min(kCompSidechainHz, 0.45 * sr) / sr;
-    const double alpha = std::sin(w) / (2.0 * std::sqrt(0.5));
-    const double cosw = std::cos(w);
-    const double a0 = 1.0 + alpha;
-
-    hp.b0 = (1.0 + cosw) / 2.0 / a0;
-    hp.b1 = -(1.0 + cosw) / a0;
-    hp.b2 = (1.0 + cosw) / 2.0 / a0;
-    hp.a1 = -2.0 * cosw / a0;
-    hp.a2 = (1.0 - alpha) / a0;
-  }
+  filters::highPass(hp, kCompSidechainHz, std::sqrt(0.5), sr);
 
   for (auto &c : channels) {
     // A high shelf: one in the lows, shelfG in the highs.
@@ -113,8 +69,7 @@ void Console::prepare(double sampleRate) noexcept {
   // Unity at a quiet 1 kHz tone: the linear filters on the signal's own path,
   // read at 1 kHz and divided back out.
   const auto at = [sr](const FirstOrder &f) {
-    const std::complex<double> z1 = std::polar(1.0, -2.0 * kPi * 1000.0 / sr);
-    return std::abs((f.b0 + f.b1 * z1) / (1.0 + f.a1 * z1));
+    return filters::magnitudeAt(f, 1000.0, sr);
   };
 
   const auto &c = channels[0];
@@ -169,13 +124,7 @@ double Console::tape(Channel &c, double x) const noexcept {
     return a > 0.0 ? 0.5 * a * a : 0.0;
   };
 
-  const double step = q - c.lastTape;
-  const double clipped =
-      std::abs(step) < 1.0e-9
-          ? past(0.5 * (q + c.lastTape))
-          : (pastIntegral(q) - pastIntegral(c.lastTape)) / step;
-
-  c.lastTape = q;
+  const double clipped = antialiased(q, c.lastTape, 1.0e-9, past, pastIntegral);
 
   return c.coupling.run(c.bump.run(x - kTapeShare * clipped));
 }

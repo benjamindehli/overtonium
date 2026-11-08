@@ -1,4 +1,5 @@
 #include "PlateReverb.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -76,9 +77,6 @@ inline int scaled(int length, double sampleRate) {
                   (int)std::lround((double)length * sampleRate / kDesignRate));
 }
 
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
 } // namespace
 
 void PlateReverb::Line::resize(int length) {

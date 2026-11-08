@@ -3,6 +3,8 @@
 #include <array>
 #include <cmath>
 
+#include "Filters.h"
+
 namespace ovt {
 
 /// A console's mix bus, measured: its transformer, its bus compressor and a
@@ -76,26 +78,8 @@ public:
   void process(float &left, float &right) noexcept;
 
 private:
-  /// One first-order section, from an analogue prototype by the bilinear
-  /// transform with its corner prewarped.
-  struct FirstOrder {
-    double b0 = 1.0, b1 = 0.0, a1 = 0.0;
-    double x1 = 0.0, y1 = 0.0;
-
-    /// (c1 s + c0) / (d1 s + d0), with s in radians per second.
-    void design(double c1, double c0, double d1, double d0, double k) noexcept;
-    double run(double x) noexcept;
-    void clear() noexcept { x1 = y1 = 0.0; }
-  };
-
-  /// One second-order section, for the sidechain's high-pass.
-  struct Biquad {
-    double b0 = 1.0, b1 = 0.0, b2 = 0.0, a1 = 0.0, a2 = 0.0;
-    double z1 = 0.0, z2 = 0.0;
-
-    double run(double x) noexcept;
-    void clear() noexcept { z1 = z2 = 0.0; }
-  };
+  using FirstOrder = filters::FirstOrder;
+  using Biquad = filters::Biquad;
 
   struct Channel {
     double flux = 0.0; ///< the transformer's input through its one pole

@@ -1,4 +1,5 @@
 #include "Wobble.h"
+#include "DelayLine.h"
 
 #include <algorithm>
 #include <cmath>
@@ -64,27 +65,9 @@ void Wobble::reset() noexcept {
 
 float Wobble::read(const std::vector<float> &line, int at,
                    float delaySamples) const noexcept {
-  if (length <= 2)
-    return 0.0f;
-
   // Zero is allowed and reads back the sample just written, which is what lets
   // the control leave zero from a cleared line without a gap.
-  const auto clamped = std::clamp(delaySamples, 0.0f, (float)(length - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  auto index = at - whole;
-  while (index < 0)
-    index += length;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += length;
-
-  const auto a = line[(size_t)index];
-  const auto b = line[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(line, at, delaySamples, 0.0f);
 }
 
 void Wobble::process(float *left, float *right, int numSamples,

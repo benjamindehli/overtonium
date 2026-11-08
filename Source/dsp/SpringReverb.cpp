@@ -1,4 +1,5 @@
 #include "SpringReverb.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -6,8 +7,6 @@
 namespace ovt {
 
 namespace {
-constexpr double kTwoPi = 6.283185307179586;
-
 /// How long a wave takes to cross each spring, in seconds. The lengths share no
 /// small ratio so the three trains of repeats never land together.
 constexpr double kTransits[] = {0.0291, 0.0330, 0.0371};
@@ -49,9 +48,6 @@ constexpr float kPickupHz = 5000.0f;
 constexpr float kOpenHz = 10000.0f;
 constexpr float kClosedHz = 900.0f;
 
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
 } // namespace
 
 void SpringReverb::Spring::resize(int transitSamples, int sections,

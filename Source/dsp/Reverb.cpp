@@ -1,4 +1,6 @@
 #include "Reverb.h"
+#include "DelayLine.h"
+#include "Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -8,8 +10,6 @@
 namespace ovt {
 
 namespace {
-constexpr float kTwoPi = 6.283185307179586f;
-
 /// Nominal line lengths in milliseconds. Deliberately not in any simple ratio:
 /// lengths that share factors put their echoes on top of one another, which is
 /// what a flutter is.
@@ -38,9 +38,10 @@ constexpr float kLowCutHz = 175.0f;
 /// Sets the wet level so that mix at 1 is about as loud as the dry signal.
 constexpr float kOutputScale = 1.0f;
 
-inline float onePole(float cutoffHz, double sampleRate) noexcept {
-  const auto f = std::clamp((double)cutoffHz, 5.0, sampleRate * 0.45);
-  return (float)std::exp(-kTwoPi * f / sampleRate);
+/// A one-pole coefficient for a cutoff that may come from a knob.
+inline float clampedPole(float cutoffHz, double sampleRate) noexcept {
+  return onePole(std::clamp((double)cutoffHz, 5.0, sampleRate * 0.45),
+                 sampleRate);
 }
 } // namespace
 
@@ -59,23 +60,7 @@ void Reverb::Line::clear() noexcept {
 }
 
 float Reverb::Line::read(float delaySamples) const noexcept {
-  const auto size = (int)buffer.size();
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(size - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  auto index = write - whole;
-  while (index < 0)
-    index += size;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += size;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
 void Reverb::Line::push(float x) noexcept {
@@ -201,8 +186,8 @@ void Reverb::process(float *outL, float *outR, int numSamples,
   // which is the difference between a plate and a room full of curtains.
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
   const auto dampHz = 800.0f + (1.0f - damping) * (1.0f - damping) * 15000.0f;
-  const auto dampCoef = onePole(dampHz, sampleRate);
-  const auto lowCutCoef = onePole(kLowCutHz, sampleRate);
+  const auto dampCoef = clampedPole(dampHz, sampleRate);
+  const auto lowCutCoef = clampedPole(kLowCutHz, sampleRate);
 
   const auto preDelaySamples =
       std::clamp((float)(p.preDelaySeconds * sampleRate), 1.0f,
