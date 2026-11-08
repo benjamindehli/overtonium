@@ -63,7 +63,7 @@ float shapeFold(float x) noexcept {
 }
 } // namespace
 
-void OutputStage::prepare(double sampleRate) noexcept {
+void OutputStage::prepare(double sampleRate) {
   rate = std::max(1.0, sampleRate);
 
   fullDelay = lookaheadSamples(rate);

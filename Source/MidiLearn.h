@@ -52,7 +52,7 @@ public:
     }
   }
 
-  /// What a reserved controller is already doing, for the menu.
+  /// What a reserved controller is already doing, in the words the docs use.
   static const char *reservedFor(int controller) noexcept;
 
   // ---- the message thread's side -----------------------------------------

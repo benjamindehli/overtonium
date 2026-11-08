@@ -227,7 +227,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
 }
 
 bool OvertoniumProcessor::mpeIsOn() const noexcept {
-  return paramCache.mpe != nullptr && paramCache.mpe->load() > 0.5f;
+  return paramCache.mpe->load() > 0.5f;
 }
 
 void OvertoniumProcessor::setMpeEnabled(bool on) {
@@ -249,9 +249,7 @@ void OvertoniumProcessor::setMpeEnabled(bool on) {
   // layout messages may replace. The master bend range follows the BEND knob,
   // and the per-note range is the 48 semitones the specification asks for.
   const auto masterRange =
-      paramCache.bendRange != nullptr
-          ? juce::jlimit(1, 96, (int)std::lround(paramCache.bendRange->load()))
-          : 2;
+      juce::jlimit(1, 96, (int)std::lround(paramCache.bendRange->load()));
 
   juce::MPEZoneLayout layout;
   layout.setLowerZone(15, 48, masterRange);
@@ -357,12 +355,9 @@ double OvertoniumProcessor::getTailLengthSeconds() const {
 void OvertoniumProcessor::updateAftertouch() {
   using ovt::params::AftertouchSource;
 
-  const auto source =
-      paramCache.atSource != nullptr
-          ? (AftertouchSource)juce::jlimit(
-                0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
-                (int)std::lround(paramCache.atSource->load()))
-          : AftertouchSource::Either;
+  const auto source = (AftertouchSource)juce::jlimit(
+      0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
+      (int)std::lround(paramCache.atSource->load()));
 
   switch (source) {
   case AftertouchSource::ChannelPressure:
@@ -497,9 +492,7 @@ uint32_t OvertoniumProcessor::sustainedZoneChannels() const noexcept {
 
 void OvertoniumProcessor::publishPlaying() noexcept {
   const auto held = engine.heldExpression();
-  const auto range = paramCache.bendRange != nullptr
-                         ? juce::jmax(1.0f, paramCache.bendRange->load())
-                         : 2.0f;
+  const auto range = juce::jmax(1.0f, paramCache.bendRange->load());
 
   // The meter shows the furthest bend, whether from the wheel or one MPE note.
   auto bend = pitchBendNormalised;
@@ -573,10 +566,8 @@ void OvertoniumProcessor::timerCallback() {
 }
 
 int OvertoniumProcessor::latencyAtThisRate() const {
-  const auto *ahead = apvts.getRawParameterValue(ovt::params::lookaheadId);
-
   return ovt::BusDrive::kLatency +
-         (ahead == nullptr || ahead->load() > 0.5f
+         (paramCache.lookahead->load() > 0.5f
               ? ovt::OutputStage::lookaheadSamples(hostRate)
               : 0);
 }

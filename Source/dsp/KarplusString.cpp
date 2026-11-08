@@ -28,7 +28,7 @@ std::size_t nextPowerOfTwo(std::size_t n) {
 }
 } // namespace
 
-void KarplusString::prepare(double newSampleRate, double lowestHz) noexcept {
+void KarplusString::prepare(double newSampleRate, double lowestHz) {
   sampleRate = std::max(1.0, newSampleRate);
   lowest = std::max(1.0, lowestHz);
 

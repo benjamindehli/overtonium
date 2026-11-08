@@ -1,7 +1,5 @@
 #include "Voice.h"
 
-#include <type_traits>
-
 #include <algorithm>
 
 #include "Character.h"
@@ -73,7 +71,7 @@ void Voice::setRenderRate(double newSampleRate) noexcept {
       1.0f - (float)std::exp(-6.283185307179586 * kNoiseTiltHz / sampleRate);
 }
 
-void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
+void Voice::prepare(double newSampleRate, uint32_t seed) {
   // Sized for the host's rate, the fastest the voice is ever run at, before
   // the render rate is set. See KarplusString::setRate.
   noise.string.prepare(newSampleRate);

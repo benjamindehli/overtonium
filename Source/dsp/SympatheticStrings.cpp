@@ -18,7 +18,7 @@ constexpr float kQuiet = 1.0e-6f;
 double equalHz(int key) { return 440.0 * std::exp2((double)(key - 69) / 12.0); }
 } // namespace
 
-void SympatheticStrings::prepare(double sampleRate) noexcept {
+void SympatheticStrings::prepare(double sampleRate) {
   rate = sampleRate;
 
   // Each long enough for its own note pulled down as far as any temperament,

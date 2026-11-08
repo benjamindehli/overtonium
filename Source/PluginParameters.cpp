@@ -629,6 +629,9 @@ juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
 juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
 juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
 
+namespace {
+/// The shape a stored index means, clamped so an index from a later build
+/// stays in range.
 LfoShape pitchShapeAt(int index) {
   return kPitchShapes[(size_t)juce::jlimit(0, (int)kPitchShapes.size() - 1,
                                            index)];
@@ -637,6 +640,7 @@ LfoShape pitchShapeAt(int index) {
 LfoShape ampShapeAt(int index) {
   return kAmpShapes[(size_t)juce::jlimit(0, (int)kAmpShapes.size() - 1, index)];
 }
+} // namespace
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
@@ -1257,7 +1261,25 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     cached.scope = apvts.getRawParameterValue(macroScopeId(m));
     cached.curve = apvts.getRawParameterValue(macroCurveId(m));
     cached.anchor = apvts.getRawParameterValue(macroAnchorId(m));
+
+    jassert(cached.amount != nullptr && cached.row != nullptr &&
+            cached.scope != nullptr && cached.curve != nullptr &&
+            cached.anchor != nullptr);
   }
+
+  // Every pointer comes from the layout, so a missing one is a typo in an id,
+  // and snapshot reads them without checking.
+  jassert(masterGain != nullptr && polyphony != nullptr &&
+          oneVoicePerKey != nullptr && pmInPhase != nullptr &&
+          amInPhase != nullptr && glideTrigger != nullptr &&
+          glideMode != nullptr && velocityCurve != nullptr &&
+          legato != nullptr && adaptiveRetune != nullptr &&
+          adaptiveSeventh != nullptr && adaptiveHome != nullptr &&
+          bendRange != nullptr && phaseReset != nullptr && stretch != nullptr &&
+          atSource != nullptr && slideDest != nullptr && track != nullptr &&
+          character != nullptr && wobble != nullptr && temperament != nullptr &&
+          tuningRoot != nullptr && referenceHz != nullptr &&
+          safetyClip != nullptr && lookahead != nullptr);
 
   // Read once here rather than per block, since a row's range cannot change.
   for (int r = 0; r < kNumMacroRows; ++r) {
@@ -1294,7 +1316,9 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   resonator.decay = apvts.getRawParameterValue(resonatorDecayId);
   resonator.damp = apvts.getRawParameterValue(resonatorDampId);
 
-  jassert(echo.on != nullptr && reverb.on != nullptr &&
+  jassert(mpe != nullptr && lofiRate != nullptr && lofiBits != nullptr &&
+          clipType != nullptr && echo.on != nullptr && echo.type != nullptr &&
+          reverb.on != nullptr && reverb.type != nullptr &&
           resonator.mode != nullptr && resonator.damp != nullptr);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
@@ -1359,12 +1383,15 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
           noise.stringPoint != nullptr);
 }
 
+namespace {
+/// A MIDI key's name, middle C (60) being C4.
 juce::String keyName(int key) {
   const auto k = juce::jlimit(0, 127, key);
 
   return juce::String(kPitchClassNames[(size_t)(k % 12)]) +
          juce::String(k / 12 - 1);
 }
+} // namespace
 
 juce::String keyboardText(float amount, int) {
   const auto tilt = keyboardTilt(amount);
@@ -1590,10 +1617,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // a macro does.
   for (int m = 0; m < kNumMacros; ++m) {
     const auto &cached = macro[(size_t)m];
-
-    if (cached.amount == nullptr)
-      continue;
-
     const auto amount = cached.amount->load();
 
     // The common case, and it has to cost nothing.
@@ -1618,9 +1641,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     // Numbered from one on the panel, counted from zero here.
     const auto anchor = juce::jlimit(
-        0, kNumHarmonics - 1,
-        cached.anchor == nullptr ? 0
-                                 : (int)std::lround(cached.anchor->load()) - 1);
+        0, kNumHarmonics - 1, (int)std::lround(cached.anchor->load()) - 1);
 
     const auto &range = rowRange[(size_t)(row - 1)];
 
@@ -1684,9 +1705,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   {
     const auto pick = [](const std::atomic<float> *p, int count) {
-      return p == nullptr
-                 ? 0
-                 : juce::jlimit(0, count - 1, (int)std::lround(p->load()));
+      return juce::jlimit(0, count - 1, (int)std::lround(p->load()));
     };
 
     out.global.temperament =
@@ -1710,16 +1729,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
-  // A null pointer means a state without the switch, which always had the
-  // lookahead.
-  out.global.lookahead = lookahead == nullptr || lookahead->load() > 0.5f;
-
-  // A patch without a type reads zero, the soft clipper.
-  out.global.clipType =
-      clipType == nullptr
-          ? ClipType::Soft
-          : (ClipType)juce::jlimit(0, (int)ClipType::NumTypes - 1,
-                                   (int)std::lround(clipType->load()));
+  out.global.lookahead = lookahead->load() > 0.5f;
+  out.global.clipType = (ClipType)juce::jlimit(
+      0, (int)ClipType::NumTypes - 1, (int)std::lround(clipType->load()));
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;
@@ -1743,12 +1755,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.echo.enabled = echo.on->load() > 0.5f;
 
-  // A patch without a type reads zero, the tape echo.
-  out.echo.type =
-      echo.type == nullptr
-          ? EchoType::Tape
-          : (EchoType)juce::jlimit(0, (int)EchoType::NumTypes - 1,
-                                   (int)std::lround(echo.type->load()));
+  out.echo.type = (EchoType)juce::jlimit(0, (int)EchoType::NumTypes - 1,
+                                         (int)std::lround(echo.type->load()));
   out.echo.mix = echo.mix->load();
   out.echo.timeSeconds = echo.time->load();
   out.echo.feedback = echo.feedback->load();
@@ -1756,11 +1764,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.reverb.enabled = reverb.on->load() > 0.5f;
 
-  out.reverb.type =
-      reverb.type == nullptr
-          ? ReverbType::Room
-          : (ReverbType)juce::jlimit(0, (int)ReverbType::NumTypes - 1,
-                                     (int)std::lround(reverb.type->load()));
+  out.reverb.type = (ReverbType)juce::jlimit(
+      0, (int)ReverbType::NumTypes - 1, (int)std::lround(reverb.type->load()));
   out.reverb.mix = reverb.mix->load();
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();

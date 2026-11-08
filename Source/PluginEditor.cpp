@@ -631,10 +631,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     showLearnMenu(id);
   };
 
-  macroPanel.onDismiss = [this] {
-    macroPanel.setVisible(false);
-    topBar.setMacrosOn(false);
-  };
+  macroPanel.onDismiss = [this] { macroPanel.setVisible(false); };
 
   topBar.onMacrosClicked = [this] { showMacroPanel(!macroPanel.isVisible()); };
 
@@ -915,8 +912,6 @@ void OvertoniumEditor::resized() {
                       .reduced(kStripPadX, kStripPadY),
                   collapsedSections);
 
-  stripLayoutArea = juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
-                        .reduced(kStripPadX, kStripPadY);
   scrollRange = bands.maxScroll;
   scrollBandHeight = bands.middle.getHeight();
 
@@ -1639,7 +1634,6 @@ void OvertoniumEditor::showMacroPanel(bool show) {
 
   macroPanel.setVisible(show);
   macroPanel.toFront(false);
-  topBar.setMacrosOn(show);
 
   // A question still waiting stays in front of it.
   if (notice.isShowing())

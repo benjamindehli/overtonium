@@ -5564,7 +5564,7 @@ void testMeterRepaint() {
   }
 }
 
-/// The LINK menu as data: its sections and items, the ticks, what choosing an
+/// The tool menu as data: its sections and items, the ticks, what choosing an
 /// item does, and how the curve is saved.
 void testLinkMenu() {
   section("Link menu");
@@ -5572,11 +5572,10 @@ void testLinkMenu() {
   using namespace ovt::ui;
 
   LinkSettings settings;
-  settings.enabled = false;
   settings.scope = LinkScope::Odd;
   settings.curve = LinkCurve::Taper;
 
-  auto menu = buildLinkMenu(settings);
+  auto menu = buildToolMenu(PointerTool::Pointer, settings);
 
   int items = 0, headers = 0, ticked = 0, enabled = 0;
   std::string tickedNames;
@@ -5603,26 +5602,27 @@ void testLinkMenu() {
       ++enabled;
   }
 
-  check(headers == 2, "the menu is in two named sections");
-  // The switch, the scopes, clearing the selection and the curves.
-  check(items == 1 + (int)LinkScope::NumScopes + 1 + (int)LinkCurve::NumCurves,
-        "the switch, every scope, clearing the selection and every curve are "
+  check(headers == 3, "the menu is in three named sections");
+  // The tools, the scopes, clearing the selection and the curves.
+  check(items == (int)PointerTool::NumTools + (int)LinkScope::NumScopes + 1 +
+                     (int)LinkCurve::NumCurves,
+        "every tool, every scope, clearing the selection and every curve are "
         "all there (" +
             std::to_string(items) + ")");
 
-  // Exactly the two current settings are ticked, and nothing else.
-  check(ticked == 2, "two items are ticked");
-  check(tickedNames == "Odd harmonics Taper from the grab ",
+  // The tool and the two current settings are ticked, and nothing else.
+  check(ticked == 3, "three items are ticked");
+  check(tickedNames == "Pointer Odd harmonics Taper from the grab ",
         "and they are the current ones: " + tickedNames);
 
-  // With LINK off the lists are shown but greyed, so the menu does not change
-  // shape as the switch moves.
-  check(enabled == 1, "with LINK off only the switch itself can be picked");
+  // Under another tool LINK's lists are shown but greyed, so the menu does
+  // not change shape as the tool changes.
+  check(enabled == (int)PointerTool::NumTools,
+        "under the pointer only the tools can be picked");
 
-  settings.enabled = true;
   settings.hasSelection = true;
   int enabledOn = 0;
-  auto onMenu = buildLinkMenu(settings);
+  auto onMenu = buildToolMenu(PointerTool::Link, settings);
 
   for (juce::PopupMenu::MenuItemIterator it(onMenu); it.next();)
     if (it.getItem().itemID != 0 && it.getItem().isEnabled &&
@@ -5630,7 +5630,7 @@ void testLinkMenu() {
       ++enabledOn;
 
   check(enabledOn == items,
-        "with LINK on and a selection made, every item can be picked");
+        "under LINK with a selection made, every item can be picked");
 
   check(isClearSelectionChoice(2) && !isClearSelectionChoice(1) &&
             !applyLinkMenuChoice(2, settings),
@@ -5642,11 +5642,6 @@ void testLinkMenu() {
 
   check(!applyLinkMenuChoice(0, state), "dismissing the menu changes nothing");
   check(!applyLinkMenuChoice(9999, state), "an id from elsewhere is ignored");
-
-  check(applyLinkMenuChoice(1, state) && state.enabled,
-        "the first item is the switch");
-  check(applyLinkMenuChoice(1, state) && !state.enabled,
-        "and it toggles rather than setting");
 
   // Every scope and every curve has to come back as itself, which is what the
   // two id ranges are for.

@@ -75,7 +75,7 @@ float BucketEcho::Line::read(float delaySamples) const noexcept {
   return a + (b - a) * frac;
 }
 
-void BucketEcho::prepare(double newSampleRate) noexcept {
+void BucketEcho::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   // Room for the longest setting and for the clock to wander past it.

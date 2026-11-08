@@ -595,11 +595,6 @@ void TopBar::setBarsOpen(bool playing, bool tuning) {
   tuningButton.setToggleState(tuning, juce::dontSendNotification);
 }
 
-void TopBar::setMacrosOn(bool on) {
-  // The lamp says whether any macros are made, not whether the panel is up.
-  juce::ignoreUnused(on);
-}
-
 void TopBar::setMacroCount(int made) {
   if (made == macrosMade)
     return;

@@ -27,7 +27,7 @@ public:
 
   /// Sizes the line for the host's rate, long enough for `lowestHz`. The only
   /// place that allocates.
-  void prepare(double sampleRate, double lowestHz = kLowestHz) noexcept;
+  void prepare(double sampleRate, double lowestHz = kLowestHz);
 
   /// The rate it is actually being run at, which the converter can lower
   /// below the host's but never raise above it, so the line is always long

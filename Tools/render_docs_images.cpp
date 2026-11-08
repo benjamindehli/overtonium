@@ -8,8 +8,8 @@
 // The scale is a multiplier on the window and a real redraw rather than an
 // upscale, for artwork that needs the window larger than the page shows it. It
 // writes PNG, and CONTRIBUTING.md has the step that turns them into what the
-// pages load. DRIFT is random per voice, so the meters and the lamps differ
-// slightly from run to run.
+// pages load. Every voice is seeded the same way on each run, so the same
+// build draws the same pictures.
 
 #include <cmath>
 #include <cstdio>

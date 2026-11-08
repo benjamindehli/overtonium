@@ -2,8 +2,9 @@
 # often enough to be worth a pull request every week, and a bot that opens more
 # than it closes is a bot people stop reading.
 #
-# JUCE is not here. It is pinned as a git tag in CMakeLists.txt, which nothing
-# in this file can see, so moving it stays a deliberate act.
+# JUCE is not here. It is pinned in CMakeLists.txt as a commit archive with its
+# SHA-256, which nothing in this file can see, so moving it stays a deliberate
+# act.
 version: 2
 
 updates:

@@ -103,7 +103,7 @@ float TapeEcho::Head::read(float delaySamples) const noexcept {
   return a + (b - a) * frac;
 }
 
-void TapeEcho::prepare(double newSampleRate) noexcept {
+void TapeEcho::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   left.wowRateHz = kWowRateL;

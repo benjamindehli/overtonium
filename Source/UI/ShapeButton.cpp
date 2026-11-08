@@ -130,7 +130,7 @@ ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
 
   if (auto *param = apvts.getParameter(id))
     attachment = std::make_unique<juce::ParameterAttachment>(
-        *param, [this](float) { repaint(); }, apvts.undoManager);
+        *param, [this](float) { repaint(); });
 }
 
 int ShapeButton::selectedIndex() const {

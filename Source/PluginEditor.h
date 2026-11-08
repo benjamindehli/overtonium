@@ -418,9 +418,7 @@ private:
   int scrollY = 0;
   int scrollRange = 0;
 
-  /// The rectangle a column lays its rows in and the height of the band, both
-  /// recorded by resized() for scrollParameters.
-  juce::Rectangle<int> stripLayoutArea;
+  /// The height of the band, recorded by resized() for scrollParameters.
   int scrollBandHeight = 0;
 
   /// Whether the scroll is being driven by a drag on the bar itself, in which

@@ -204,7 +204,6 @@ const char *macroScopeName(int scope);
 /// snapshot and the window so the tint always matches what is driven.
 ///
 /// @param selected  the macro's own channels, which only Selected reads.
-/// @param selected  the macro's own channels, which only Selected reads.
 bool macroReaches(int scope, int index0, std::uint32_t selected = 0);
 
 /// This channel's share of a macro. Shared by the snapshot and the window so
@@ -253,11 +252,6 @@ inline const std::array<LfoShape, 7> kAmpShapes{
 /// What the menus call them. Indexed the same as the lists above.
 juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
-
-/// The shape a stored index means, clamped so an index from a later build
-/// stays in range.
-LfoShape pitchShapeAt(int index);
-LfoShape ampShapeAt(int index);
 
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
@@ -319,9 +313,6 @@ float defaultVolumeFor(int index0);
 /// @param delay,attack  this strip's own two rows, in seconds. At an amount of
 ///                      zero only the percentage comes back.
 juce::String strikeRangeText(float amount, float delay, float attack);
-
-/// A MIDI key's name, middle C (60) being C4.
-juce::String keyName(int key);
 
 /// What a KEYBOARD amount comes to: the slope and the key it starts from, as
 /// "6.0 dB/oct below C4", or "0 dB/oct" for none. The host gets it too.

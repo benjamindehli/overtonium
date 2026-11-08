@@ -60,7 +60,7 @@ float DigitalEcho::roughen(Side &s, float x, int hold, float levels) noexcept {
   return x;
 }
 
-void DigitalEcho::prepare(double newSampleRate) noexcept {
+void DigitalEcho::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
   bufferLength = (int)(kMaxTimeSeconds * sampleRate) + 4;
 

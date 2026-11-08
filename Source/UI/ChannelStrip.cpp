@@ -4,7 +4,6 @@
 #include <cmath>
 
 #include "../PluginParameters.h"
-#include "../dsp/Velocity.h"
 #include "LookAndFeel.h"
 
 namespace ovt::ui {
@@ -40,42 +39,6 @@ void LinkableSlider::paint(juce::Graphics &g) {
 
   looks.paint(g, *this, key,
               [this](juce::Graphics &into) { juce::Slider::paint(into); });
-}
-
-RelativeKnob::RelativeKnob() {
-  setSliderStyle(juce::Slider::RotaryVerticalDrag);
-  setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-
-  // Full travel in either direction covers the whole parameter range.
-  setRange(-1.0, 1.0, 0.0);
-  setValue(0.0, juce::dontSendNotification);
-  setDoubleClickReturnValue(false, 0.0);
-
-  // A relative gesture needs a start and an end to bracket it. The wheel has
-  // neither, so it would move the knob without moving anything else.
-  setScrollWheelEnabled(false);
-
-  // Tells the look and feel to draw the arc outwards from twelve o'clock.
-  getProperties().set("bipolar", true);
-
-  onValueChange = [this] {
-    if (onRelativeDelta)
-      onRelativeDelta((float)getValue());
-  };
-}
-
-void RelativeKnob::startedDragging() {
-  if (onRelativeStart)
-    onRelativeStart();
-}
-
-void RelativeKnob::stoppedDragging() {
-  if (onRelativeEnd)
-    onRelativeEnd();
-
-  // Spring back so the next drag starts from wherever the strips now sit.
-  setValue(0.0, juce::dontSendNotification);
-  repaint();
 }
 
 // =============================================================================

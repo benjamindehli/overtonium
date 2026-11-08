@@ -303,20 +303,11 @@ struct Bands {
   int faderHeight = 0;
 };
 
-/// What the scrolling band holds: every row but the header, with the fader at
-/// its ideal height.
-int middleContentHeight(SectionMask collapsed = 0);
-
 /// Divides a column into its two bands.
 ///
 /// At or above the preferred height every row is shown and the fader takes the
 /// slack. Below it the fader keeps its ideal height and the rows scroll.
 Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed = 0);
-
-/// Every offset the band can rest at: the top of each scrolling row, so
-/// nothing is left half under the pinned header.
-std::vector<int> scrollStopsFor(juce::Rectangle<int> area,
-                                SectionMask collapsed);
 
 /// The bounds of every row in a column, scrolled by `scroll` pixels.
 RowBounds layoutRows(juce::Rectangle<int> area, SectionMask collapsed = 0,
@@ -347,8 +338,8 @@ void mergeIntoRows(juce::Array<juce::Rectangle<int>> &regions);
 /// many, and one merged rectangle is nearly the whole mixer.
 void coalesceRegions(juce::Array<juce::Rectangle<int>> &regions, int limit);
 
-/// The height the folded rows are no longer taking, which is what the window
-/// shrinks by when a section is folded.
+/// The height the folded rows are no longer taking, which the fader gets
+/// instead.
 int collapsedRowsHeight(SectionMask collapsed);
 
 /// Total height a strip needs before the fader starts being squeezed,
@@ -463,12 +454,9 @@ struct LinkSettings {
   bool hasSelection = false;
 };
 
-/// The LINK menu, shared by the bar and the mixer's right-click, and built
-/// here so tests can check it without a window.
-juce::PopupMenu buildLinkMenu(const LinkSettings &);
-
 /// The tool menu: which of the three, and under a separator the settings
-/// belonging to whichever is chosen.
+/// belonging to whichever is chosen. Built here so tests can check it without
+/// a window.
 juce::PopupMenu buildToolMenu(PointerTool, const LinkSettings &);
 
 /// @return true when the id was a tool rather than one of LINK's settings,

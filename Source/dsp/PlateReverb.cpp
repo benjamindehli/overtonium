@@ -142,7 +142,7 @@ const PlateReverb::Line &PlateReverb::lineFor(const Branch &b,
   return b.secondDelay;
 }
 
-void PlateReverb::prepare(double newSampleRate) noexcept {
+void PlateReverb::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   preDelay.assign((size_t)(kMaxPreDelaySeconds * sampleRate) + 4, 0.0f);

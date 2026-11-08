@@ -89,8 +89,8 @@ public:
   /// Lights PLAYING and TUNING while their bars are open.
   void setBarsOpen(bool playing, bool tuning);
 
-  /// Lights MACROS while its panel is up, and says how many are made.
-  void setMacrosOn(bool);
+  /// Says how many macros are made. The lamp lights whenever any are, whether
+  /// or not the panel is up.
   void setMacroCount(int);
 
   void mouseDown(const juce::MouseEvent &) override;

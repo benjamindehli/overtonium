@@ -28,7 +28,7 @@ public:
   /// Longest the lines are ever cut, as a multiple of their nominal length.
   static constexpr float kMaxScale = 1.6f;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// Processes in place. Does not allocate.

@@ -66,7 +66,7 @@ public:
   static constexpr int stringOf(int key) noexcept { return key - kLowestKey; }
 
   /// Sizes every string for the host's rate. The only place that allocates.
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
 
   /// Silences them all.
   void reset() noexcept;
