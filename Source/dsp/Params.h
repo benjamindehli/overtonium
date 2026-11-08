@@ -1,6 +1,6 @@
 #pragma once
 
-#include "OutputStage.h"
+#include "dm/dsp/OutputStage.h"
 
 #include <array>
 
@@ -182,7 +182,7 @@ struct GlobalParams {
   bool lookahead = false;
 
   /// Which output stage type, when it is on.
-  ClipType clipType = ClipType::Soft;
+  dm::ClipType clipType = dm::ClipType::Soft;
   /// Whether striking a key that is already sounding takes over its voice
   /// rather than starting a second one. See SynthEngine::noteOnImpl.
   bool oneVoicePerKey = true;

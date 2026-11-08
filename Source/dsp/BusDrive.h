@@ -5,8 +5,8 @@
 #include <cmath>
 
 #include "Character.h"
-#include "Filters.h"
 #include "Halfband.h"
+#include "dm/dsp/Filters.h"
 
 namespace ovt {
 
@@ -217,7 +217,7 @@ private:
   static constexpr double kFlat = 1.0e-9;
 
   static double processSample(const Curve &k, double x, double &last) noexcept {
-    return antialiased(
+    return dm::antialiased(
         x, last, kFlat, [&k](double v) { return shape(k, v); },
         [&k](double v) { return integral(k, v); });
   }

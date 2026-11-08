@@ -1939,7 +1939,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   }
 
   // Always, because the stage delays whether or not it shapes, so its latency
-  // does not depend on this switch. See OutputStage::kLookaheadSeconds.
+  // does not depend on this switch. See dm::OutputStage::kLookaheadSeconds.
   outputStage.process(left, right, numSamples, p.global.clipType,
                       p.global.safetyClip, p.global.lookahead);
 

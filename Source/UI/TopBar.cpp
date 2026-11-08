@@ -776,7 +776,7 @@ void TopBar::showMenuUnder(juce::Button &button, juce::PopupMenu menu,
 
 juce::PopupMenu TopBar::buildClipMenu() {
   return machineMenu(apvts, params::safetyClipId, params::clipTypeId,
-                     namesOf(clipTypeName, (int)ClipType::NumTypes));
+                     namesOf(dm::clipTypeName, (int)dm::ClipType::NumTypes));
 }
 
 void TopBar::chooseClip(int id) {
@@ -1291,11 +1291,11 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   {
     const bool running = settings::isOn(apvts, params::safetyClipId);
     const auto which =
-        (ClipType)settings::choiceIndex(apvts, params::clipTypeId);
+        (dm::ClipType)settings::choiceIndex(apvts, params::clipTypeId);
 
     // Named after the caption on the bar.
-    showMachine(clipButton, "Clip", running, clipTypeName(which),
-                clipTypeShortName(which), clipColour(which));
+    showMachine(clipButton, "Clip", running, dm::clipTypeName(which),
+                dm::clipTypeShortName(which), clipColour(which));
   }
 
   // In capitals, like every other word on the bar.

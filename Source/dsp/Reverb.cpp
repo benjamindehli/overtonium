@@ -1,6 +1,6 @@
 #include "Reverb.h"
 #include "DelayLine.h"
-#include "Filters.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,8 +40,8 @@ constexpr float kOutputScale = 1.0f;
 
 /// A one-pole coefficient for a cutoff that may come from a knob.
 inline float clampedPole(float cutoffHz, double sampleRate) noexcept {
-  return onePole(std::clamp((double)cutoffHz, 5.0, sampleRate * 0.45),
-                 sampleRate);
+  return dm::onePole(std::clamp((double)cutoffHz, 5.0, sampleRate * 0.45),
+                     sampleRate);
 }
 } // namespace
 

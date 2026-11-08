@@ -8,9 +8,9 @@
 
 #include "../dsp/Character.h"
 #include "../dsp/Harmonics.h"
-#include "../dsp/OutputStage.h"
 #include "../dsp/Params.h"
 #include "PaintCache.h"
+#include "dm/dsp/OutputStage.h"
 
 namespace ovt::ui {
 
@@ -106,7 +106,7 @@ juce::Colour characterColour(Character);
 juce::Colour resonatorColour(ResonatorMode);
 juce::Colour echoColour(EchoType);
 juce::Colour reverbColour(ReverbType);
-juce::Colour clipColour(ClipType);
+juce::Colour clipColour(dm::ClipType);
 
 /// A switch drawn as a white plastic cap with a lamp behind it.
 ///

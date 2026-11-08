@@ -39,8 +39,8 @@
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
 #include "UpdateCheck.h"
+#include "dm/dsp/OutputStage.h"
 #include "dsp/Exact.h"
-#include "dsp/OutputStage.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -1608,7 +1608,7 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   // stage's lookahead is in the figure too and is paid on every clip type and
   // with the clipper off.
   const auto expected =
-      ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
+      ovt::BusDrive::kLatency + dm::OutputStage::lookaheadSamples(48000.0);
 
   check(idle == expected, "both stages' latency is reported (" +
                               std::to_string(idle) + " samples, expected " +
@@ -6880,11 +6880,11 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
 
     write(ovt::params::safetyClipId, 1.0f);
 
-    for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+    for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i) {
       write(ovt::params::clipTypeId, (float)i);
 
       auto menu = bar->buildClipMenu();
-      const std::string wanted = ovt::clipTypeName((ovt::ClipType)i);
+      const std::string wanted = dm::clipTypeName((dm::ClipType)i);
 
       check(tickedIn(menu) == wanted, "and names " + wanted +
                                           " when that is the shape running (" +
@@ -6934,10 +6934,9 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
       const auto room = (float)(clip->getWidth() - margin * 2);
 
       int tooWide = 0;
-      for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+      for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i) {
         const juce::String label =
-            juce::String(ovt::clipTypeShortName((ovt::ClipType)i))
-                .toUpperCase();
+            juce::String(dm::clipTypeShortName((dm::ClipType)i)).toUpperCase();
 
         const auto width = juce::GlyphArrangement::getStringWidth(font, label);
 
@@ -8326,9 +8325,9 @@ void testTheSafetyClipHoldsUnity() {
     // Every one of the eight. The limiter, and Console, Cassette and Print,
     // which end in it, keep the bound by seeing the peak coming, with a hard
     // clip behind it for whatever the window is too short to see.
-    for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
+    for (int type = 0; type < (int)dm::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
-          (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
+          (float)type / (float)((int)dm::ClipType::NumTypes - 1));
 
       juce::MidiBuffer chord;
       for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
@@ -8338,7 +8337,7 @@ void testTheSafetyClipHoldsUnity() {
           renderBlocks(fresh, (int)(1.0 * rate / 256.0) + 1, 256, chord);
 
       check(each.finite && each.peak <= 1.0f,
-            std::string(ovt::clipTypeName((ovt::ClipType)type)) +
+            std::string(dm::clipTypeName((dm::ClipType)type)) +
                 " stays inside unity at " + std::to_string((int)rate) +
                 " Hz (" + std::to_string(each.peak) + ")");
     }
@@ -13104,8 +13103,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
     for (int t = 0; t < (int)ovt::ReverbType::NumTypes; ++t)
       reverb.push_back(ovt::ui::reverbColour((ovt::ReverbType)t));
 
-    for (int t = 0; t < (int)ovt::ClipType::NumTypes; ++t)
-      clip.push_back(ovt::ui::clipColour((ovt::ClipType)t));
+    for (int t = 0; t < (int)dm::ClipType::NumTypes; ++t)
+      clip.push_back(ovt::ui::clipColour((dm::ClipType)t));
 
     beside = echo;
     beside.insert(beside.end(), reverb.begin(), reverb.end());

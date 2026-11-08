@@ -1,0 +1,99 @@
+name: Fetch a pinned dependency
+description: >
+  A dependency at the commit CMakeLists.txt pins, from the Actions cache, or
+  downloaded with retries and checked against the pinned SHA-256 when the cache
+  does not have it. Give CMake the path this outputs.
+
+inputs:
+  name:
+    description: >
+      The name given to FetchContent_Declare in CMakeLists.txt, JUCE or
+      dm_plugin_core.
+    required: true
+
+outputs:
+  path:
+    description: The source tree, in a form CMake reads on every platform.
+    value: ${{ steps.place.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    # The archive and its hash are read from the dependency's
+    # FetchContent_Declare block in CMakeLists.txt, so each pin stays in one
+    # place and an update needs no change here.
+    - name: Read the pin
+      id: pin
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+      run: |
+        block=$(awk -v name="$NAME" '
+          $0 ~ "FetchContent_Declare\\(" name "$" { inside = 1; next }
+          inside && $1 == "URL" { print "url " $2 }
+          inside && $1 == "URL_HASH" { sub(/^SHA256=/, "", $2); sub(/\)$/, "", $2); print "sha " $2; exit }
+        ' CMakeLists.txt)
+
+        url=$(echo "$block" | sed -n 's/^url \(https:[^ ]*\.tar\.gz\)$/\1/p')
+        sha=$(echo "$block" | sed -n 's/^sha \([0-9a-f]\{64\}\)$/\1/p')
+
+        if [ -z "$url" ] || [ -z "$sha" ]; then
+          echo "::error::cannot read the $NAME URL and hash from CMakeLists.txt"
+          exit 1
+        fi
+
+        echo "url=$url" >> "$GITHUB_OUTPUT"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+    - name: Restore from the cache
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/${{ inputs.name }}-${{ steps.pin.outputs.sha }}
+        key: ${{ inputs.name }}-${{ steps.pin.outputs.sha }}-${{ runner.os }}
+
+    # GitHub builds these archives on demand and its archive service answers
+    # with a 504 now and then. One retry, which is all CMake makes, is not
+    # enough, so this one keeps trying for a minute or so. Checked before it
+    # is unpacked, so a bad download never reaches the cache.
+    - name: Download
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        URL: ${{ steps.pin.outputs.url }}
+        SHA: ${{ steps.pin.outputs.sha }}
+      run: |
+        curl -sSL --fail --retry 6 --retry-all-errors --retry-delay 10 \
+          -o pinned.tar.gz "$URL"
+
+        if command -v sha256sum >/dev/null; then
+          actual=$(sha256sum pinned.tar.gz | cut -d ' ' -f 1)
+        else
+          actual=$(shasum -a 256 pinned.tar.gz | cut -d ' ' -f 1)
+        fi
+
+        if [ "$actual" != "$SHA" ]; then
+          echo "::error::$NAME archive has SHA-256 $actual, CMakeLists pins $SHA"
+          exit 1
+        fi
+
+        mkdir -p ~/"$NAME-$SHA"
+        tar -xzf pinned.tar.gz -C ~/"$NAME-$SHA" --strip-components=1
+        rm pinned.tar.gz
+
+    # Windows' bash gives /c/Users/... paths, which CMake there cannot read.
+    - name: Give the path
+      id: place
+      shell: bash
+      env:
+        NAME: ${{ inputs.name }}
+        SHA: ${{ steps.pin.outputs.sha }}
+      run: |
+        dir=~/"$NAME-$SHA"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          dir=$(cygpath -m "$dir")
+        fi
+
+        echo "path=$dir" >> "$GITHUB_OUTPUT"

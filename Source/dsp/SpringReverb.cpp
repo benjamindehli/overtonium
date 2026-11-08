@@ -1,5 +1,5 @@
 #include "SpringReverb.h"
-#include "Filters.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -128,9 +128,9 @@ void SpringReverb::process(float *outL, float *outR, int numSamples,
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
   // DAMP moves the loop corner geometrically, so it moves evenly in octaves.
   const auto darkCoef =
-      onePole(kOpenHz * std::pow(kClosedHz / kOpenHz, damping), sampleRate);
-  const auto rumbleCoef = onePole(kRumbleHz, sampleRate);
-  const auto pickupCoef = onePole(kPickupHz, sampleRate);
+      dm::onePole(kOpenHz * std::pow(kClosedHz / kOpenHz, damping), sampleRate);
+  const auto rumbleCoef = dm::onePole(kRumbleHz, sampleRate);
+  const auto pickupCoef = dm::onePole(kPickupHz, sampleRate);
 
   // Each spring loses the same proportion per second rather than per bounce,
   // so the tail keeps its colour as it fades. The loop length counts the

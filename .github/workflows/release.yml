@@ -92,7 +92,15 @@ jobs:
 
       - name: Fetch JUCE
         id: juce
-        uses: ./.github/actions/fetch-juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # No architecture override here, unlike the build workflow. That one
       # builds for the runner's own architecture to keep every push quick.
@@ -117,6 +125,7 @@ jobs:
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_BUILD_TOOLS=OFF
           -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
 
       - name: Build
         run: cmake --build build --config Release --parallel 2

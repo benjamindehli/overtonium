@@ -1,6 +1,6 @@
 #include "BucketEcho.h"
 #include "DelayLine.h"
-#include "Filters.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -119,8 +119,8 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
       std::clamp(kClockToneHz * (kClockRefSeconds / time), 420.0f, 12000.0f);
   const auto toneHz = clockTone * (1.0f - 0.5f * age);
 
-  const auto lpCoef = onePole(toneHz, sampleRate);
-  const auto hpCoef = onePole(70.0f, sampleRate);
+  const auto lpCoef = dm::onePole(toneHz, sampleRate);
+  const auto hpCoef = dm::onePole(70.0f, sampleRate);
 
   // How hard the line is driven. Inside the loop, so the dirt compounds along
   // the tail. The base sits below one so a new line passes the bus, which runs

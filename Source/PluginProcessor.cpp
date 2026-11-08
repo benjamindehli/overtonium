@@ -211,7 +211,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   // output stage's limiter lookahead. Both delay by the same amount whatever
   // the patch, so choosing a preset does not change the reported latency.
   // Only the Settings lookahead switch does. See BusDrive::kLatency,
-  // OutputStage::kLookaheadSeconds and reportLatency.
+  // dm::OutputStage::kLookaheadSeconds and reportLatency.
   hostRate = sampleRate;
   setLatencySamples(latencyAtThisRate());
 
@@ -568,7 +568,7 @@ void OvertoniumProcessor::timerCallback() {
 int OvertoniumProcessor::latencyAtThisRate() const {
   return ovt::BusDrive::kLatency +
          (paramCache.lookahead->load() > 0.5f
-              ? ovt::OutputStage::lookaheadSamples(hostRate)
+              ? dm::OutputStage::lookaheadSamples(hostRate)
               : 0);
 }
 

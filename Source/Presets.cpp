@@ -151,7 +151,7 @@ struct Applier {
     // -12 dB is the panel default.
     set(params::masterGainId, -12.0f);
     set(params::safetyClipId, 1.0f);
-    set(params::clipTypeId, (float)(int)ClipType::Soft);
+    set(params::clipTypeId, (float)(int)dm::ClipType::Soft);
 
     // Every macro at rest, pointing at None.
     for (int m = 0; m < params::kNumMacros; ++m) {
