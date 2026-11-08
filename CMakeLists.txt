@@ -61,8 +61,8 @@ endif()
 # ------------------------------------------------------------------------------------------
 include(FetchContent)
 FetchContent_Declare(dm_plugin_core
-    URL      https://github.com/benjamindehli/dehli-musikk-plugin-core/archive/4f57c1b0ba747dcf6c7a3d6d7011caefbe57625a.tar.gz
-    URL_HASH SHA256=c58e59dfa1e51f7685bd36428bfefbb654c8d0fcf6e5a9c2a7e53d2dea08555f)
+    URL      https://github.com/benjamindehli/dehli-musikk-plugin-core/archive/e51c8eb536f84d749e434082fb5452105141aa69.tar.gz
+    URL_HASH SHA256=a40881bdf7e10f8252d0334350427f653abc0637432e0f03acb87ab4c5a97a2f)
 FetchContent_MakeAvailable(dm_plugin_core)
 
 # ------------------------------------------------------------------------------------------
@@ -161,8 +161,7 @@ set(OVERTONIUM_SOURCES
 # plugin is loaded from wherever the host feels like putting it.
 juce_add_binary_data(OvertoniumResources
     SOURCES
-        Resources/logo.png
-        Resources/dehli-musikk.svg)
+        Resources/logo.png)
 
 target_sources(Overtonium PRIVATE ${OVERTONIUM_SOURCES})
 
@@ -228,6 +227,7 @@ target_link_libraries(Overtonium
     PRIVATE
         OvertoniumResources
         dm::plugin_core
+        dm::dm_gui
         juce::juce_audio_utils
     PUBLIC
         juce::juce_recommended_config_flags
@@ -377,6 +377,7 @@ function(overtonium_add_console target source)
         PRIVATE
             OvertoniumResources
             dm::plugin_core
+            dm::dm_gui
             juce::juce_audio_utils
             ${ARGN}
         PUBLIC

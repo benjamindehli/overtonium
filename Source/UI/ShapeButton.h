@@ -5,7 +5,7 @@
 
 #include "../PluginParameters.h"
 #include "../dsp/Lfo.h"
-#include "PaintCache.h"
+#include "Theme.h"
 
 namespace ovt::ui {
 
