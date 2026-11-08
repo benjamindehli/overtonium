@@ -106,6 +106,34 @@ int presetIndex(const juce::String &name) {
   return at;
 }
 
+/// The plugin's window, made as a host makes it.
+std::unique_ptr<OvertoniumEditor> openEditor(OvertoniumProcessor &p) {
+  return std::unique_ptr<OvertoniumEditor>(
+      dynamic_cast<OvertoniumEditor *>(p.createEditor()));
+}
+
+/// Every component of one kind under `root`, in the order they were added,
+/// each before the ones inside it.
+template <typename T> std::vector<T *> descendantsOf(juce::Component &root) {
+  std::vector<T *> found;
+
+  for (auto *child : root.getChildren()) {
+    if (auto *match = dynamic_cast<T *>(child))
+      found.push_back(match);
+
+    for (auto *inside : descendantsOf<T>(*child))
+      found.push_back(inside);
+  }
+
+  return found;
+}
+
+/// The first of them, or nullptr.
+template <typename T> T *firstOf(juce::Component &root) {
+  const auto all = descendantsOf<T>(root);
+  return all.empty() ? nullptr : all.front();
+}
+
 juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
   juce::MidiBuffer m;
   m.addEvent(juce::MidiMessage::noteOn(1, note, velocity), sample);
@@ -1811,8 +1839,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   // A control has to know which parameter it moves, and the menu has to offer
   // the item.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
 
@@ -1928,8 +1956,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   // reachable only if the macro panel is in the window and its fader carries
   // the same tag as every other control.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     if (editor != nullptr) {
       auto *amount =
@@ -2257,8 +2285,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
   // strips. Read off the control itself, since the look and feel draws whatever
   // colour it has been given.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
 
@@ -3344,8 +3372,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
   }
 
   // ---- holding still ------------------------------------------------------
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -3354,15 +3382,7 @@ void testActivityLamps(OvertoniumProcessor &p) {
   sizeEditor(*editor, 1348, 160);
 
   std::vector<ChannelStrip *> strips;
-  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ChannelStrip *>(child))
-        strips.push_back(s);
-
-      collect(*child);
-    }
-  };
-  collect(*editor);
+  strips = descendantsOf<ChannelStrip>(*editor);
 
   check(!strips.empty(), "the mixer has strips in it");
   if (strips.empty())
@@ -3563,8 +3583,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   }
 
   // ---- what the strips actually show --------------------------------------
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -3573,15 +3593,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   sizeEditor(*editor, 1348, 160);
 
   std::vector<SegmentDisplay *> displays;
-  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-        displays.push_back(d);
-
-      collect(*child);
-    }
-  };
-  collect(*editor);
+  displays = descendantsOf<SegmentDisplay>(*editor);
 
   // Three on the bar (the two converter readouts and the preset name), two on
   // each of the thirty-two channels, the level on the noise strip, and one per
@@ -3620,15 +3632,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
 
   std::vector<ChannelStrip *> strips;
-  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ChannelStrip *>(child))
-        strips.push_back(s);
-
-      gather(*child);
-    }
-  };
-  gather(*editor);
+  strips = descendantsOf<ChannelStrip>(*editor);
 
   check(!strips.empty(), "the mixer has strips in it");
   if (strips.empty())
@@ -3636,16 +3640,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
   // The readouts are the strip's own children, so they are found by walking
   // one strip rather than by being handed out.
-  std::vector<SegmentDisplay *> onFirst;
-  collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-        onFirst.push_back(d);
-
-      collect(*child);
-    }
-  };
-  collect(*strips.front());
+  const auto onFirst = descendantsOf<SegmentDisplay>(*strips.front());
 
   check(onFirst.size() == 2, "a channel carries two of them (" +
                                  std::to_string(onFirst.size()) + ")");
@@ -3774,15 +3769,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       param->setValueNotifyingHost(param->convertTo0to1(blend));
 
     std::vector<SegmentDisplay *> on;
-    std::function<void(juce::Component &)> walk = [&](juce::Component &c) {
-      for (auto *child : c.getChildren()) {
-        if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-          on.push_back(d);
-
-        walk(*child);
-      }
-    };
-    walk(*strips[(size_t)channel]);
+    on = descendantsOf<SegmentDisplay>(*strips[(size_t)channel]);
 
     return on.empty() ? juce::String() : on.front()->getReading();
   };
@@ -4099,8 +4086,8 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   using namespace ovt::ui;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -4110,17 +4097,7 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   ChannelStrip *strip = nullptr;
 
-  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (strip == nullptr)
-        if (auto *s = dynamic_cast<ChannelStrip *>(child))
-          strip = s;
-
-      findStrip(*child);
-    }
-  };
-
-  findStrip(*editor);
+  strip = firstOf<ChannelStrip>(*editor);
 
   check(strip != nullptr, "and has channel strips in it");
   if (strip == nullptr)
@@ -4247,8 +4224,8 @@ void testMuteSoloGang(OvertoniumProcessor &p) {
   using namespace ovt::ui;
   using LAF = OvertoniumLookAndFeel;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -4325,8 +4302,8 @@ void testChannelHover(OvertoniumProcessor &p) {
 
   using namespace ovt::ui;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -5921,8 +5898,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
   // session carried between them the way a host carries it.
   const auto reopenedOn = [&proc](PointerTool chosen) {
     {
-      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+      auto ed = openEditor(proc);
+      auto *editor = ed.get();
 
       if (editor == nullptr)
         return PointerTool::NumTools;
@@ -5935,8 +5912,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
     proc.getStateInformation(carried);
     proc.setStateInformation(carried.getData(), (int)carried.getSize());
 
-    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+    auto ed = openEditor(proc);
+    auto *editor = ed.get();
 
     if (editor == nullptr)
       return PointerTool::NumTools;
@@ -5968,8 +5945,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
   // callback, so choosing another tool afterwards has to write it again.
   {
     {
-      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+      auto ed = openEditor(proc);
+      auto *editor = ed.get();
 
       check(editor != nullptr, "a window opens to leave LINK's mark in");
 
@@ -5989,8 +5966,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
     proc.getStateInformation(carried);
     proc.setStateInformation(carried.getData(), (int)carried.getSize());
 
-    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+    auto ed = openEditor(proc);
+    auto *editor = ed.get();
 
     if (editor != nullptr) {
       sizeEditor(*editor, 1340);
@@ -6230,8 +6207,8 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
 void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
   section("The channels TUNE cannot move");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6239,15 +6216,7 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 
   std::vector<ovt::ui::ChannelStrip *> strips;
 
-  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
-        strips.push_back(s);
-
-      gather(*child);
-    }
-  };
-  gather(*editor);
+  strips = descendantsOf<ovt::ui::ChannelStrip>(*editor);
 
   check(strips.size() == (size_t)ovt::kNumHarmonics, "the mixer is all there");
   if (strips.size() != (size_t)ovt::kNumHarmonics)
@@ -6700,8 +6669,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
 void testFitAllChannels(OvertoniumProcessor &p) {
   section("Fitting the mixer back in");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6765,8 +6734,8 @@ void testFitAllChannels(OvertoniumProcessor &p) {
 void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
   section("The machine menus follow their parameters");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6981,8 +6950,8 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
 void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
   section("The Settings menu names the version");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7042,8 +7011,8 @@ void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
 void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   section("A wheel over a knob does not scroll the mixer");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7206,8 +7175,8 @@ void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(presetIndex("Init"));
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7685,8 +7654,8 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
 void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   section("The wheel scrolls the parameters");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7804,8 +7773,8 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
 void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
   section("A sideways wheel moves the mixer");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7891,8 +7860,8 @@ void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
 void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
   section("The gutter border is one line");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -8362,8 +8331,8 @@ void testTheSafetyClipHoldsUnity() {
 void testFittingShowsEveryRow(OvertoniumProcessor &p) {
   section("Fitting shows every row");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -8437,8 +8406,8 @@ void testFittingShowsEveryRow(OvertoniumProcessor &p) {
 void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
   section("Fitting lands where a drag can return");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -8499,8 +8468,8 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
 void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   section("Folding and unfolding leaves the window where it was");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -10592,8 +10561,8 @@ void testSegmentCells() {
 void testToolButtonShowsTheTool(OvertoniumProcessor &p) {
   section("The tool button shows the tool");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -10816,8 +10785,8 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
   section("LINK survives a reopen");
 
   const auto reopen = [&p]() {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
     auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
 
     return std::pair<std::unique_ptr<juce::AudioProcessorEditor>,
@@ -10899,8 +10868,8 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
 void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   section("Drawing the faders");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -11168,8 +11137,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   section("The zoom tick follows the zoom");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -11247,8 +11216,8 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   const auto leftHeight = editor->getHeight();
 
   base.reset();
-  base.reset(p.createEditor());
-  editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  base = openEditor(p);
+  editor = base.get();
 
   check(editor != nullptr, "the editor opens again");
   if (editor == nullptr)
@@ -11792,8 +11761,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
 void testKnobSizes(OvertoniumProcessor &p) {
   section("Knob sizes");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -12406,8 +12375,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
   const auto procOwner = std::make_unique<OvertoniumProcessor>();
   auto &proc = *procOwner;
 
-  std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+  auto ed = openEditor(proc);
+  auto *editor = ed.get();
 
   check(editor != nullptr, "a window opens for the host to save under");
 
@@ -12488,8 +12457,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
 
   ed.reset();
 
-  std::unique_ptr<juce::AudioProcessorEditor> reopened(proc.createEditor());
-  auto *second = dynamic_cast<OvertoniumEditor *>(reopened.get());
+  auto reopened = openEditor(proc);
+  auto *second = reopened.get();
 
   check(second != nullptr, "and a window opens again afterwards");
 
@@ -12834,8 +12803,8 @@ void testStandaloneWindow(OvertoniumProcessor &p) {
         "a window starts on whatever look and feel the application has");
 
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
     if (editor == nullptr)
@@ -12983,8 +12952,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
   // ---- and the panel says which it is --------------------------------------
   set(ovt::Character::Rail);
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
 
@@ -13475,8 +13444,8 @@ void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
 void testEveryControlIsNamed(OvertoniumProcessor &p) {
   section("Accessible names");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
