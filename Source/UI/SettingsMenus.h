@@ -57,10 +57,11 @@ int voiceCount(juce::AudioProcessorValueTreeState &);
 bool legatoOn(juce::AudioProcessorValueTreeState &);
 
 /// Whether a switch parameter is on.
-bool isOn(juce::AudioProcessorValueTreeState &, const char *id);
+bool isOn(const juce::AudioProcessorValueTreeState &, juce::StringRef id);
 
-/// The index of a choice parameter's current choice.
-int choiceIndex(juce::AudioProcessorValueTreeState &, const char *id);
+/// The index of a choice parameter's current choice, or of an integer
+/// parameter's value.
+int choiceIndex(const juce::AudioProcessorValueTreeState &, juce::StringRef id);
 
 /// Whether the root decides anything you can hear: under any temperament but
 /// equal, or with the resonator in Series or Fifths.

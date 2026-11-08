@@ -84,6 +84,8 @@ Source/
     Notice.*          the in-window dialog the update question and a new
                       release are shown in
     PaintCache.h      the last two looks of a control, kept as pictures
+    StripColumn.*     what the channel strips and the noise strip share: rows,
+                      scroll, folding, hover, the drawn fader and solo dimming
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests

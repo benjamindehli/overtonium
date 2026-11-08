@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "UI/LearnMenu.h"
+#include "UI/SettingsMenus.h"
 
 #include <cmath>
 
@@ -337,7 +338,8 @@ void RowGutter::mouseExit(const juce::MouseEvent &) {
 void RowGutter::paintHeaderBand(juce::Graphics &g) {
   // The header holds the tool button, which sits in front of this cap. See
   // resized.
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   // The right-edge divider too, so the cap does not cover the top of it.
   g.setColour(colours::outline);
@@ -345,7 +347,8 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
 }
 
 void RowGutter::paint(juce::Graphics &g) {
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
@@ -441,6 +444,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
       playingBar(p.apvts, *this), tuningBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
+  for (int i = 0; i < kNumHarmonics; ++i)
+    for (int r = 0; r < kNumRoles; ++r)
+      oscParams[(size_t)i][(size_t)r] =
+          p.apvts.getParameter(params::oscParamId(roleSuffix((Role)r), i));
+
   setLookAndFeel(&lookAndFeel);
 
   // The background is filled edge to edge.
@@ -1084,8 +1092,7 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
   if (sideways || e.mods.isShiftDown()) {
     if (viewport.useMouseWheelMoveIfNeeded(e, wheel))
       return;
-  } else if (scrollParameters(
-                 -juce::roundToInt(wheel.deltaY * 14.0f * 16.0f))) {
+  } else if (scrollParameters(ovt::ui::wheelPixels(wheel))) {
     return;
   }
 
@@ -1241,8 +1248,11 @@ void OvertoniumEditor::complain(const juce::String &title,
 
 juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
                                                            int index) const {
-  return plugin().apvts.getParameter(
-      params::oscParamId(roleSuffix(role), index));
+  if (!juce::isPositiveAndBelow(index, kNumHarmonics) ||
+      !juce::isPositiveAndBelow((int)role, kNumRoles))
+    return nullptr;
+
+  return oscParams[(size_t)index][(size_t)role];
 }
 
 bool OvertoniumEditor::drawStarted(juce::Point<int> onScreen) {
@@ -1486,11 +1496,7 @@ void OvertoniumEditor::chooseTool(ovt::ui::PointerTool which) {
 
 void OvertoniumEditor::followMacroTints() {
   const auto readInt = [this](const juce::String &id) {
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            plugin().apvts.getParameter(id)))
-      return (int)std::lround(p->convertFrom0to1(p->getValue()));
-
-    return 0;
+    return ovt::ui::settings::choiceIndex(plugin().apvts, id);
   };
 
   // The eight macros read once rather than per control. Not skipped when no
@@ -1651,7 +1657,8 @@ void OvertoniumEditor::showMacroMenu(int macro) {
   if (amount == nullptr || row == nullptr)
     return;
 
-  const bool made = std::lround(row->convertFrom0to1(row->getValue())) != 0;
+  const bool made = ovt::ui::settings::choiceIndex(
+                        plugin().apvts, ovt::params::macroRowId(macro)) != 0;
 
   auto m = PlayingBar::macroMenu(macro, made, plugin().midiLearn, amount);
   m.setLookAndFeel(&getLookAndFeel());

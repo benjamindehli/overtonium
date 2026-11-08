@@ -136,6 +136,7 @@ set(OVERTONIUM_SOURCES
     Source/UI/OptionBars.cpp
     Source/UI/SettingsMenus.cpp
     Source/UI/ShapeButton.cpp
+    Source/UI/StripColumn.cpp
     Source/UI/Theme.cpp
     Source/UI/TopBar.cpp)
 

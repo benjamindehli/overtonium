@@ -191,7 +191,8 @@ public:
   /// What a right-click on a macro knob offers: for a made macro, MIDI Learn
   /// for its amount and a way into MACROS to change it, and for one that is
   /// not, only a way to make it.
-  enum MacroMenuIds { kAssignMacro = 9101, kEditMacro = 9102 };
+  /// Clear of the glide items' 9100s and MIDI Learn's 9000s.
+  enum MacroMenuIds { kAssignMacro = 9201, kEditMacro = 9202 };
   static juce::PopupMenu macroMenu(int macro, bool made, const MidiLearn &,
                                    juce::RangedAudioParameter *amount);
 

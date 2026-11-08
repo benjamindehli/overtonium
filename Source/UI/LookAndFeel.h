@@ -45,6 +45,10 @@ public:
   /// cap is the same grey.
   static juce::Colour lampFace(juce::Colour lamp, bool on);
 
+  /// The colour a button's lamp lights: the colour it asked for as its face,
+  /// if any, otherwise its lit text colour, otherwise the accent.
+  static juce::Colour lampColourOf(const juce::Button &, juce::Colour fill);
+
   /// A rectangle on whole pixels, so a filled shape gets no row of partial
   /// coverage round its edge.
   static juce::Rectangle<float> snapToPixels(juce::Rectangle<float>);
@@ -131,6 +135,11 @@ juce::Font makeFont(float height, bool bold = false);
 /// darker right one and a band of shade along the top.
 void paintChannelBackground(juce::Graphics &, juce::Rectangle<int> bounds,
                             juce::Colour base);
+
+/// The colour that background has at height `y` of `height`, leaving out
+/// the grain and the shade, for a control that paints an opaque backdrop to
+/// match it.
+juce::Colour channelBackgroundAt(juce::Colour base, int y, int height);
 
 /// The same, through the component's look and feel when it is this
 /// plugin's, so the picture it keeps is used.

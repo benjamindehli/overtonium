@@ -1,4 +1,5 @@
 #include "ShapeButton.h"
+#include "SettingsMenus.h"
 
 #include <algorithm>
 #include <cstring>
@@ -134,13 +135,8 @@ ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
 }
 
 int ShapeButton::selectedIndex() const {
-  auto *param = apvts.getParameter(id);
-  if (param == nullptr)
-    return 0;
-
-  return juce::jlimit(
-      0, (int)offered.size() - 1,
-      juce::roundToInt(param->convertFrom0to1(param->getValue())));
+  return juce::jlimit(0, (int)offered.size() - 1,
+                      settings::choiceIndex(apvts, id));
 }
 
 LfoShape ShapeButton::selectedShape() const {

@@ -388,6 +388,11 @@ inline constexpr int kNumRoles = (int)Role::NumRoles;
 /// Maps a role onto the matching parameter-ID suffix from ovt::params.
 const char *roleSuffix(Role r);
 
+/// How far a wheel movement scrolls the parameters, in pixels, by the same
+/// arithmetic a Viewport uses, so the parameters and the mixer move by the
+/// same amount.
+int wheelPixels(const juce::MouseWheelDetails &);
+
 /// What a control is called for a screen reader. Unlike rowLabel, which can
 /// repeat itself, every name here is distinct.
 const char *roleLabel(Role r);

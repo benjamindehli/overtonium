@@ -9,18 +9,6 @@
 namespace ovt::ui {
 
 namespace {
-/// A wheel notch in pixels, by the same arithmetic a Viewport uses, so
-/// scrolling the parameters and the mixer move by the same amount.
-int wheelDistance(const juce::MouseWheelDetails &wheel) {
-  constexpr float kViewportSingleStep = 16.0f;
-
-  // deltaY as the platform gives it, ignoring isReversed. The platform has
-  // already applied natural scrolling, so undoing it would scroll backwards.
-  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
-}
-} // namespace
-
-namespace {
 inline size_t rowIndex(Row r) { return (size_t)r; }
 } // namespace
 
@@ -1193,7 +1181,7 @@ void LevelMeter::paint(juce::Graphics &g) {
 ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
                            LinkTarget &linkTarget, HoverTarget &hoverTarget,
                            juce::Component &popupParent, int index0)
-    : apvts(state), link(linkTarget), hover(hoverTarget),
+    : StripColumn(hoverTarget), apvts(state), link(linkTarget),
       popupHost(popupParent), index(index0), info(harmonic(index0)),
       colour(intervalColour(harmonic(index0).pitchClass)),
       pmShape(state, params::oscParamId(params::pmShapeSuffix, index0),
@@ -1403,22 +1391,6 @@ void ChannelStrip::wireUp(LinkableSlider &s, Role role) {
   };
 }
 
-void ChannelStrip::drawFaderAt(int y) {
-  const auto track = volume.getBounds();
-
-  if (track.getHeight() <= 1)
-    return;
-
-  // Top of the track is full, bottom is nothing, and anything past either end
-  // is that end.
-  const auto fromTop = juce::jlimit(
-      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
-
-  // Through the slider, whose range carries the parameter's skew.
-  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
-                  juce::sendNotificationSync);
-}
-
 void ChannelStrip::updateTuneReadout() {
   const auto blend = tune.getValue();
   const auto cents = blend * info.jiCents;
@@ -1443,50 +1415,12 @@ void ChannelStrip::updateTuneReadout() {
 }
 
 void ChannelStrip::updateLevelReadout() {
-  const auto v = (float)volume.getValue();
-
-  // A fader all the way down reads -inF. Everything above counts down to
-  // params::kQuietestLevelDb, which is as far as the cells reach.
-  if (params::isSilentGain(v))
-    return levelReadout.setReading("-inF", !silenced);
-
-  const auto db = params::levelDecibels(v);
-
-  levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), !silenced);
+  levelReadout.setReading(levelReading((float)volume.getValue()), !silenced);
 }
 
-void ChannelStrip::setSilencedByOthers(bool shouldDim) {
-  if (silenced == shouldDim)
-    return;
-
-  silenced = shouldDim;
-
-  // Turns the controls' lights off rather than dimming the whole strip, so
-  // the mute stays readable.
-  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      // Not the mute and solo pair.
-      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
-        continue;
-
-      // Sliders and the waveform displays carry colour of their own. The meters
-      // and the lamps get nothing to show on a silenced channel.
-      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
-          dynamic_cast<ShapeButton *>(child) != nullptr) {
-        child->getProperties().set("unlit", silenced);
-        child->repaint();
-      }
-
-      drain(*child);
-    }
-  };
-
-  drain(*this);
-
+void ChannelStrip::silenceChanged() {
   updateTuneReadout();
   updateLevelReadout();
-  repaint();
 }
 
 void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
@@ -1550,121 +1484,10 @@ void ChannelStrip::foldSectionUnder(const juce::MouseEvent &e, bool echo) {
     onSectionToggled(section);
 }
 
-void ChannelStrip::clearHover() {
-  // Held until the pointer moves again. The exit that comes as a menu opens
-  // carries a position inside this strip and would light it back up.
-  hoverSuppressed = true;
-
-  hover.hoverChanged(index, kNoRow);
-
-  if (hovered) {
-    hovered = false;
-    repaint();
-  }
-}
-
 // Only a pointer move ends a suppression, not an exit. See clearHover.
-void ChannelStrip::mouseEnter(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-}
-
-void ChannelStrip::mouseMove(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-
-  // The same hand the gutter's headings show, for the strip's own events
-  // only. Back to the parent's cursor rather than an arrow, so LINK and the
-  // drawing tool can still set one across the whole mixer.
-  if (e.originalComponent == this) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
-                           Section::NumSections
-                       ? juce::MouseCursor::PointingHandCursor
-                       : juce::MouseCursor::ParentCursor);
-  }
-}
 void ChannelStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
 
 /// The row the pointer is on, counting the rules between sections as rows.
-Row ChannelStrip::rowUnder(const RowBounds &rows, juce::Point<int> p) {
-  const auto section = headingSectionAt(rows, p);
-
-  return section != Section::NumSections ? sectionHeading(section)
-                                         : controlRowAt(rows, p);
-}
-
-void ChannelStrip::reportHover(const juce::MouseEvent &e) {
-  const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-  const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
-
-  // Worked out from where the pointer is now, since leaving one knob for the
-  // next fires the exit before the enter. A rule between sections answers
-  // with its own heading, since it is clickable.
-  hover.hoverChanged(index, inside ? rowUnder(rows, p) : kNoRow);
-
-  // The channel highlight, worked out from the pointer for the same reason.
-  if (inside != hovered) {
-    hovered = inside;
-    repaint();
-  }
-}
-
-void ChannelStrip::paintOverChildren(juce::Graphics &g) {
-  // A heading's wash goes over the children, since the activity lamps on
-  // those rows paint opaque backdrops.
-  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted)) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    paintRowHighlight(g, rows[rowIndex(highlighted)]);
-  }
-
-  if (hovered)
-    paintColumnHighlight(g, getLocalBounds());
-}
-
-void ChannelStrip::setHighlightedRow(Row row) {
-  if (row == highlighted)
-    return;
-
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-
-  // Only the two bands that changed are repainted, not the whole channel.
-  repaintRowHighlight(*this, rows, highlighted);
-  highlighted = row;
-  repaintRowHighlight(*this, rows, highlighted);
-}
-
-void ChannelStrip::setCollapsedSections(SectionMask mask) {
-  if (mask == collapsed)
-    return;
-
-  collapsed = mask;
-
-  // A hover held on a row that just folded away would keep the gutter caption
-  // lit for a knob nobody can see.
-  if (rowIsCollapsed(highlighted, collapsed))
-    highlighted = kNoRow;
-
-  resized();
-  repaint();
-}
-
-void ChannelStrip::setScroll(int s) {
-  if (s == scroll)
-    return;
-
-  scroll = s;
-  resized();
-  repaint();
-}
-
 LinkableSlider *ChannelStrip::sliderForRole(Role role) {
   switch (role) {
   case Role::Tune:
@@ -1895,21 +1718,7 @@ void ChannelStrip::resized() {
 
   // The strip's background is a gradient, so the meter is told the colours
   // at its own edges.
-  {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      auto shade = top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-
-      return shade;
-    };
-
-    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
-  }
+  meter.setBackdrop(backdropAt(meter.getY()), backdropAt(meter.getBottom()));
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);
 
@@ -1928,22 +1737,10 @@ void ChannelStrip::resized() {
   // The lamps stand on the rules that divide the strip into groups, each at
   // the head of the group it reports on.
   {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      auto shade = top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-
-      return shade;
-    };
-
     const auto place = [&](juce::Component &lamp, Row row) {
       const auto r = rows[rowIndex(row)];
       lamp.setBounds(r);
-      return at(r.getCentreY());
+      return backdropAt(r.getCentreY());
     };
 
     pitchLamp.setBackdrop(place(pitchLamp, Row::PitchModHeading));
@@ -2019,7 +1816,7 @@ void ChannelStrip::mouseWheelMove(const juce::MouseEvent &e,
 }
 
 bool ChannelStrip::scrollParametersBy(const juce::MouseWheelDetails &wheel) {
-  return link.scrollParameters(wheelDistance(wheel));
+  return link.scrollParameters(wheelPixels(wheel));
 }
 
 } // namespace ovt::ui
