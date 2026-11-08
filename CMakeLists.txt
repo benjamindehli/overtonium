@@ -105,14 +105,9 @@ juce_add_plugin(Overtonium
     ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/Resources/icon.png"
     MICROPHONE_PERMISSION_ENABLED FALSE)
 
-set(OVERTONIUM_SOURCES
-    Source/PluginProcessor.cpp
-    Source/PluginEditor.cpp
-    Source/PluginParameters.cpp
-    Source/Presets.cpp
-    Source/MidiLearn.cpp
-    Source/UI/MacroPanel.cpp
-    Source/UpdateCheck.cpp
+# The DSP core, which builds with no JUCE at all. The DSP tests compile this
+# list alone.
+set(OVERTONIUM_DSP_SOURCES
     Source/dsp/BucketEcho.cpp
     Source/dsp/DigitalEcho.cpp
     Source/dsp/PlateReverb.cpp
@@ -127,7 +122,17 @@ set(OVERTONIUM_SOURCES
     Source/dsp/Reverb.cpp
     Source/dsp/Wobble.cpp
     Source/dsp/KarplusString.cpp
-    Source/dsp/SympatheticStrings.cpp
+    Source/dsp/SympatheticStrings.cpp)
+
+set(OVERTONIUM_SOURCES
+    ${OVERTONIUM_DSP_SOURCES}
+    Source/PluginProcessor.cpp
+    Source/PluginEditor.cpp
+    Source/PluginParameters.cpp
+    Source/Presets.cpp
+    Source/MidiLearn.cpp
+    Source/UI/MacroPanel.cpp
+    Source/UpdateCheck.cpp
     Source/UI/ChannelStrip.cpp
     Source/UI/LookAndFeel.cpp
     Source/UI/MuteSoloButton.cpp
@@ -253,6 +258,15 @@ function(overtonium_set_warnings_as_errors target)
     else()
         target_compile_options(${target} PRIVATE -Werror)
     endif()
+
+    # A function defined with no declaration before it, which is almost always
+    # one that belongs in an anonymous namespace. JUCE's recommended flags ask
+    # Clang for this as -Wmissing-prototypes, and GCC has it under this name,
+    # so the Linux build catches it before the macOS one does.
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_compile_options(${target} PRIVATE
+            $<$<COMPILE_LANGUAGE:CXX>:-Wmissing-declarations>)
+    endif()
 endfunction()
 
 overtonium_set_warnings_as_errors(Overtonium)
@@ -269,6 +283,15 @@ if(OVERTONIUM_WARNINGS_AS_ERRORS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU"
     set_source_files_properties(
         "${JUCE_MODULES_DIR}/juce_gui_basics/juce_gui_basics_2.cpp"
         PROPERTIES COMPILE_OPTIONS "-Wno-dangling-reference")
+endif()
+
+# The Ogg Vorbis library JUCE carries inside juce_audio_formats is C compiled as
+# C++, and declares nothing before it defines it. Our own code keeps
+# -Wmissing-declarations. See overtonium_set_warnings_as_errors.
+if(OVERTONIUM_WARNINGS_AS_ERRORS AND CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    set_source_files_properties(
+        "${JUCE_MODULES_DIR}/juce_audio_formats/juce_audio_formats.cpp"
+        PROPERTIES COMPILE_OPTIONS "-Wno-missing-declarations")
 endif()
 
 # ------------------------------------------------------------------------------------------
@@ -313,6 +336,43 @@ function(overtonium_set_sanitizers target)
 endfunction()
 
 # ------------------------------------------------------------------------------------------
+# The console programs: the runtime test and the tools. Each compiles the whole plugin
+# with one file of its own and runs it with no host and no display.
+#
+# No curl and no WebP. They compile UpdateCheck but never fetch anything, and none of
+# them loads an image, so the machine building them needs neither library. The
+# authoring entry is off whatever the plugin was configured with: these compile
+# TopBar.cpp too, and a macro left undefined is a warning under -Wundef rather than a
+# silent zero. The rest is as the plugin has it.
+# ------------------------------------------------------------------------------------------
+function(overtonium_add_console target source)
+    juce_add_console_app(${target} PRODUCT_NAME "${target}")
+
+    target_sources(${target} PRIVATE ${source} ${OVERTONIUM_SOURCES})
+    target_include_directories(${target} PRIVATE Source)
+
+    target_compile_definitions(${target} PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_USE_WEBP=0
+        JUCE_STRICT_REFCOUNTEDPOINTER=1
+        JUCE_STANDALONE_APPLICATION=1
+        OVERTONIUM_PRESET_AUTHORING=0
+        OVERTONIUM_VERSION="${PROJECT_VERSION}")
+
+    target_link_libraries(${target}
+        PRIVATE
+            OvertoniumResources
+            juce::juce_audio_utils
+            ${ARGN}
+        PUBLIC
+            juce::juce_recommended_config_flags
+            juce::juce_recommended_warning_flags)
+
+    overtonium_set_warnings_as_errors(${target})
+endfunction()
+
+# ------------------------------------------------------------------------------------------
 # DSP tests
 #
 # The DSP core has no JUCE dependency at all, so the tests build and run anywhere with a
@@ -325,21 +385,7 @@ if(OVERTONIUM_BUILD_TESTS)
 
     add_executable(overtonium_dsp_test
         Tests/dsp_test.cpp
-        Source/dsp/BucketEcho.cpp
-        Source/dsp/DigitalEcho.cpp
-        Source/dsp/PlateReverb.cpp
-        Source/dsp/SpringReverb.cpp
-        Source/dsp/BusDrive.cpp
-        Source/dsp/OutputStage.cpp
-        Source/dsp/Cassette.cpp
-        Source/dsp/Console.cpp
-        Source/dsp/Voice.cpp
-        Source/dsp/SynthEngine.cpp
-        Source/dsp/TapeEcho.cpp
-        Source/dsp/Reverb.cpp
-        Source/dsp/Wobble.cpp
-    Source/dsp/KarplusString.cpp
-    Source/dsp/SympatheticStrings.cpp)
+        ${OVERTONIUM_DSP_SOURCES})
 
     target_include_directories(overtonium_dsp_test PRIVATE Source)
     target_compile_features(overtonium_dsp_test PRIVATE cxx_std_17)
@@ -351,44 +397,16 @@ if(OVERTONIUM_BUILD_TESTS)
     # Headless integration test: builds the plugin sources as a console app and exercises
     # parameter wiring, MIDI, presets, bus layouts and state round-tripping. The editors it
     # opens are never put on the desktop, so it runs fine on a machine with no display.
-    juce_add_console_app(overtonium_runtime_test PRODUCT_NAME "overtonium_runtime_test")
+    overtonium_add_console(overtonium_runtime_test Tests/plugin_runtime_test.cpp)
 
-    target_sources(overtonium_runtime_test PRIVATE
-        Tests/plugin_runtime_test.cpp
-        ${OVERTONIUM_SOURCES})
-
-    target_include_directories(overtonium_runtime_test PRIVATE Source)
-
-    # No curl here, unlike the plugin. The tests compile UpdateCheck but never
-    # fetch anything, so the test build does not need libcurl on the machine.
-    # The authoring entry is off here whatever the plugin was configured with:
-    # these targets compile TopBar.cpp too, and a macro left undefined is a
-    # warning under -Wundef rather than a silent zero.
+    # Where docs/parameters.json is, which the test holds to the layout and
+    # --write-parameters regenerates.
     target_compile_definitions(overtonium_runtime_test PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        # As the plugin, and for the same reason. Not shipped, so this is
-        # build time rather than download size, but every push compiles it.
-        JUCE_USE_WEBP=0
-        JUCE_STANDALONE_APPLICATION=1
-        OVERTONIUM_PRESET_AUTHORING=0
-        OVERTONIUM_VERSION="${PROJECT_VERSION}"
-        # Where docs/parameters.json is, which the test holds to the layout
-        # and --write-parameters regenerates.
         OVERTONIUM_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 
-    target_link_libraries(overtonium_runtime_test
-        PRIVATE
-            OvertoniumResources
-            juce::juce_audio_utils
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
-
-    # overtonium_dsp_test is left out on purpose. It carries no warning flags
-    # here, and the DSP core is already compiled with -Wall -Wextra -Werror by
-    # the job that checks it builds without a build system at all.
-    overtonium_set_warnings_as_errors(overtonium_runtime_test)
+    # overtonium_dsp_test is left out of the warnings on purpose. It carries no
+    # warning flags here, and the DSP core is already compiled with -Wall
+    # -Wextra -Werror by the job that checks it builds without a build system.
     overtonium_set_sanitizers(overtonium_runtime_test)
 
     add_test(NAME plugin COMMAND overtonium_runtime_test)
@@ -405,97 +423,15 @@ endif()
 option(OVERTONIUM_BUILD_TOOLS "Build the docs image and audio renderers" ON)
 
 if(OVERTONIUM_BUILD_TOOLS)
-    juce_add_console_app(overtonium_render_docs PRODUCT_NAME "overtonium_render_docs")
+    overtonium_add_console(overtonium_render_docs Tools/render_docs_images.cpp)
 
-    target_sources(overtonium_render_docs PRIVATE
-        Tools/render_docs_images.cpp
-        ${OVERTONIUM_SOURCES})
+    # The audio clips. It needs juce_audio_formats for the Ogg and FLAC writers,
+    # which the plugin itself has no use for.
+    overtonium_add_console(overtonium_render_docs_audio Tools/render_docs_audio.cpp
+        juce::juce_audio_formats)
 
-    target_include_directories(overtonium_render_docs PRIVATE Source)
-
-    # Same reasoning as the runtime test: UpdateCheck is compiled but never fetches, so the
-    # machine building this does not need libcurl.
-    target_compile_definitions(overtonium_render_docs PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        # This one writes PNG and the WebP files are made outside the build,
-        # so the codec would only be compiled to sit there.
-        JUCE_USE_WEBP=0
-        JUCE_STANDALONE_APPLICATION=1
-        OVERTONIUM_PRESET_AUTHORING=0
-        OVERTONIUM_VERSION="${PROJECT_VERSION}")
-
-    target_link_libraries(overtonium_render_docs
-        PRIVATE
-            OvertoniumResources
-            juce::juce_audio_utils
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
-
-    overtonium_set_warnings_as_errors(overtonium_render_docs)
-
-    # And the audio clips, for the same reason and on the same switch. This one
-    # needs juce_audio_formats for the Ogg and FLAC writers, which the plugin
-    # itself has no use for.
-    juce_add_console_app(overtonium_render_docs_audio
-        PRODUCT_NAME "overtonium_render_docs_audio")
-
-    target_sources(overtonium_render_docs_audio PRIVATE
-        Tools/render_docs_audio.cpp
-        ${OVERTONIUM_SOURCES})
-
-    target_include_directories(overtonium_render_docs_audio PRIVATE Source)
-
-    target_compile_definitions(overtonium_render_docs_audio PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        # Renders audio. Reads no images at all.
-        JUCE_USE_WEBP=0
-        JUCE_STANDALONE_APPLICATION=1
-        OVERTONIUM_PRESET_AUTHORING=0
-        OVERTONIUM_VERSION="${PROJECT_VERSION}")
-
-    target_link_libraries(overtonium_render_docs_audio
-        PRIVATE
-            OvertoniumResources
-            juce::juce_audio_formats
-            juce::juce_audio_utils
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
-
-    overtonium_set_warnings_as_errors(overtonium_render_docs_audio)
-
-    # And the preset generator, on the same switch. It needs no editor and no
-    # display: it loads a saved preset into a processor and prints the case
-    # that would add it to Presets.cpp, which is the one step between dialling
-    # a patch in and shipping it.
-    juce_add_console_app(overtonium_preset_to_code
-        PRODUCT_NAME "overtonium_preset_to_code")
-
-    target_sources(overtonium_preset_to_code PRIVATE
-        Tools/preset_to_code.cpp
-        ${OVERTONIUM_SOURCES})
-
-    target_include_directories(overtonium_preset_to_code PRIVATE Source)
-
-    target_compile_definitions(overtonium_preset_to_code PUBLIC
-        JUCE_WEB_BROWSER=0
-        JUCE_USE_CURL=0
-        # Reads and writes text.
-        JUCE_USE_WEBP=0
-        JUCE_STANDALONE_APPLICATION=1
-        OVERTONIUM_PRESET_AUTHORING=0
-        OVERTONIUM_VERSION="${PROJECT_VERSION}")
-
-    target_link_libraries(overtonium_preset_to_code
-        PRIVATE
-            OvertoniumResources
-            juce::juce_audio_utils
-        PUBLIC
-            juce::juce_recommended_config_flags
-            juce::juce_recommended_warning_flags)
-
-    overtonium_set_warnings_as_errors(overtonium_preset_to_code)
+    # The preset generator. It loads a saved preset into a processor and prints
+    # the block that would add it to Presets.cpp, which is the one step between
+    # setting up a patch and shipping it.
+    overtonium_add_console(overtonium_preset_to_code Tools/preset_to_code.cpp)
 endif()

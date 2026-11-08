@@ -1,0 +1,81 @@
+name: Fetch JUCE
+description: >
+  JUCE at the commit CMakeLists.txt pins, from the Actions cache, or downloaded
+  with retries and checked against the pinned SHA-256 when the cache does not
+  have it. Configure with -DJUCE_PATH set to the path this gives.
+
+outputs:
+  path:
+    description: The JUCE source tree, in a form CMake reads on every platform.
+    value: ${{ steps.place.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    # The archive and its hash are read from CMakeLists.txt, so the pin stays
+    # in one place and a JUCE update needs no change here.
+    - name: Read the pin
+      id: pin
+      shell: bash
+      run: |
+        url=$(sed -n 's/^ *URL  *\(https:[^ ]*\.tar\.gz\)$/\1/p' CMakeLists.txt)
+        sha=$(sed -n 's/^ *URL_HASH  *SHA256=\([0-9a-f]*\).*/\1/p' CMakeLists.txt)
+
+        if [ -z "$url" ] || [ -z "$sha" ]; then
+          echo "::error::cannot read the JUCE URL and hash from CMakeLists.txt"
+          exit 1
+        fi
+
+        echo "url=$url" >> "$GITHUB_OUTPUT"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+    - name: Restore JUCE
+      id: cache
+      uses: actions/cache@v6
+      with:
+        path: ~/juce-${{ steps.pin.outputs.sha }}
+        key: juce-${{ steps.pin.outputs.sha }}-${{ runner.os }}
+
+    # GitHub builds these archives on demand and its archive service answers
+    # with a 504 now and then. One retry, which is all CMake makes, is not
+    # enough, so this one keeps trying for a minute or so. Checked before it
+    # is unpacked, so a bad download never reaches the cache.
+    - name: Download JUCE
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        URL: ${{ steps.pin.outputs.url }}
+        SHA: ${{ steps.pin.outputs.sha }}
+      run: |
+        curl -sSL --fail --retry 6 --retry-all-errors --retry-delay 10 \
+          -o juce.tar.gz "$URL"
+
+        if command -v sha256sum >/dev/null; then
+          actual=$(sha256sum juce.tar.gz | cut -d ' ' -f 1)
+        else
+          actual=$(shasum -a 256 juce.tar.gz | cut -d ' ' -f 1)
+        fi
+
+        if [ "$actual" != "$SHA" ]; then
+          echo "::error::JUCE archive has SHA-256 $actual, CMakeLists pins $SHA"
+          exit 1
+        fi
+
+        mkdir -p ~/"juce-$SHA"
+        tar -xzf juce.tar.gz -C ~/"juce-$SHA" --strip-components=1
+        rm juce.tar.gz
+
+    # Windows' bash gives /c/Users/... paths, which CMake there cannot read.
+    - name: Give the path
+      id: place
+      shell: bash
+      env:
+        SHA: ${{ steps.pin.outputs.sha }}
+      run: |
+        dir=~/"juce-$SHA"
+
+        if [ "$RUNNER_OS" = "Windows" ]; then
+          dir=$(cygpath -m "$dir")
+        fi
+
+        echo "path=$dir" >> "$GITHUB_OUTPUT"

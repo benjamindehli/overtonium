@@ -59,37 +59,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The hosted runners reach apt through an Azure mirror that intermittently
-      # stops answering. Apt's own default is to wait on it for a very long
-      # time and then fall back, which turns a mirror having a bad afternoon
-      # into a job that sits for hours instead of failing. Short timeouts and a
-      # few retries make it either work or give up quickly enough to re-run.
+      # xvfb is for pluginval rather than the build. It opens the editor, and
+      # the runner has no display for one to open on. gdb prints where a crash
+      # in it happened.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 10
-        run: |
-          sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
-          Acquire::Retries "3";
-          Acquire::http::Timeout "20";
-          Acquire::https::Timeout "20";
-          CONF
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb gdb
 
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
-
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          # xvfb is for pluginval rather than the build. It opens the editor,
-          # and the runner has no display for one to open on.
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev xvfb gdb
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
 
       # Warnings are errors, which is now the default in CMakeLists and asked
       # for here anyway. The flag is what this job needs rather than what the
@@ -100,6 +82,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
           ${{ matrix.extra }}
 
       # The job count is given rather than left to the build tool. Without a
@@ -393,21 +376,11 @@ jobs:
 
       - name: Install Linux dependencies
         timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
+        uses: ./.github/actions/linux-deps
 
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
 
       # The tests only. The plugin targets are not built here: nothing runs
       # them, and a sanitized VST3 is not something anyone should load.
@@ -427,6 +400,7 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_SANITIZE=ON
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
 
       - name: Build
         run: >
@@ -481,21 +455,13 @@ jobs:
 
       - name: Install Linux dependencies
         timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb
 
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev xvfb
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-juce
 
       # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
       # which covers the two test programs. JUCE compiles into the plugin, so
@@ -515,6 +481,7 @@ jobs:
           cmake -B build-san-vst3
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
 
       - name: Build
         env:
@@ -631,98 +598,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Every block parses, and the version agrees with CMakeLists
-        run: |
-          python3 - <<'PY'
-          import json
-          import re
-          import sys
-          from pathlib import Path
-
-          project = re.search(
-              r"^project\(Overtonium VERSION ([0-9.]+)",
-              Path("CMakeLists.txt").read_text(encoding="utf-8"), re.M).group(1)
-
-          failed = []
-          versions = []
-          nodes = {}
-
-          # CITATION.cff is the other place a version is written down, and the
-          # one nothing was watching: it sat three releases behind before
-          # anybody looked. Read as text rather than parsed, so this needs no
-          # YAML library on the runner.
-          citation = Path("CITATION.cff").read_text(encoding="utf-8")
-          stated = re.search(r"^version: *(\S+)", citation, re.M)
-
-          if stated is None:
-              print("::error::CITATION.cff states no version")
-              failed.append("CITATION.cff")
-          else:
-              print(f"CMakeLists says {project}, CITATION.cff says {stated.group(1)}")
-
-              if stated.group(1) != project:
-                  print(f"::error::CITATION.cff claims {stated.group(1)}, "
-                        f"CMakeLists says {project}. Bump both together.")
-                  failed.append("CITATION.cff")
-
-          for path in sorted(Path("docs").rglob("*.html")):
-              html = path.read_text(encoding="utf-8")
-
-              for i, block in enumerate(re.finditer(
-                      r'<script type="application/ld\+json">(.*?)</script>',
-                      html, re.S)):
-                  try:
-                      data = json.loads(block.group(1))
-                  except ValueError as e:
-                      failed.append(f"{path} block {i} is not valid JSON: {e}")
-                      continue
-
-                  if not isinstance(data, dict):
-                      continue
-
-                  if "softwareVersion" in data:
-                      versions.append((path, data["softwareVersion"]))
-
-                  if "@id" in data:
-                      nodes.setdefault(data["@id"], []).append((path, data))
-
-          for problem in failed:
-              print(f"::error::{problem}")
-
-          if not versions:
-              print("::error::no block declares softwareVersion")
-              failed.append("missing version")
-
-          for path, version in versions:
-              print(f"CMakeLists says {project}, {path} says {version}")
-
-              if version != project:
-                  print(f"::error::{path} claims {version}, CMakeLists says "
-                        f"{project}. Bump both together.")
-                  failed.append(str(path))
-
-          # Blocks sharing an @id describe one thing, so anything reading them
-          # together gets whatever they disagree about. Two pages here already
-          # claimed a different version and release date for the same product,
-          # which is how this half earned its place.
-          for node, claims in sorted(nodes.items()):
-              fields = {k for _, block in claims for k in block}
-
-              for field in sorted(fields):
-                  seen = {}
-
-                  for path, block in claims:
-                      if field in block:
-                          seen.setdefault(json.dumps(block[field], sort_keys=True),
-                                          []).append(str(path))
-
-                  if len(seen) > 1:
-                      print(f"::error::{node} disagrees about {field}: " +
-                            "; ".join(f"{value} in {' and '.join(where)}"
-                                      for value, where in sorted(seen.items())))
-                      failed.append(node)
-
-          sys.exit(1 if failed else 0)
-          PY
+        run: python3 .github/scripts/structured_data.py
 
   counts:
     name: Counts in the docs
@@ -760,157 +636,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: The docs count what the source counts
-        run: |
-          python3 - <<'PY'
-          import re
-          import sys
-          from pathlib import Path
-
-          table = re.search(r"const char \*const kNames\[\] = \{(.*?)\n\};",
-                            Path("Source/Presets.cpp").read_text(), re.S)
-
-          if table is None:
-              print("::error::cannot find kNames in Source/Presets.cpp")
-              sys.exit(1)
-
-          presets = len(re.findall(r'^    "[^"]+",$', table.group(1), re.M))
-          clips = len(list(Path("docs/audio").glob("*.flac")))
-
-          print(f"kNames holds {presets} presets, docs/audio holds {clips} clips")
-
-          sums = re.search(r"const int expected =\s*(.*?);",
-                           Path("Tests/plugin_runtime_test.cpp").read_text(), re.S)
-
-          if sums is None:
-              print("::error::cannot find the expected parameter count in "
-                    "Tests/plugin_runtime_test.cpp")
-              sys.exit(1)
-
-          constants = {}
-
-          for header in Path("Source").rglob("*.h"):
-              for name, value in re.findall(
-                      r"inline constexpr int (\w+) = (\d+);", header.read_text()):
-                  constants[name] = value
-
-          def constant(m):
-              if m.group(1) not in constants:
-                  print(f"::error::cannot find {m.group(1)} in Source")
-                  sys.exit(1)
-              return constants[m.group(1)]
-
-          arithmetic = re.sub(r"(?:\w+::)*(k\w+)", constant, sums.group(1))
-
-          if not re.fullmatch(r"[\d\s+*()]+", arithmetic):
-              print(f"::error::cannot read the parameter count from "
-                    f"\"{sums.group(1)}\"")
-              sys.exit(1)
-
-          # Joined onto one line first: clang-format wraps a long sum, and a
-          # newline in the middle of one is a syntax error to eval.
-          parameters = eval(" ".join(arithmetic.split()))
-
-          print(f"the runtime test expects {parameters} parameters")
-
-          ones = ["zero", "one", "two", "three", "four", "five", "six", "seven",
-                  "eight", "nine", "ten", "eleven", "twelve", "thirteen",
-                  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
-                  "nineteen"]
-          tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty",
-                  "seventy", "eighty", "ninety"]
-
-          def spelt(n):
-              if n < 20:
-                  return ones[n]
-              ten, one = divmod(n, 10)
-              return tens[ten] + (f"-{ones[one]}" if one else "")
-
-          numbers = {spelt(n) for n in range(1, 100)}
-          numbers |= {str(n) for n in range(1, 100)}
-
-          # What each count is written in front of. Broad on purpose where the
-          # noun is unambiguous, since a word that is not a number is ignored
-          # and a wide pattern therefore cannot invent a failure. Narrow where
-          # it is not: "clips" means the preset clips in one sentence and every
-          # audio file on the site in another, and both are right.
-          checks = [
-              (r"([\w-]+)\s+factory patches", presets),
-              (r"([\w-]+)\s+factory presets", presets),
-              (r"([\w-]+)\s+presets", presets),
-              (r"([\w-]+)\s+that ship", presets),
-              (r"([\w-]+)\s+clips meant to be browsed", presets),
-              (r"across all ([\w-]+) clips", clips),
-          ]
-
-          files = sorted(Path(".").glob("*.md"))
-          files += sorted(p for p in Path("docs").rglob("*.html")
-                          if "releases" not in p.parts)
-          # llms-full.txt is left out for the reason the releases page is: it
-          # carries that page's text, every count in it true of its release.
-          # The rest of it is the other pages, which are checked above.
-          files += sorted(p for p in Path("docs").glob("*.txt")
-                          if p.name != "llms-full.txt")
-
-          failed = []
-
-          for path in files:
-              text = path.read_text(encoding="utf-8")
-
-              # Tags out first, so a count and its noun that have a link
-              # between them still read as neighbours. "the thirty-one
-              # <a href="presets/">factory presets</a>" was two releases stale
-              # on the front page and on the controls page, and this check
-              # walked past it twice, because \s+ cannot cross an anchor.
-              #
-              # Each tag becomes the newlines it held, or a space if none, so
-              # the line an error names is the line in the file.
-              text = re.sub(r"<[^>]+>", lambda m: "\n" * m.group(0).count("\n") or " ", text)
-
-              for pattern, expected in checks:
-                  want = spelt(expected)
-
-                  for m in re.finditer(pattern, text):
-                      said = m.group(1).lower()
-
-                      if said not in numbers or said in (want, str(expected)):
-                          continue
-
-                      line = text[:m.start()].count("\n") + 1
-                      print(f"::error file={path},line={line}::"
-                            f"{path}:{line} says \"{m.group(0)}\", and there "
-                            f"are {expected} ({want})")
-                      failed.append(str(path))
-
-          def spelt_hundreds(n):
-              hundreds, rest = divmod(n, 100)
-              return f"{ones[hundreds]} hundred" + (f" and {spelt(rest)}" if rest else "")
-
-          said_parameters = [
-              (r"\b(\d{3,4})\s+(?:host\s+)?parameters\b", str(parameters)),
-              (r"\b([a-z]+ hundred(?: and [a-z-]+)?)\s+(?:host\s+)?parameters\b",
-               spelt_hundreds(parameters)),
-          ]
-
-          for path in files:
-              text = re.sub(r"<[^>]+>", lambda m: "\n" * m.group(0).count("\n") or " ",
-                            path.read_text(encoding="utf-8"))
-
-              for pattern, want in said_parameters:
-                  for m in re.finditer(pattern, text, re.I):
-                      if m.group(1).lower() == want:
-                          continue
-
-                      line = text[:m.start()].count("\n") + 1
-                      print(f"::error file={path},line={line}::"
-                            f"{path}:{line} says \"{m.group(0)}\", and there "
-                            f"are {parameters} ({want})")
-                      failed.append(str(path))
-
-          if failed:
-              sys.exit(1)
-
-          print(f"every counted noun agrees, across {len(files)} files")
-          PY
+        run: python3 .github/scripts/doc_counts.py
 
       # The other half of the same idea. Every <img> carries a width and a
       # height so the browser can reserve the space before the bytes arrive,
