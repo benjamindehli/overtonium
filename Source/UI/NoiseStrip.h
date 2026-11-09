@@ -20,34 +20,14 @@ namespace ovt::ui {
 /// but it has no pitch, so the tuning, pitch modulation and drift rows are left
 /// empty. Colour takes the tuning row: it tilts the noise from dark through
 /// flat to bright.
-class NoiseStrip : public juce::Component, public juce::SettableTooltipClient {
+class NoiseStrip : public StripColumn {
 public:
   NoiseStrip(juce::AudioProcessorValueTreeState &state,
              HoverTarget &hoverTarget, juce::Component &popupParent);
 
   void paint(juce::Graphics &) override;
 
-  /// The channel highlight. See ChannelStrip::paintOverChildren for why it
-  /// goes over the children rather than behind them.
-  void paintOverChildren(juce::Graphics &) override;
-
   void resized() override;
-
-  /// Which sections are folded. See ChannelStrip::setCollapsedSections.
-  void setCollapsedSections(SectionMask);
-
-  /// How far the parameters are scrolled. Every column is handed the same
-  /// number by the editor, so the captions stay beside their knobs.
-  void setScroll(int);
-
-  /// Asked for when a click lands on one of the rules between sections, which
-  /// line up with the gutter's headings and do the same thing.
-  std::function<void(Section)> onSectionToggled;
-
-  /// Sets this channel's fader from a height, for a drag drawing across the
-  /// mixer. It is not a harmonic, but it is a fader. See
-  /// ChannelStrip::drawFaderAt.
-  void drawFaderAt(int y);
 
   /// Lights this channel's fader while a drag across the mixer would draw it.
   void setDrawGlow(bool);
@@ -56,8 +36,6 @@ public:
 
   /// As TopBar::onLearnRequested, with no LINK items.
   std::function<void(const juce::String &)> onLearnRequested;
-  void mouseEnter(const juce::MouseEvent &) override;
-  void mouseMove(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
 
   /// Keeps a wheel that landed on a control from scrolling the mixer as well.
@@ -66,8 +44,6 @@ public:
   void mouseWheelMove(const juce::MouseEvent &,
                       const juce::MouseWheelDetails &) override;
 
-  /// Dims the strip while another channel is soloed.
-  void setSilencedByOthers(bool shouldDim);
   /// @returns the region of this strip that needs redrawing. See
   /// ChannelStrip::setMeterLevel.
   juce::Rectangle<int> setMeterLevel(float level) {
@@ -77,15 +53,8 @@ public:
 
   /// The lamps on the section rules, with none on the pitch rule. See
   /// ChannelStrip::setActivity.
-  void setActivity(float envelope, float tremolo, float velGain, float pressure,
-                   juce::Array<juce::Rectangle<int>> &into);
-
-  /// Whether the pointer is on this channel, which is what lights the column.
-  bool isHovered() const noexcept { return hovered; }
-
-  /// Takes part in the row highlight, so the band crosses the noise channel
-  /// too.
-  void setHighlightedRow(Row);
+  void setActivity(float envelope, float tremolo, float velGain, float keyGain,
+                   float pressure, juce::Array<juce::Rectangle<int>> &into);
 
 private:
   void updateLevelReadout();
@@ -96,20 +65,22 @@ private:
   void setUpKnob(juce::Slider &, const char *suffix, juce::Colour fill,
                  const juce::String &tooltip, const char *title = nullptr);
 
-  void reportHover(const juce::MouseEvent &);
+  /// Outside the harmonic series, so no LINK preview.
+  int hoverIndex() const override { return -1; }
+  juce::Slider &fader() override { return volume; }
+  void silenceChanged() override;
 
-  /// Lets go of the hover without a mouse event to say so, for when a modal
-  /// menu is about to take the pointer away.
-  void clearHover();
+  /// Colour on the tuning rows and the string on the pitch modulation rows.
+  bool isOwnRow(Row) const override;
 
   juce::AudioProcessorValueTreeState &apvts;
-  HoverTarget &hover;
   juce::Component &popupHost;
 
   const juce::Colour colour;
 
   juce::Slider colourKnob, strike, delay, attack, decay, sustain, swell,
-      offLevel, release, amRate, amDepth, velocity, aftertouch, pan, volume;
+      offLevel, release, amRate, amDepth, velocity, keyboard, aftertouch, pan,
+      volume;
 
   /// The string the noise strikes, in the rows a partial's pitch modulation
   /// takes. Each has its own caption, since the gutter names those rows for
@@ -124,27 +95,16 @@ private:
   juce::Label colourReadout;
   SegmentDisplay levelReadout{{}};
   LevelMeter meter;
-  ActivityLamp envLamp, keyOffLamp, tremoloLamp, velocityLamp, pressureLamp;
+  ActivityLamp envLamp, keyOffLamp, tremoloLamp;
+  SplitLamp outputLamp;
 
   std::vector<std::unique_ptr<SliderAttachment>> sliderAttachments;
   std::unique_ptr<ButtonAttachment> muteAttachment, soloAttachment;
-
-  bool silenced = false;
-  Row highlighted = kNoRow;
-
-  /// Folded groups, set by the editor. See ChannelStrip.
-  SectionMask collapsed = 0;
-  int scroll = 0;
 
   /// Hides a row that has scrolled under the pinned header. See HeaderCap.
   HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
-  bool hovered = false;
-
-  /// Set when a menu takes the pointer away, and cleared when the pointer
-  /// moves under its own steam again. See clearHover.
-  bool hoverSuppressed = false;
 
   /// When the last click on this strip happened, so the same click arriving a
   /// second time cannot act twice. See mouseDown.

@@ -1,4 +1,5 @@
 #include "PlateReverb.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -76,9 +77,6 @@ inline int scaled(int length, double sampleRate) {
                   (int)std::lround((double)length * sampleRate / kDesignRate));
 }
 
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
 } // namespace
 
 void PlateReverb::Line::resize(int length) {
@@ -142,7 +140,7 @@ const PlateReverb::Line &PlateReverb::lineFor(const Branch &b,
   return b.secondDelay;
 }
 
-void PlateReverb::prepare(double newSampleRate) noexcept {
+void PlateReverb::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   preDelay.assign((size_t)(kMaxPreDelaySeconds * sampleRate) + 4, 0.0f);
@@ -254,7 +252,7 @@ void PlateReverb::process(float *outL, float *outR, int numSamples,
   // 18 kHz, high enough not to dull a long tail and below Nyquist.
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
   const auto dampHz = 18000.0f - damping * 16500.0f;
-  const auto dampCoef = onePole(dampHz, sampleRate);
+  const auto dampCoef = dm::onePole(dampHz, sampleRate);
 
   const auto preLength = std::max(
       1, (int)(std::clamp(p.preDelaySeconds, 0.0f, kMaxPreDelaySeconds) *

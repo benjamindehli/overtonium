@@ -6,7 +6,7 @@
         <title>Playing Overtonium: MPE, automation, macros and MIDI Learn</title>
         <meta
             name="description"
-            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 850 parameters, macros and MIDI Learn."
+            content="Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 884 parameters, macros and MIDI Learn."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -21,7 +21,7 @@
         <meta property="og:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             property="og:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 850 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 884 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta property="og:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta property="og:image:type" content="image/jpeg" />
@@ -33,7 +33,7 @@
         <meta name="twitter:title" content="Playing Overtonium: MPE, automation, macros and MIDI Learn" />
         <meta
             name="twitter:description"
-            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 850 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
+            content="MPE with pitch bend and pressure per note, legato, a glide on every channel with each partial on its own time, every entry in the Settings menu, automating Overtonium from a host with all 884 parameters listed by name and id, eight macros that each move a whole row of channels, and MIDI Learn on every control."
         />
         <meta name="twitter:image" content="https://benjamindehli.github.io/overtonium/overtonium-card-playing.jpg" />
         <meta name="twitter:image:alt" content="The Overtonium wordmark over the plugin window, captioned Playing." />
@@ -50,7 +50,7 @@
                 "@id": "https://benjamindehli.github.io/overtonium/playing/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/playing/",
                 "name": "Playing Overtonium: MPE, automation, macros and MIDI Learn",
-                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 850 parameters, macros and MIDI Learn.",
+                "description": "Playing Overtonium: MPE, legato, glide on every channel, the Settings menu, automation with all 884 parameters, macros and MIDI Learn.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-31",
+                "dateModified": "2026-11-07",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -471,14 +471,15 @@
                     <p>
                         <strong>Playing</strong> has the voice count with IN USE, which shows how many voices are sounding, release tails included.
                         Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows
-                        what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel's position from the centre
-                        against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the
-                        keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch
-                        from follows it. Last are the eight <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it
-                        controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number.
-                        Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the
-                        temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch
-                        that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
+                        what your hands are doing. SUSTAIN lights while the sustain pedal is down, with a bar along its foot for how far, and
+                        SOSTENUTO under it while the sostenuto pedal is. PITCH shows the pitch wheel's position from the centre against the bend
+                        range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own
+                        pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows
+                        it. Last are the eight <a href="#macros">macros</a> as knobs in their colours. Each is named after the row it controls and
+                        turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob
+                        to assign its macro, to edit it in MACROS, or to bind a controller to it. <strong>Tuning</strong> has the temperament, root
+                        and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the
+                        keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show
                         <a href="../tuning/#adaptive">what Adaptive is doing</a> to the chord you hold. Last are twelve displays, one for each note,
                         showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each
                         setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way
@@ -486,11 +487,28 @@
                         rows like the top bar does, and takes the extra height from the mixer.
                     </p>
 
+                    <p>
+                        The <strong>sostenuto pedal</strong>, controller 66 and the middle pedal on a grand piano, holds only the keys that are down
+                        when it goes down. Hold a chord, press the pedal and let go, and the chord keeps sounding while the notes you play over it
+                        stop as your fingers lift. Keys pressed after the pedal went down are not held, and a note held only by the sustain pedal is
+                        not caught. With both pedals down, lifting the sustain pedal leaves the caught notes sounding. With the resonator in Piano,
+                        the caught keys' strings stay free too. With MPE on it is read on the zone's master channel, like the sustain pedal.
+                    </p>
+
+                    <p>
+                        The <strong>sustain pedal</strong> can be half-pedalled. A continuous pedal sends how far down it is, and the instrument uses
+                        all of it. All the way down it holds notes as it always has. Part way down, a note it holds fades once its key comes up,
+                        faster the less the pedal is down, and at the top of its travel the note fades as quickly as its own release. Moving the pedal
+                        changes the fade from that moment, so you can keep a line connected without blurring it. An on/off pedal, which sends only up
+                        and down, works as it always did. With the resonator in Piano, the dampers rest on the strings as far as the pedal is up, so
+                        the strings ring for less time too.
+                    </p>
+
                     <figure>
                         <img
                             loading="lazy"
                             src="../overtonium-playing-bar.webp"
-                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
+                            alt="The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with its bar full and SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8."
                             width="1350"
                             height="66"
                         />
@@ -665,7 +683,7 @@
                                 </tr>
                                 <tr>
                                     <td>Zoom</td>
-                                    <td>75, 100, 125 or 150%</td>
+                                    <td>75, 100, 125, 150, 175 or 200%</td>
                                     <td>
                                         How big the window is on your screen. It sits at the bottom with the entry below it, because everything above
                                         these two is about the instrument and these are not
@@ -701,9 +719,9 @@
                     <h2>Automating it from the host</h2>
 
                     <p>
-                        Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two
-                        on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals
-                        first, then each channel in turn, and the noise channel last.
+                        Eight hundred and eighty-four parameters reach the host: forty-five global ones, twenty-four on each of the 32 partials,
+                        twenty-three on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with
+                        the globals first, then each channel in turn, and the noise channel last.
                     </p>
 
                     <p>
@@ -746,7 +764,7 @@
                     </div>
 
                     <p>
-                        The noise channel has twenty-two instead of twenty-three because it has no tuning, pitch modulation, drift or glide, and has
+                        The noise channel has twenty-three instead of twenty-four because it has no tuning, pitch modulation, drift or glide, and has
                         COLOUR and the four knobs of its string instead.
                     </p>
 
@@ -770,11 +788,11 @@
                     <section class="parameter-list">
                         <h3 id="every-parameter">Every parameter</h3>
                         <p>
-                            All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
+                            All 884 as the host lists them, with a control that every partial or every macro carries given one row for all of them.
                             The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is
                             <a href="../parameters.json">parameters.json</a>, written by the plugin rather than by hand.
                         </p>
-                        <p><strong>Global</strong>, forty-four of them.</p>
+                        <p><strong>Global</strong>, forty-five of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -1035,7 +1053,7 @@
                                     <tr>
                                         <td><code>Resonator Mode</code></td>
                                         <td><code>resonatorMode</code></td>
-                                        <td>Off, Piano, Open, Octave, Series</td>
+                                        <td>Off, Piano, Open, Octave, Series, Fifths, Chord</td>
                                         <td>Off</td>
                                     </tr>
                                     <tr>
@@ -1056,10 +1074,16 @@
                                         <td>0 % to 100 %</td>
                                         <td>40 %</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>Velocity Curve</code></td>
+                                        <td><code>velocityCurve</code></td>
+                                        <td>Classic, dB</td>
+                                        <td>dB</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <p><strong>On every partial</strong>, twenty-three controls, each one on all 32 partials.</p>
+                        <p><strong>On every partial</strong>, twenty-four controls, each one on all 32 partials.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -1177,7 +1201,7 @@
                                         <td><code>H1 Velocity to H32 Velocity</code></td>
                                         <td><code>h01_vel to h32_vel</code></td>
                                         <td>-100 % to +100 %</td>
-                                        <td>+70 %</td>
+                                        <td>0 %</td>
                                     </tr>
                                     <tr>
                                         <td><code>H1 Aftertouch to H32 Aftertouch</code></td>
@@ -1209,10 +1233,16 @@
                                         <td>-inf dB to 0.0 dB</td>
                                         <td>Differs by channel, 0.0 dB on H1 to -inf dB on H32</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>H1 Keyboard to H32 Keyboard</code></td>
+                                        <td><code>h01_keyboard to h32_keyboard</code></td>
+                                        <td>24 dB/oct above C-1 to 24 dB/oct below C9</td>
+                                        <td>0 dB/oct</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <p><strong>On the noise channel</strong>, twenty-two of them.</p>
+                        <p><strong>On the noise channel</strong>, twenty-three of them.</p>
                         <div class="scroll">
                             <table>
                                 <thead>
@@ -1300,7 +1330,7 @@
                                         <td><code>Noise Velocity</code></td>
                                         <td><code>noise_vel</code></td>
                                         <td>-100 % to +100 %</td>
-                                        <td>+70 %</td>
+                                        <td>0 %</td>
                                     </tr>
                                     <tr>
                                         <td><code>Noise Aftertouch</code></td>
@@ -1356,6 +1386,12 @@
                                         <td>0 % to 100 %</td>
                                         <td>25 %</td>
                                     </tr>
+                                    <tr>
+                                        <td><code>Noise Keyboard</code></td>
+                                        <td><code>noise_keyboard</code></td>
+                                        <td>24 dB/oct above C-1 to 24 dB/oct below C9</td>
+                                        <td>0 dB/oct</td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -1382,7 +1418,7 @@
                                         <td><code>macro1_row to macro8_row</code></td>
                                         <td>
                                             None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off
-                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level
+                                            swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level, Keyboard
                                         </td>
                                         <td>None</td>
                                     </tr>
@@ -1504,15 +1540,16 @@
 
                     <p>
                         Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the
-                        knob itself, instead of finding <code>H17 AM Rate</code> in a list of 850 parameters, and it works the same way in every host.
+                        knob itself, instead of finding <code>H17 AM Rate</code> in a list of 884 parameters, and it works the same way in every host.
                     </p>
 
                     <p>
-                        <strong>Eleven controllers cannot be bound</strong>, because the instrument already uses them and losing them would affect
-                        your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the
-                        easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers
-                        6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then
-                        touch the slide to steady a note, the note is steadied and the knob keeps waiting.
+                        <strong>Eighteen controllers cannot be bound</strong>, because the instrument already uses them and losing them would affect
+                        your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is
+                        the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. Controllers 6,
+                        38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. 120 to 127 are the channel mode
+                        messages, which stop notes, reset controllers and switch modes. Some hosts send 121 when the transport stops. If you arm a
+                        knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
                     </p>
 
                     <p>

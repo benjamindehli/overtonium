@@ -1,11 +1,14 @@
 #pragma once
 
+#include <optional>
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <utility>
+#include <vector>
 
 #include "dsp/Params.h"
 
@@ -46,6 +49,11 @@ inline constexpr const char *pmInPhaseId = "pmInPhase";
 inline constexpr const char *amInPhaseId = "amInPhase";
 inline constexpr const char *glideTriggerId = "glideTrigger";
 inline constexpr const char *glideModeId = "glideMode";
+
+/// How every channel's VELOCITY row turns velocity into level, Classic or dB.
+/// Part of the patch, and the switch beside the velocity caption. See
+/// VelocityCurve.
+inline constexpr const char *velocityCurveId = "velocityCurve";
 
 /// Legato, beside the voice count. With one voice it is monophonic legato,
 /// with more the top line, where the highest held note carries on into a new
@@ -130,6 +138,7 @@ inline constexpr const char *amDepthSuffix = "amDepth";
 inline constexpr const char *amShapeSuffix = "amShape";
 inline constexpr const char *velSuffix = "vel";
 inline constexpr const char *atSuffix = "aftertouch";
+inline constexpr const char *keySuffix = "keyboard";
 inline constexpr const char *muteSuffix = "mute";
 inline constexpr const char *soloSuffix = "solo";
 inline constexpr const char *volumeSuffix = "volume";
@@ -146,12 +155,13 @@ inline constexpr int kNumMacros = 8;
 
 /// The rows a macro can drive, in the order the panel reads them. The same
 /// rows LINK can gang. The UI names these again as ui::Role, and a test keeps
-/// the two in step.
+/// the two in step. A macro stores its row as a place in this list, so a new
+/// row goes on the end.
 inline constexpr const char *kMacroRows[] = {
     tuneSuffix,   glideSuffix,    pmRateSuffix,  pmDepthSuffix, driftSuffix,
     strikeSuffix, delaySuffix,    attackSuffix,  decaySuffix,   sustainSuffix,
     swellSuffix,  offLevelSuffix, releaseSuffix, amRateSuffix,  amDepthSuffix,
-    velSuffix,    atSuffix,       panSuffix,     volumeSuffix};
+    velSuffix,    atSuffix,       panSuffix,     volumeSuffix,  keySuffix};
 
 inline constexpr int kNumMacroRows =
     (int)(sizeof(kMacroRows) / sizeof(kMacroRows[0]));
@@ -195,7 +205,6 @@ const char *macroScopeName(int scope);
 /// snapshot and the window so the tint always matches what is driven.
 ///
 /// @param selected  the macro's own channels, which only Selected reads.
-/// @param selected  the macro's own channels, which only Selected reads.
 bool macroReaches(int scope, int index0, std::uint32_t selected = 0);
 
 /// This channel's share of a macro. Shared by the snapshot and the window so
@@ -216,8 +225,9 @@ const char *macroColourName(int colour);
 /// Defined in Theme.cpp.
 juce::Colour macroColour(int colour);
 
-/// A macro's parameter ids. The amount is the one a host draws, and row 0
-/// (None) means the macro is not in use.
+/// A macro's parameter ids, "macro3_row" for macro 2 and "row". The amount
+/// is the one a host draws, and row 0 (None) means the macro is not in use.
+juce::String macroParamId(int macro, const char *suffix);
 juce::String macroAmountId(int macro);
 juce::String macroRowId(int macro);
 juce::String macroScopeId(int macro);
@@ -245,11 +255,6 @@ inline const std::array<LfoShape, 7> kAmpShapes{
 juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
 
-/// The shape a stored index means, clamped so an index from a later build
-/// stays in range.
-LfoShape pitchShapeAt(int index);
-LfoShape ampShapeAt(int index);
-
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
 
@@ -265,10 +270,35 @@ juce::String noiseParamId(const char *suffix);
 int channelsSwitchedOn(juce::AudioProcessorValueTreeState &,
                        const char *suffix);
 
+/// A parameter and the normalised value it is to be set to.
+using Move = std::pair<juce::RangedAudioParameter *, float>;
+
+/// Sets every one as one step in the undo history: every gesture is opened
+/// before anything moves and closed after, as a LINK drag is.
+void moveAsOneStep(const std::vector<Move> &);
+
+/// Sets one parameter in a gesture of its own, so a host records it as one
+/// step. Does nothing for nullptr.
+void setAsOneStep(juce::RangedAudioParameter *, float normalised);
+
 /// Turns it off wherever it is on, so a host sees a gesture only on the
-/// channels that moved.
+/// channels that moved. One step in the undo history.
 void clearChannelSwitch(juce::AudioProcessorValueTreeState &,
                         const char *suffix);
+
+/// Switches the velocity curve between Classic and dB, and converts every
+/// channel's VELOCITY amount, the noise channel's included, so a medium note
+/// keeps the level it had. One step in the undo history. What the switch beside
+/// the velocity caption does. See decibelsAmountFor.
+void switchVelocityCurve(juce::AudioProcessorValueTreeState &);
+
+/// Turns it on for one channel and off for every other, for soloing or muting
+/// only that channel. One step in the undo history, with a gesture only on the
+/// channels that moved.
+///
+/// @param onlyId  the one channel's parameter, which must carry this suffix
+void switchOnlyChannel(juce::AudioProcessorValueTreeState &, const char *suffix,
+                       const juce::String &onlyId);
 
 inline constexpr const char *colourSuffix = "colour";
 
@@ -297,6 +327,14 @@ float defaultVolumeFor(int index0);
 ///                      zero only the percentage comes back.
 juce::String strikeRangeText(float amount, float delay, float attack);
 
+/// What a KEYBOARD amount comes to: the slope and the key it starts from, as
+/// "6.0 dB/oct below C4", or "0 dB/oct" for none. The host gets it too.
+juce::String keyboardText(float amount, int maximumLength = 0);
+
+/// The other way, for a host that lets you type a value. Reads the readout
+/// back, or a percentage of the knob's travel when given one.
+float keyboardValue(const juce::String &text);
+
 /// Cached atomic pointers, resolved once so the audio thread never does a
 /// string lookup.
 struct Cache {
@@ -320,6 +358,7 @@ struct Cache {
     std::atomic<float> *amShape = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
+    std::atomic<float> *key = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
@@ -343,6 +382,7 @@ struct Cache {
     std::atomic<float> *amShape = nullptr;
     std::atomic<float> *vel = nullptr;
     std::atomic<float> *at = nullptr;
+    std::atomic<float> *key = nullptr;
     std::atomic<float> *mute = nullptr;
     std::atomic<float> *solo = nullptr;
     std::atomic<float> *volume = nullptr;
@@ -402,6 +442,7 @@ struct Cache {
   std::atomic<float> *adaptiveSeventh = nullptr;
   std::atomic<float> *adaptiveHome = nullptr;
   std::atomic<float> *glideMode = nullptr;
+  std::atomic<float> *velocityCurve = nullptr;
 
   struct Echo {
     std::atomic<float> *on = nullptr;
@@ -467,6 +508,17 @@ inline const std::array<const char *, 15> kSessionParamIds{
     temperamentId,    tuningRootId,      mpeId,         slideDestId,
     oneVoicePerKeyId, phaseResetId,      lookaheadId,   legatoId,
     adaptiveRetuneId, adaptiveSeventhId, adaptiveHomeId};
+
+/// What a parameter reads as when a saved session or preset file comes from
+/// before the parameter existed.
+///
+/// Without this a restored session puts a parameter it does not name at its
+/// default, and a preset file leaves it at whatever the last patch set. The
+/// velocity curve reads as Classic, since every patch made before it existed
+/// was made on Classic and a new one starts on dB. The KEYBOARD rows read as
+/// zero, so an old preset file is level across the keys. Returns a plain
+/// value.
+std::optional<float> valueInOlderFiles(juce::StringRef id);
 
 /// Whether `id` is one of those.
 inline bool isSessionParam(juce::StringRef id) {

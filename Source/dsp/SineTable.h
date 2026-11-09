@@ -63,8 +63,6 @@ public:
     tbl[(size_t)kSize] = tbl[0];
   }
 
-  const float *data() const noexcept { return tbl.data(); }
-
 private:
   std::array<float, kSize + 1> tbl{};
 };

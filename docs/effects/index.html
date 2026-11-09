@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-10-31",
+                "dateModified": "2026-11-07",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/effects/#breadcrumb"
                 }
@@ -349,8 +349,8 @@
                     </p>
 
                     <p>
-                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-six of
-                        the forty-one <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit or a
+                        Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-nine of
+                        the forty-four <a href="../presets/">factory presets</a> use one, so most of what you load already uses a circuit or a
                         recording, not the plain sine.
                     </p>
                 </section>
@@ -380,13 +380,23 @@
 
                     <p>
                         <strong>Piano</strong> works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain
-                        pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a
-                        key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a
-                        piano's strings do not follow the wheel. <strong>Open</strong> is Piano with the sustain pedal always down: every string
-                        rings, and held keys ring the loudest. <strong>Octave</strong> is twelve strings from C3, always free, so every note finds
-                        something to ring with. <strong>Series</strong> is the tuning root's first eight harmonics from its second octave, tuned pure
-                        and always free. It works as a drone that responds to any note that falls on the root's own harmonic series. The root is set
-                        on the <a href="../tuning/#root">Tuning</a> bar or in Settings, and it stays available for Series under equal temperament too.
+                        pedal lifts every damper. The sostenuto pedal keeps the dampers up for the keys that were down when it went down. With the
+                        sustain pedal part way down, the dampers rest lightly on the strings, so they ring for a time between a damped string's and
+                        DECAY. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now
+                        would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do
+                        not follow the wheel. <strong>Open</strong> is Piano with the sustain pedal always down: every string rings, and held keys
+                        ring the loudest. <strong>Octave</strong> is twelve strings from C3, always free, so every note finds something to ring with.
+                        <strong>Series</strong> is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It
+                        works as a drone that responds to any note that falls on the root's own harmonic series. The root is set on the
+                        <a href="../tuning/#root">Tuning</a> bar or in Settings, and it stays available for Series under equal temperament too.
+                        <strong>Fifths</strong> is a drone of the root and the pure fifth above it in four octaves, from C2 to G5 on a root of C,
+                        always free. It follows the root as Series does. <strong>Chord</strong> is Piano that keeps the last chord: the strings of
+                        keys struck together stay free after you let go, so you can play a chord, let go and play a line over it while the chord rings
+                        on. A key added while the chord is down joins it, a new chord struck after letting go replaces it, and a single note leaves it
+                        be. The strings are as stiff as <a href="../tuning/#stretch">STRETCH</a>
+                        makes the partials, so their overtones are spread the same way and a stretched partial still rings its string. Each string
+                        rings back on the side of the partials that drive it, so a panned patch keeps its resonator with it, and a patch in the middle
+                        rings in the middle.
                     </p>
 
                     <p>
@@ -400,9 +410,9 @@
                     </p>
 
                     <p>
-                        The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck and 8-bit Choir use it, and the
-                        other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five
-                        percent with every string freed by the pedal.
+                        The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck, 8-bit Choir, Soft Trio, Pendulum
+                        and Chapel use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the
+                        pedal up, and about five percent with every string freed by the pedal.
                     </p>
                 </section>
 

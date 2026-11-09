@@ -27,7 +27,7 @@ public:
 
   /// Sizes the line for the host's rate, long enough for `lowestHz`. The only
   /// place that allocates.
-  void prepare(double sampleRate, double lowestHz = kLowestHz) noexcept;
+  void prepare(double sampleRate, double lowestHz = kLowestHz);
 
   /// The rate it is actually being run at, which the converter can lower
   /// below the host's but never raise above it, so the line is always long
@@ -46,8 +46,37 @@ public:
   ///                      the end to the middle, or below nought for a string
   ///                      nobody strikes at a point, which takes what it is
   ///                      fed as it is
+  ///
+  /// With `stiff` set, the string's overtones are spread the way STRETCH
+  /// spreads the partials: mode k at k * hz * sqrt(1 + stiffness * k^2). Two
+  /// allpasses in the loop do it. See kStiffSections.
   void setBlock(double hz, double decaySeconds, float damp, float point,
-                int len) noexcept;
+                int len, double stiffness = 0.0) noexcept;
+
+  /// Whether the string can be made stiff. Off, it is as it always was, which
+  /// is what the noise channel's is. On, the allpasses are only in the loop
+  /// while it has stiffness, so a string without any costs what it did, and
+  /// they go in and out without a trace: with no coefficient they are a delay
+  /// of a sample each, and the line is moved back or on by as much, so the
+  /// loop is the same sample for sample. Set before prepare.
+  void setStiffable(bool on) noexcept { stiffable = on; }
+
+  /// How many first-order allpasses a stiff string has in its loop. Fitted so
+  /// its first and kStiffFitMode-th modes land exactly where the law puts
+  /// them. Two keep the first sixteen within a third of a cent of the law at
+  /// 24 cents of STRETCH, where the plain string misses them by up to six,
+  /// and within about two and a half at 80. Past that the upper ones drift
+  /// further, and a low string cannot be squeezed much at all, since an
+  /// allpass can add at most a sample of delay to the top of the loop.
+  static constexpr int kStiffSections = 2;
+  static constexpr int kStiffFitMode = 16;
+
+  /// The allpass coefficient that gives a string at `hz` its stiffness, for
+  /// the tests. Nought for none.
+  double stiffCoefficient() const noexcept { return allpass; }
+
+  /// The phase delay of a first-order allpass with coefficient a, in samples.
+  static double allpassDelay(double omega, double a) noexcept;
 
   /// One sample: the noise striking it in, the string out.
   float tick(float excitation) noexcept;
@@ -81,6 +110,27 @@ private:
   float feedback = 0.0f, feedbackStep = 0.0f, inputGain = 0.0f, b = 0.25f;
   float lowpassPrevious = 0.0f;
   int pointDelay = 1;
+
+  bool stiffable = false;
+
+  /// Whether the allpasses are in the loop now.
+  bool stiffOn = false;
+
+  /// Puts the allpasses into the loop, or takes them out, at a coefficient of
+  /// nought, where either leaves the loop exactly as it was.
+  void engageStiffness() noexcept;
+  void disengageStiffness() noexcept;
+
+  /// The allpasses' coefficient, moved across the block, and each one's last
+  /// input and output.
+  double allpass = 0.0;
+  float apCoeff = 0.0f, apStep = 0.0f;
+  float apIn[kStiffSections] = {}, apOut[kStiffSections] = {};
+
+  /// The coefficient for a string at `hz` with this stiffness, found by
+  /// bisection. Only worked out again when either changes.
+  double fitStiffness(double hz, double stiffness, double longest) noexcept;
+  double fittedHz = -1.0, fittedStiffness = 0.0;
   bool primed = false;
 
   /// Whether anything has been through it since it was last cleared. Clearing

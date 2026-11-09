@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 
+#include "Exact.h"
+
 namespace ovt {
 
 namespace {
@@ -16,16 +18,21 @@ constexpr float kQuiet = 1.0e-6f;
 double equalHz(int key) { return 440.0 * std::exp2((double)(key - 69) / 12.0); }
 } // namespace
 
-void SympatheticStrings::prepare(double sampleRate) noexcept {
+void SympatheticStrings::prepare(double sampleRate) {
   rate = sampleRate;
 
   // Each long enough for its own note pulled down as far as any temperament,
   // or Adaptive two commas down, can take it, with room to spare.
-  for (int i = 0; i < kStrings; ++i)
+  for (int i = 0; i < kStrings; ++i) {
+    strings[(size_t)i].setStiffable(true);
     strings[(size_t)i].prepare(sampleRate, 0.85 * equalHz(keyOf(i)));
+  }
 
   ringing.fill(false);
   feeding.fill(0.0f);
+  panNow.fill(0.0f);
+  gainLeft.fill(1.0f);
+  gainRight.fill(1.0f);
   fresh = true;
 }
 
@@ -35,6 +42,9 @@ void SympatheticStrings::silence() noexcept {
 
   ringing.fill(false);
   feeding.fill(0.0f);
+  panNow.fill(0.0f);
+  gainLeft.fill(1.0f);
+  gainRight.fill(1.0f);
 }
 
 void SympatheticStrings::reset() noexcept {
@@ -56,6 +66,10 @@ float SympatheticStrings::makeUpDecibels(ResonatorMode mode) noexcept {
     return 7.5f;
   case ResonatorMode::Series:
     return 4.5f;
+  case ResonatorMode::Fifths:
+    return 3.0f;
+  case ResonatorMode::Chord:
+    return 8.0f;
   case ResonatorMode::Octave:
     return 11.0f;
   case ResonatorMode::Off:
@@ -102,15 +116,24 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
   const float damp = std::clamp(params.damping, 0.0f, 1.0f);
   const double decay = std::max(0.05, (double)params.decaySeconds);
 
+  // How far a string moves towards its new side this block.
+  const auto panStep =
+      (float)(1.0 - std::exp(-(double)numSamples / (kPanSeconds * rate)));
+
   for (int done = 0; done < numSamples; done += kChunk) {
     const int len = std::min(kChunk, numSamples - done);
 
     float in[kChunk];
-    float sum[kChunk];
+
+    // The strings in the middle go to both sides alike, as one sum, and the
+    // rest to each side by their own gains. A patch in the middle has nothing
+    // but the first, so it is what it was.
+    float sum[kChunk], sumLeft[kChunk], sumRight[kChunk];
+    bool sided = false;
 
     for (int n = 0; n < len; ++n) {
       in[n] = 0.5f * (left[done + n] + right[done + n]) * kSend;
-      sum[n] = 0.0f;
+      sum[n] = sumLeft[n] = sumRight[n] = 0.0f;
     }
 
     for (int i = 0; i < kStrings; ++i) {
@@ -127,9 +150,15 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       // A string out of use keeps the pitch it last had while it rings out.
       const auto hz = inUse ? plan.hz[s] : equalHz(keyOf(i));
 
-      // A damper never lets a string ring longer than DECAY would.
-      string.setBlock(hz, free ? decay : std::min(decay, damperSeconds(i)),
-                      damp, -1.0f, len);
+      // A damper never lets a string ring longer than DECAY would. Resting
+      // lightly on it, it lets it ring for a time between the two, spaced
+      // evenly in ratio, since that is how a time is heard.
+      const auto damped = std::min(decay, damperSeconds(i));
+      const auto lift =
+          free ? 1.0 - (double)std::clamp(plan.rest[s], 0.0f, 1.0f) : 0.0;
+      const auto rings =
+          lift >= 1.0 ? decay : damped * std::pow(decay / damped, lift);
+      string.setBlock(hz, rings, damp, -1.0f, len, plan.stiffness);
 
       float peak = 0.0f;
 
@@ -143,10 +172,12 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
         return 1.0 - std::pow(10.0, -3.0 / (hz * seconds));
       };
       const auto reference = lossAt(kCouplingSeconds);
+      // A damper resting lightly is fed as it rings, and fed less the closer
+      // it is to its string, down to nothing as it settles.
       const auto target =
           free ? (float)(reference *
-                         std::pow(lossAt(decay) / reference, kLossExponent)) *
-                     (plan.pedalled[s] ? kPedalSend : 1.0f)
+                         std::pow(lossAt(rings) / reference, kLossExponent)) *
+                     (plan.pedalled[s] ? kPedalSend : 1.0f) * (float)lift
                : 0.0f;
 
       // Moved across the block rather than stepped at its start. A step in
@@ -154,13 +185,51 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       // eighty-seven clicks at once.
       const auto step = (target - feeding[s]) / (float)len;
 
-      for (int n = 0; n < len; ++n) {
-        feeding[s] += step;
+      // Its side, moved once for the whole call rather than each chunk, and
+      // the gains for it. Equal in power wherever it is, and exactly one each
+      // in the middle, so a centred string sounds as it always did.
+      if (done == 0 && plan.driven[s]) {
+        const auto toward = std::clamp(plan.pan[s], -1.0f, 1.0f);
+        panNow[s] += (toward - panNow[s]) * panStep;
 
-        // A damped string is fed nothing.
-        const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
-        peak = std::max(peak, std::abs(y));
-        sum[n] += y;
+        // Back in the middle exactly, once it is all but there, so it goes
+        // back to the sum both sides share.
+        if (exactly(toward, 0.0f) && std::abs(panNow[s]) < 1.0e-4f)
+          panNow[s] = 0.0f;
+      }
+
+      const auto toLeft = std::sqrt(1.0f - panNow[s]);
+      const auto toRight = std::sqrt(1.0f + panNow[s]);
+
+      if (exactly(toLeft, 1.0f) && exactly(gainLeft[s], 1.0f) &&
+          exactly(gainRight[s], 1.0f)) {
+        for (int n = 0; n < len; ++n) {
+          feeding[s] += step;
+
+          // A damped string is fed nothing.
+          const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
+          peak = std::max(peak, std::abs(y));
+          sum[n] += y;
+        }
+      } else {
+        sided = true;
+        auto gl = gainLeft[s], gr = gainRight[s];
+        const auto glStep = (toLeft - gl) / (float)len;
+        const auto grStep = (toRight - gr) / (float)len;
+
+        for (int n = 0; n < len; ++n) {
+          feeding[s] += step;
+          gl += glStep;
+          gr += grStep;
+
+          const auto y = string.tick(in[n] * feeding[s]) * string.audibility();
+          peak = std::max(peak, std::abs(y));
+          sumLeft[n] += y * gl;
+          sumRight[n] += y * gr;
+        }
+
+        gainLeft[s] = toLeft;
+        gainRight[s] = toRight;
       }
 
       feeding[s] = target;
@@ -174,8 +243,10 @@ void SympatheticStrings::process(float *left, float *right, int numSamples,
       wetNow = wetGain + (wetNow - wetGain) * glide;
 
       const auto wet = sum[n] * wetNow;
-      left[done + n] = left[done + n] * dryNow + wet;
-      right[done + n] = right[done + n] * dryNow + wet;
+      left[done + n] =
+          left[done + n] * dryNow + (sided ? wet + sumLeft[n] * wetNow : wet);
+      right[done + n] =
+          right[done + n] * dryNow + (sided ? wet + sumRight[n] * wetNow : wet);
     }
   }
 

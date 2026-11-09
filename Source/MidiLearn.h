@@ -9,7 +9,9 @@ namespace ovt {
 
 /// Which MIDI controller moves which parameter.
 ///
-/// One parameter per controller number. Lookups happen on the audio thread and
+/// One parameter per controller number. Learning gives a parameter one
+/// controller, while a session may name several for it and keeps them.
+/// Lookups happen on the audio thread and
 /// edits on the message thread, so the table is an array of atomic parameter
 /// pointers that never allocates or locks. Controller moves are not undoable.
 /// See OvertoniumProcessor::audioProcessorParameterChangeGestureBegin.
@@ -18,22 +20,31 @@ public:
   static constexpr int kNumControllers = 128;
 
   /// Controller numbers this will not bind because something already listens
-  /// for them: the mod wheel (1), sustain (64), the MPE slide axis (74), the
-  /// note stops (120, 123) and the RPN and NRPN messages an MPE controller uses
-  /// to declare its zones (6, 38, 98 to 101).
+  /// for them: the mod wheel (1), sustain (64), sostenuto (66), the MPE slide
+  /// axis (74), the RPN and NRPN messages an MPE controller uses to declare
+  /// its zones (6, 38, 98 to 101) and the channel mode messages (120 to 127).
+  /// Some hosts send reset all controllers (121) on stop, which would move a
+  /// control bound to it.
   static bool isReserved(int controller) noexcept {
     switch (controller) {
     case 1:
     case 6:
     case 38:
     case 64:
+    case 66:
     case 74:
     case 98:
     case 99:
     case 100:
     case 101:
     case 120:
+    case 121:
+    case 122:
     case 123:
+    case 124:
+    case 125:
+    case 126:
+    case 127:
       return true;
 
     default:
@@ -41,7 +52,7 @@ public:
     }
   }
 
-  /// What a reserved controller is already doing, for the menu.
+  /// What a reserved controller is already doing, in the words the docs use.
   static const char *reservedFor(int controller) noexcept;
 
   // ---- the message thread's side -----------------------------------------
@@ -64,6 +75,8 @@ public:
   void forget(const juce::RangedAudioParameter *parameter) noexcept;
 
   /// Binds a controller to a parameter, releasing whatever it moved before.
+  /// Other controllers bound to the parameter keep it, as a session restores
+  /// them.
   void bind(int controller, juce::RangedAudioParameter *parameter) noexcept;
 
   /// Unbinds every controller.
@@ -92,6 +105,12 @@ public:
   static const juce::Identifier kParameter;
 
 private:
+  /// Points one controller at a parameter and lets go of every other
+  /// controller pointing at it, which is what learning does. The menu shows
+  /// one controller per control, so "Bind a different controller" has to
+  /// replace the old one rather than add to it. Safe on the audio thread.
+  void take(int controller, juce::RangedAudioParameter *parameter) noexcept;
+
   std::array<std::atomic<juce::RangedAudioParameter *>, kNumControllers>
       bound{};
   std::atomic<juce::RangedAudioParameter *> arming{nullptr};

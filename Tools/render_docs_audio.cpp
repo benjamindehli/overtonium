@@ -11,6 +11,7 @@
 // CONTRIBUTING.md has the rest.
 
 #include <cstdio>
+#include <cstdlib>
 #include <functional>
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <vector>
@@ -22,8 +23,17 @@ namespace {
 constexpr double kRate = 44100.0;
 constexpr int kBlock = 512;
 
+/// A name that is not a preset stops the render, rather than leaving whatever
+/// patch was loaded before to be written under its name.
 int indexOf(const juce::String &name) {
-  return ovt::presets::names().indexOf(name);
+  const auto at = ovt::presets::names().indexOf(name);
+
+  if (at < 0) {
+    std::printf("no preset called %s\n", name.toRawUTF8());
+    std::exit(1);
+  }
+
+  return at;
 }
 
 /// A preset's name as the file it is written to and the page links it by:
@@ -52,13 +62,10 @@ void setPlain(OvertoniumProcessor &p, const juce::String &id, float plain) {
     param->setValueNotifyingHost(param->convertTo0to1(plain));
 }
 
-/// Notes held together, then let go, with a short fade at each end so a file
-/// cannot begin or end on a step.
-juce::AudioBuffer<float> render(OvertoniumProcessor &p,
-                                const juce::String &preset,
-                                const std::vector<int> &notes,
-                                double heldSeconds, double tailSeconds,
-                                const Move &move = {}) {
+/// Loads the preset into a freshly prepared processor and sets the controls
+/// where the clip starts them.
+void prepare(OvertoniumProcessor &p, const juce::String &preset,
+             const Move &move) {
   ovt::presets::apply(p.apvts, indexOf(preset));
 
   p.setRateAndBufferSizeDetails(kRate, kBlock);
@@ -67,6 +74,32 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
 
   if (move)
     move(p, 0.0);
+}
+
+/// A short fade at each end so a file cannot begin or end on a step, and one
+/// channel when both carry the same samples, which is every patch here.
+juce::AudioBuffer<float> finish(juce::AudioBuffer<float> &out) {
+  const int fade = (int)(0.03 * kRate);
+  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
+  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
+
+  for (int n = 0; n < out.getNumSamples(); ++n)
+    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
+      return out;
+
+  juce::AudioBuffer<float> mono(1, out.getNumSamples());
+  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
+
+  return mono;
+}
+
+/// Notes held together, then let go.
+juce::AudioBuffer<float> render(OvertoniumProcessor &p,
+                                const juce::String &preset,
+                                const std::vector<int> &notes,
+                                double heldSeconds, double tailSeconds,
+                                const Move &move = {}) {
+  prepare(p, preset, move);
 
   const int held = (int)(heldSeconds * kRate);
   const int tail = (int)(tailSeconds * kRate);
@@ -107,20 +140,7 @@ juce::AudioBuffer<float> render(OvertoniumProcessor &p,
     done += n;
   }
 
-  const int fade = (int)(0.03 * kRate);
-  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
-  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
-
-  // Mono when both channels carry the same samples, which is every patch here,
-  // and stereo otherwise.
-  for (int n = 0; n < out.getNumSamples(); ++n)
-    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
-      return out;
-
-  juce::AudioBuffer<float> mono(1, out.getNumSamples());
-  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
-
-  return mono;
+  return finish(out);
 }
 
 /// One note in a run: which, when it goes down, how long it is held, and how
@@ -138,14 +158,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
                                    const juce::String &preset,
                                    const std::vector<Step> &steps,
                                    double totalSeconds, const Move &move = {}) {
-  ovt::presets::apply(p.apvts, indexOf(preset));
-
-  p.setRateAndBufferSizeDetails(kRate, kBlock);
-  p.prepareToPlay(kRate, kBlock);
-  p.reset();
-
-  if (move)
-    move(p, 0.0);
+  prepare(p, preset, move);
 
   juce::AudioBuffer<float> out(2, (int)(totalSeconds * kRate));
   out.clear();
@@ -187,18 +200,7 @@ juce::AudioBuffer<float> renderRun(OvertoniumProcessor &p,
     done += n;
   }
 
-  const int fade = (int)(0.03 * kRate);
-  out.applyGainRamp(out.getNumSamples() - fade, fade, 1.0f, 0.0f);
-  out.applyGainRamp(0, (int)(0.005 * kRate), 0.0f, 1.0f);
-
-  for (int n = 0; n < out.getNumSamples(); ++n)
-    if (!juce::exactlyEqual(out.getSample(0, n), out.getSample(1, n)))
-      return out;
-
-  juce::AudioBuffer<float> mono(1, out.getNumSamples());
-  mono.copyFrom(0, 0, out, 0, 0, out.getNumSamples());
-
-  return mono;
+  return finish(out);
 }
 
 bool write(const juce::AudioBuffer<float> &buffer, const juce::File &file,
@@ -229,6 +231,15 @@ int main(int argc, char **argv) {
 
   const juce::File dir{juce::String(argc > 1 ? argv[1] : ".")};
 
+  // Made if it is not there, so a fresh folder can be named, and a file that
+  // cannot be written fails the run rather than leaving the last copy behind.
+  if (!dir.createDirectory()) {
+    std::printf("cannot create %s\n", dir.getFullPathName().toRawUTF8());
+    return 1;
+  }
+
+  int failed = 0;
+
   juce::OggVorbisAudioFormat ogg;
   juce::FlacAudioFormat flac;
 
@@ -247,14 +258,18 @@ int main(int argc, char **argv) {
                 20.0 * std::log10(juce::jmax(1.0e-9, rms)),
                 buffer.getNumSamples() / kRate);
 
-    if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5))
+    if (!write(buffer, dir.getChildFile(slug + ".ogg"), ogg, 5)) {
       std::printf("    ogg FAILED\n");
+      ++failed;
+    }
 
     // The fallback is lossless, since it is the file the page links to for
     // anyone who cannot play either. Level 8 is the slowest encoder setting,
     // which costs nothing for files rendered once.
-    if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8))
+    if (!write(buffer, dir.getChildFile(slug + ".flac"), flac, 8)) {
       std::printf("    flac FAILED\n");
+      ++failed;
+    }
   };
 
   // ---- TUNE, at each end and then across the whole of it --------------------
@@ -430,6 +445,11 @@ int main(int argc, char **argv) {
                         ovt::params::oscParamId(ovt::params::driftSuffix, i),
                         drift);
                 }));
+  }
+
+  if (failed > 0) {
+    std::printf("%d files could not be written\n", failed);
+    return 1;
   }
 
   return 0;

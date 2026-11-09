@@ -7,6 +7,7 @@
 #include "Envelope.h"
 #include "Harmonics.h"
 #include "KarplusString.h"
+#include "Keyboard.h"
 #include "Lfo.h"
 #include "Params.h"
 #include "Velocity.h"
@@ -136,7 +137,7 @@ public:
   static constexpr int kControlBlock = 32;
 
   /// @param seed  distinguishes this voice's random stream from its siblings.
-  void prepare(double newSampleRate, uint32_t seed) noexcept;
+  void prepare(double newSampleRate, uint32_t seed);
   void reset() noexcept;
 
   /// Moves the voice to a different render rate without disturbing it. Every
@@ -171,6 +172,11 @@ public:
   /// The same fade over a time of the caller's choosing, for a note that has
   /// handed its phrase on and should go quietly.
   void fade(float seconds) noexcept;
+
+  /// How fast the note fades while a sustain pedal part way down holds it, as
+  /// a share of each channel's own release rate. Nought holds it. See
+  /// Envelope::setPedalFade.
+  void setPedalFade(float rate) noexcept;
 
   /// Carries on where another voice is: every envelope at its stage and level,
   /// the modulators and drift mid-cycle, and the phrase's velocity. Called on
@@ -248,6 +254,13 @@ public:
     return partialTremolos;
   }
 
+  /// Where each partial is sounding in the last render call, as octaves above
+  /// 1 Hz, so log2 of its frequency, with every bend and wander in it. For the
+  /// resonator, which pans each string after what drives it.
+  const std::array<double, kNumHarmonics> &getPartialOctaves() const noexcept {
+    return partialOctaves;
+  }
+
   /// Where pitch modulation and drift have this partial now, in cents.
   const std::array<float, kNumHarmonics> &getPartialPitches() const noexcept {
     return partialPitches;
@@ -261,12 +274,13 @@ public:
   }
 
   /// Room for one power per control block of the longest call the engine
-  /// makes. See SynthEngine::kModChunk.
+  /// makes, SynthEngine::kModChunk samples. The engine checks the two agree.
   static constexpr int kMaxPowerBlocks = 2048 / kControlBlock + 1;
 
   /// How loud this note's partials were together in each control block of
-  /// the last call, as the sum of their squared amplitudes. Filled only on FM
-  /// and PD, whose noise the engine sizes from every note at once. See
+  /// the last call, as the sum of their squared amplitudes. Filled only on the
+  /// characters with hiss, whose noise the engine sizes from every note at
+  /// once. See
   /// SynthEngine::renderHiss.
   const std::array<float, kMaxPowerBlocks> &getBlockPowers() const noexcept {
     return blockPowers;
@@ -285,6 +299,15 @@ public:
   /// aftertouch amount of its own.
   float getNoiseVelocity() const noexcept { return noiseVelocity; }
   float getNoisePressure() const noexcept { return noisePressure; }
+
+  /// What the KEYBOARD row has left of each partial on this note's key, 0 to
+  /// 1, following the key while a glide carries the note to a new one. Full
+  /// is a partial the row has not reduced.
+  const std::array<float, kNumHarmonics> &getPartialKeyboards() const noexcept {
+    return partialKeyboards;
+  }
+
+  float getNoiseKeyboard() const noexcept { return noiseKeyboard; }
 
   /// Roughly how loud this voice was during the last render, for choosing
   /// which one to steal. The loudest partial, as the channel meters use.
@@ -330,6 +353,11 @@ private:
     /// the delay and the attack. Latched at note-on like the gain.
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+
+    /// What the KEYBOARD row leaves of the level, and the amount and key it
+    /// was worked out for, so it is worked out again only when one of them
+    /// moves: when the knob turns or a glide carries the note to a new key.
+    KeyboardCache keyboard;
 
     /// The attack time the knob and that velocity come to, and the knob value
     /// it was worked out for, so it is recomputed only when the knob moves.
@@ -384,6 +412,7 @@ private:
     float velGain = 1.0f;
     float delayScale = 1.0f;
     float attackScale = 1.0f;
+    KeyboardCache keyboard;
     float lastGain = 0.0f;
     bool gainPrimed = false;
   };
@@ -396,8 +425,10 @@ private:
   std::array<float, kNumHarmonics> partialEnvelopes{};
   std::array<float, kNumHarmonics> partialTremolos{};
   std::array<float, kNumHarmonics> partialPitches{};
+  std::array<double, kNumHarmonics> partialOctaves{};
   std::array<float, kNumHarmonics> partialVelocities{};
   std::array<float, kNumHarmonics> partialPressures{};
+  std::array<float, kNumHarmonics> partialKeyboards{};
 
   Noise noise;
 
@@ -418,6 +449,7 @@ private:
   float noiseTremolo = 0.0f;
   float noiseVelocity = 0.0f;
   float noisePressure = 0.0f;
+  float noiseKeyboard = 0.0f;
   float lowpassCoef = 0.1f;
 
   double sampleRate = 44100.0;

@@ -1,5 +1,6 @@
 #include "PluginEditor.h"
 #include "UI/LearnMenu.h"
+#include "UI/SettingsMenus.h"
 
 #include <cmath>
 
@@ -14,6 +15,10 @@ namespace {
 using ovt::ui::kScrollBarThickness;
 /// Breathing room between the noise channel and the scrolling series.
 constexpr int kMasterGap = 8;
+
+/// The pointer tool button's height. It is taller than the header row it
+/// stands in, which is only as tall as the channel numbers need.
+constexpr int kToolButtonHeight = 22;
 
 /// The two bars under the top bar, as bits of OvertoniumEditor::openBars.
 constexpr int kPlayingBar = 1;
@@ -117,6 +122,21 @@ RowGutter::RowGutter() {
   for (auto *b : {&glideLegato, &glideFixedTime})
     addAndMakeVisible(*b);
 
+  // dB, lit for the curve in decibels and dark for Classic.
+  velocityDecibels.setButtonText("dB");
+  velocityDecibels.setTooltip(
+      "Velocity in dB: every step of velocity takes the same number of "
+      "decibels, down to 40 dB at full. Dark is the Classic curve that patches "
+      "made before it use. Switching converts every channel's amount so a "
+      "medium note keeps its level.");
+  velocityDecibels.setTitle("Velocity in decibels");
+  velocityDecibels.setComponentID("velocityCurve");
+  velocityDecibels.onClick = [this] {
+    if (onVelocityCurveClicked != nullptr)
+      onVelocityCurveClicked();
+  };
+  addAndMakeVisible(velocityDecibels);
+
   // The shared-modulator switch on each shape row, the same switch as the
   // last item in every shape button's menu.
   const auto setUpInPhase = [this](ovt::ui::ScreenSwitch &b, const char *which,
@@ -175,10 +195,15 @@ void RowGutter::resized() {
   placeCaps(Row::PmShape, {&pitchInPhase}, rows, headerBottom);
   placeCaps(Row::Glide, {&glideLegato, &glideFixedTime}, rows, headerBottom);
   placeCaps(Row::AmShape, {&ampInPhase}, rows, headerBottom);
+  placeCaps(Row::Velocity, {&velocityDecibels}, rows, headerBottom);
 
   headerCap.toFront(false);
 
-  toolButton.setBounds(rows[(size_t)Row::Header].reduced(7, 1));
+  // Centred on the channel numbers, and reaching a little past the header row
+  // into the padding above and the row below. See kToolButtonHeight.
+  const auto header = rows[(size_t)Row::Header];
+  toolButton.setBounds(
+      header.withSizeKeepingCentre(header.getWidth() - 14, kToolButtonHeight));
   toolButton.toFront(false);
 }
 
@@ -243,6 +268,10 @@ void RowGutter::setScroll(int s) {
   repaint();
 }
 
+void RowGutter::setVelocityCurve(bool decibels) {
+  velocityDecibels.setToggleState(decibels, juce::dontSendNotification);
+}
+
 void RowGutter::setGlideSwitches(bool legato, bool fixedTime) {
   glideLegato.setToggleState(legato, juce::dontSendNotification);
   glideFixedTime.setToggleState(fixedTime, juce::dontSendNotification);
@@ -276,6 +305,31 @@ void RowGutter::mouseMove(const juce::MouseEvent &e) {
     onHoverChanged(onHeading ? sectionHeading(section) : kNoRow);
 }
 
+juce::String RowGutter::getTooltip() { return tooltipAt(getMouseXYRelative()); }
+
+juce::String RowGutter::tooltipAt(juce::Point<int> point) const {
+  const auto rows =
+      layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    // The rows paint draws a caption on, and only where it draws it.
+    if (rowLabel(row) == nullptr || rowIsCollapsed(row, collapsed))
+      continue;
+
+    auto area = rows[(size_t)i];
+
+    if (row == Row::Fader)
+      area = area.removeFromTop(16);
+
+    if (area.contains(point))
+      return rowHelp(row);
+  }
+
+  return {};
+}
+
 void RowGutter::mouseExit(const juce::MouseEvent &) {
   if (onHoverChanged)
     onHoverChanged(kNoRow);
@@ -284,7 +338,8 @@ void RowGutter::mouseExit(const juce::MouseEvent &) {
 void RowGutter::paintHeaderBand(juce::Graphics &g) {
   // The header holds the tool button, which sits in front of this cap. See
   // resized.
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   // The right-edge divider too, so the cap does not cover the top of it.
   g.setColour(colours::outline);
@@ -292,7 +347,8 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
 }
 
 void RowGutter::paint(juce::Graphics &g) {
-  paintChannelBackground(g, getLocalBounds(), colours::panel.darker(0.25f));
+  paintChannelBackground(*this, g, getLocalBounds(),
+                         colours::panel.darker(0.25f));
 
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
@@ -388,6 +444,11 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     : juce::AudioProcessorEditor(&p), topBar(p.apvts, *this),
       playingBar(p.apvts, *this), tuningBar(p.apvts, *this),
       noiseStrip(p.apvts, *this, *this), macroPanel(p.apvts) {
+  for (int i = 0; i < kNumHarmonics; ++i)
+    for (int r = 0; r < kNumRoles; ++r)
+      oscParams[(size_t)i][(size_t)r] =
+          p.apvts.getParameter(params::oscParamId(roleSuffix((Role)r), i));
+
   setLookAndFeel(&lookAndFeel);
 
   // The background is filled edge to edge.
@@ -578,10 +639,7 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
     showLearnMenu(id);
   };
 
-  macroPanel.onDismiss = [this] {
-    macroPanel.setVisible(false);
-    topBar.setMacrosOn(false);
-  };
+  macroPanel.onDismiss = [this] { macroPanel.setVisible(false); };
 
   topBar.onMacrosClicked = [this] { showMacroPanel(!macroPanel.isVisible()); };
 
@@ -637,11 +695,8 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   // A switch click flips the parameter in one gesture. The switch lights
   // from the parameter, so presets and menus that move it show too.
   const auto flip = [this](const char *id) {
-    if (auto *param = plugin().apvts.getParameter(id)) {
-      param->beginChangeGesture();
-      param->setValueNotifyingHost(param->getValue() > 0.5f ? 0.0f : 1.0f);
-      param->endChangeGesture();
-    }
+    if (auto *param = plugin().apvts.getParameter(id))
+      ovt::params::setAsOneStep(param, param->getValue() > 0.5f ? 0.0f : 1.0f);
 
     syncSharedModulators();
   };
@@ -650,6 +705,12 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   gutter.onGlideFixedTimeClicked = [flip] { flip(ovt::params::glideModeId); };
   gutter.onPitchInPhaseClicked = [flip] { flip(ovt::params::pmInPhaseId); };
   gutter.onAmpInPhaseClicked = [flip] { flip(ovt::params::amInPhaseId); };
+
+  // Not a plain flip: every channel's amount is converted with it.
+  gutter.onVelocityCurveClicked = [this] {
+    ovt::params::switchVelocityCurve(plugin().apvts);
+    syncSharedModulators();
+  };
 
   // Index -1, as for the noise channel, so a caption cannot arm a LINK
   // preview on a channel.
@@ -769,6 +830,10 @@ OvertoniumEditor::~OvertoniumEditor() {
   plugin().updates().cancel();
   plugin().updates().setListener(nullptr);
 
+  // Before the controls go, since a control being dragged does not end its
+  // gesture when it is destroyed.
+  plugin().windowClosing();
+
   setLookAndFeel(nullptr);
 }
 
@@ -852,8 +917,6 @@ void OvertoniumEditor::resized() {
                       .reduced(kStripPadX, kStripPadY),
                   collapsedSections);
 
-  stripLayoutArea = juce::Rectangle<int>(0, 0, kStripWidth, stripHeight)
-                        .reduced(kStripPadX, kStripPadY);
   scrollRange = bands.maxScroll;
   scrollBandHeight = bands.middle.getHeight();
 
@@ -1026,8 +1089,7 @@ void OvertoniumEditor::mouseWheelMove(const juce::MouseEvent &e,
   if (sideways || e.mods.isShiftDown()) {
     if (viewport.useMouseWheelMoveIfNeeded(e, wheel))
       return;
-  } else if (scrollParameters(
-                 -juce::roundToInt(wheel.deltaY * 14.0f * 16.0f))) {
+  } else if (scrollParameters(ovt::ui::wheelPixels(wheel))) {
     return;
   }
 
@@ -1165,12 +1227,16 @@ void OvertoniumEditor::applyPreset(int index) {
 
 void OvertoniumEditor::complain(const juce::String &title,
                                 const juce::String &detail) {
-  juce::NativeMessageBox::showAsync(
+  // The one button is both the default and the way out, so Return and Escape
+  // both close it, whichever platform draws the box.
+  juce::NativeMessageBox::showForOptionsAsync(
       juce::MessageBoxOptions()
           .withIconType(juce::MessageBoxIconType::NoIcon)
           .withTitle(title)
           .withMessage(detail)
-          .withButton("OK")
+          .withButton(juce::MessageBoxButtonOptions("OK", 0)
+                          .withRole(juce::MessageBoxButtonRole::cancel)
+                          .withPreferredAction())
           .withAssociatedComponent(this),
       nullptr);
 }
@@ -1179,8 +1245,11 @@ void OvertoniumEditor::complain(const juce::String &title,
 
 juce::RangedAudioParameter *OvertoniumEditor::oscParameter(Role role,
                                                            int index) const {
-  return plugin().apvts.getParameter(
-      params::oscParamId(roleSuffix(role), index));
+  if (!juce::isPositiveAndBelow(index, kNumHarmonics) ||
+      !juce::isPositiveAndBelow((int)role, kNumRoles))
+    return nullptr;
+
+  return oscParams[(size_t)index][(size_t)role];
 }
 
 bool OvertoniumEditor::drawStarted(juce::Point<int> onScreen) {
@@ -1424,11 +1493,7 @@ void OvertoniumEditor::chooseTool(ovt::ui::PointerTool which) {
 
 void OvertoniumEditor::followMacroTints() {
   const auto readInt = [this](const juce::String &id) {
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            plugin().apvts.getParameter(id)))
-      return (int)std::lround(p->convertFrom0to1(p->getValue()));
-
-    return 0;
+    return ovt::ui::settings::choiceIndex(plugin().apvts, id);
   };
 
   // The eight macros read once rather than per control. Not skipped when no
@@ -1552,12 +1617,17 @@ void OvertoniumEditor::showLearnMenu(const juce::String &parameterId) {
                      .getScreenPosition()
                      .roundToInt();
 
+  // A SafePointer, since a menu with no target component outlives the window,
+  // and closing the window dismisses it with a call to this.
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withStandardItemHeight(22)
                       .withTargetScreenArea({p.x, p.y, 1, 1}),
-                  [this, parameter](int result) {
-                    ovt::ui::learn::applyChoice(result, plugin().midiLearn,
-                                                parameter);
+                  [self, parameter](int result) {
+                    if (self != nullptr)
+                      ovt::ui::learn::applyChoice(
+                          result, self->plugin().midiLearn, parameter);
                   });
 }
 
@@ -1567,7 +1637,6 @@ void OvertoniumEditor::showMacroPanel(bool show) {
 
   macroPanel.setVisible(show);
   macroPanel.toFront(false);
-  topBar.setMacrosOn(show);
 
   // A question still waiting stays in front of it.
   if (notice.isShowing())
@@ -1585,7 +1654,8 @@ void OvertoniumEditor::showMacroMenu(int macro) {
   if (amount == nullptr || row == nullptr)
     return;
 
-  const bool made = std::lround(row->convertFrom0to1(row->getValue())) != 0;
+  const bool made = ovt::ui::settings::choiceIndex(
+                        plugin().apvts, ovt::params::macroRowId(macro)) != 0;
 
   auto m = PlayingBar::macroMenu(macro, made, plugin().midiLearn, amount);
   m.setLookAndFeel(&getLookAndFeel());
@@ -1884,6 +1954,7 @@ void OvertoniumEditor::syncSharedModulators() {
 
   gutter.setSharedModulators(on(cache.pmInPhase), on(cache.amInPhase));
   gutter.setGlideSwitches(on(cache.glideTrigger), on(cache.glideMode));
+  gutter.setVelocityCurve(on(cache.velocityCurve));
 }
 
 void OvertoniumEditor::timerCallback() {
@@ -1915,7 +1986,8 @@ void OvertoniumEditor::timerCallback() {
     strip.setActivity(
         plugin().getPartialEnvelope(i), plugin().getPartialTremolo(i),
         plugin().getPartialPitch(i), plugin().getPartialVelocity(i),
-        plugin().getPartialPressure(i), stripLamps);
+        plugin().getPartialKeyboard(i), plugin().getPartialPressure(i),
+        stripLamps);
 
     for (const auto &band : stripLamps)
       lampRegions.add(content.getLocalArea(&strip, band));
@@ -1927,7 +1999,8 @@ void OvertoniumEditor::timerCallback() {
 
   noiseStrip.setActivity(
       plugin().getNoiseEnvelope(), plugin().getNoiseTremolo(),
-      plugin().getNoiseVelocity(), plugin().getNoisePressure(), stripLamps);
+      plugin().getNoiseVelocity(), plugin().getNoiseKeyboard(),
+      plugin().getNoisePressure(), stripLamps);
 
   for (const auto &band : stripLamps)
     lampRegions.add(content.getLocalArea(&noiseStrip, band));
@@ -1950,10 +2023,11 @@ void OvertoniumEditor::timerCallback() {
                          plugin().getOutputLevelRight());
 
   // How the instrument is being played, at the full rate.
-  playingBar.showActivity({plugin().getActiveVoiceCount(),
-                           plugin().isSustainDown(), plugin().getBendPosition(),
-                           plugin().getWheelPosition(),
-                           plugin().getPressurePosition()});
+  playingBar.showActivity(
+      {plugin().getActiveVoiceCount(), plugin().isSustainDown(),
+       plugin().isSostenutoDown(), plugin().getSustainDepth(),
+       plugin().getBendPosition(), plugin().getWheelPosition(),
+       plugin().getPressurePosition()});
 
   // What Adaptive did to the held chord, at the full rate, and read even
   // while the bar is closed so it opens on the current chord.

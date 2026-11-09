@@ -82,6 +82,13 @@ public:
   /// Whether a sustain pedal is down on any channel.
   bool isSustainDown() const noexcept { return sustainShown.load(); }
 
+  /// How far down the sustain pedal furthest down is, nought to one.
+  float getSustainDepth() const noexcept { return sustainDepthShown.load(); }
+
+  /// Whether the sostenuto pedal is down, on any channel without MPE and on a
+  /// zone's master channel with it.
+  bool isSostenutoDown() const noexcept { return sostenutoShown.load(); }
+
   /// The pitch wheel, or the widest bend on any key held under MPE, from -1 to
   /// 1 against the BEND range.
   float getBendPosition() const noexcept { return bendShown.load(); }
@@ -137,6 +144,12 @@ public:
   float getNoiseVelocity() const noexcept { return engine.getNoiseVelocity(); }
   float getNoisePressure() const noexcept { return engine.getNoisePressure(); }
 
+  float getPartialKeyboard(int index0) const noexcept {
+    return engine.getPartialKeyboard(index0);
+  }
+
+  float getNoiseKeyboard() const noexcept { return engine.getNoiseKeyboard(); }
+
   /// Polled by the editor to drive the output meter.
   float getOutputLevelLeft() const noexcept {
     return engine.getOutputLevelLeft();
@@ -165,6 +178,12 @@ public:
   /// not go through here, so it is not recorded.
   void recordEdit(const juce::String &name,
                   const std::function<void()> &change);
+
+  /// Called by the window as it closes. A window closed in the middle of a
+  /// drag never ends the gesture, which would leave every later edit out of
+  /// the history, so this closes it and keeps what the drag had moved as its
+  /// step.
+  void windowClosing();
 
   /// The update check. Owned here rather than by the editor so a closing
   /// window only asks the fetch to stop and never waits on the network.
@@ -231,13 +250,15 @@ private:
   void noteTimbreChanged(juce::MPENote note) override;
   void notePitchbendChanged(juce::MPENote note) override;
   void noteReleased(juce::MPENote note) override;
+  void noteKeyStateChanged(juce::MPENote note) override;
 
   /// Folds the channel-wide expression sources into the single value the
   /// per-channel AT amounts read, as the setting says.
   void updateAftertouch();
 
-  /// Handles what the audio thread cannot: program changes from MIDI, and
-  /// keeping the reported latency in step with the lookahead switch.
+  /// Handles what the audio thread cannot: program changes from MIDI, keeping
+  /// the reported latency in step with the lookahead switch, and emptying the
+  /// history after a restore made on another thread.
   void timerCallback() override;
 
   /// The latency the host should be told at the current rate and settings.
@@ -286,6 +307,14 @@ private:
   void beginEdit();
   void endEdit(const juce::String &name);
 
+  /// Empties the history and closes any gesture left open. A restored session
+  /// is not the patch the history was recorded against, so undoing into it
+  /// would write values from before the restore. Message thread only.
+  void forgetEdits();
+
+  /// Set by a restore on another thread, for the timer to act on.
+  std::atomic<bool> forgetEditsPending{false};
+
   /// Renders into the scratch at an offset from the scratch start, since a
   /// split host block is rendered one piece at a time.
   void renderSegment(int scratchOffset, int numSamples);
@@ -317,10 +346,22 @@ private:
   /// with MPE on the parser takes the pedal and the engine never sees it.
   uint32_t pedalChannels = 0;
 
+  /// How far down each channel's sustain pedal is, nought to one.
+  std::array<float, 32> pedalDepths{};
+
+  /// Hands the engine the pedal furthest down, for the strings' dampers.
+  void publishPedal() noexcept;
+
   void followPedal(const juce::MidiMessage &) noexcept;
+
+  /// Under MPE, the channels of every zone whose master channel has its
+  /// sustain pedal down, or of one zone, one bit per MIDI channel.
+  uint32_t sustainedZoneChannels() const noexcept;
+  uint32_t zoneChannels(int masterChannel) const noexcept;
   void publishPlaying() noexcept;
 
-  std::atomic<bool> sustainShown{false};
+  std::atomic<bool> sustainShown{false}, sostenutoShown{false};
+  std::atomic<float> sustainDepthShown{0.0f};
   std::atomic<float> bendShown{0.0f}, wheelShown{0.0f}, pressureShown{0.0f};
 
   /// The factory preset the host believes is loaded. Saved with the state so

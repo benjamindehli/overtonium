@@ -15,7 +15,72 @@
 namespace ovt::ui {
 
 namespace {
-constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f};
+constexpr float kZoomChoices[] = {0.75f, 1.0f, 1.25f, 1.5f, 1.75f, 2.0f};
+
+/// Every name an enum's lister gives, in order.
+template <typename E>
+juce::StringArray namesOf(const char *(*name)(E), int count) {
+  juce::StringArray out;
+
+  for (int i = 0; i < count; ++i)
+    out.add(name((E)i));
+
+  return out;
+}
+
+/// The menu of a machine with an on switch and a type: Off, then one item
+/// per type, the running one ticked.
+juce::PopupMenu machineMenu(const juce::AudioProcessorValueTreeState &apvts,
+                            const char *onId, const char *typeId,
+                            const juce::StringArray &names) {
+  juce::PopupMenu m;
+
+  const bool running = settings::isOn(apvts, onId);
+  const auto which = settings::choiceIndex(apvts, typeId);
+
+  m.addItem(1, "Off", true, !running);
+  m.addSeparator();
+
+  for (int i = 0; i < names.size(); ++i)
+    m.addItem(i + 2, names[i], true, running && i == which);
+
+  return m;
+}
+
+/// Applies what machineMenu came back with. Zero means dismissed. Off writes
+/// the switch alone, so coming back on returns to the type that was chosen.
+void chooseMachine(juce::AudioProcessorValueTreeState &apvts, const char *onId,
+                   const char *typeId, int id) {
+  if (id <= 0)
+    return;
+
+  auto *on = apvts.getParameter(onId);
+  auto *type = apvts.getParameter(typeId);
+
+  if (on == nullptr)
+    return;
+
+  if (id == 1) {
+    on->setValueNotifyingHost(0.0f);
+    return;
+  }
+
+  if (type != nullptr)
+    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
+
+  on->setValueNotifyingHost(1.0f);
+}
+
+/// The settings menu's own items, clear of the ids settings::Id gives the
+/// items it shares with the bars.
+enum SettingsMenuId : int {
+  kUndo = 700,
+  kRedo = 701,
+  kCheckForUpdates = 702,
+  kUpdateAvailable = 703,
+  kZoomBase = 800,
+  kFitAllChannels = 820,
+};
 
 /// The space round the edges of the bar: the margin on the left and the
 /// right, which is also the space between the four buttons, and the padding
@@ -104,138 +169,6 @@ int totalGroupWidth(int first, int last) {
   return total;
 }
 } // namespace
-
-// =============================================================================
-
-namespace {
-/// Shared with the channel meters so the two read on the same scale.
-constexpr float kMeterFloorDb = -48.0f;
-
-float toNormalised(float level) {
-  if (level <= 1.0e-5f)
-    return 0.0f;
-
-  return juce::jlimit(0.0f, 1.0f,
-                      (juce::Decibels::gainToDecibels(level) - kMeterFloorDb) /
-                          -kMeterFloorDb);
-}
-
-/// The colour of the lamp standing at this fraction of full scale. Fixed per
-/// lamp, whatever the level.
-juce::Colour lampColour(float t) {
-  if (t < 0.80f)
-    return colours::accent;
-
-  if (t < 0.94f)
-    return colours::accent.interpolatedWith(colours::soloOn,
-                                            (t - 0.80f) / 0.14f);
-
-  return colours::soloOn.interpolatedWith(colours::muteOn, (t - 0.94f) / 0.06f);
-}
-} // namespace
-
-int StereoOutputMeter::segments() const {
-  // A lamp every eight pixels or so, within reason.
-  return juce::jlimit(12, 48, getWidth() / 8);
-}
-
-bool StereoOutputMeter::Bar::advance(float level, int count) {
-  const auto norm = toNormalised(level);
-  const auto next =
-      norm > displayed ? norm : juce::jmax(norm, displayed - 0.05f);
-
-  displayed = next;
-
-  // Hold the peak for a couple of seconds, then let it fall with the bar.
-  if (next >= peak) {
-    peak = next;
-    hold = 30;
-  } else if (hold > 0) {
-    --hold;
-  } else if (peak > 0.0f) {
-    peak = juce::jmax(next, peak - 0.02f);
-  }
-
-  const auto wasLit = lit;
-  const auto wasPeak = peakLamp;
-
-  // The same hysteresis as the channel meters, so a level sitting on a
-  // boundary does not flicker.
-  constexpr float kClearOf = 0.3f;
-
-  const auto exact = juce::jlimit(0.0f, 1.0f, displayed) * (float)count;
-  lit = juce::jlimit(0, count, lit);
-
-  while (lit < count && exact >= (float)lit + 1.0f)
-    ++lit;
-
-  while (lit > 0 && exact < (float)lit - kClearOf)
-    --lit;
-
-  peakLamp = peak > 0.001f
-                 ? juce::jlimit(0, count - 1,
-                                (int)(juce::jmin(peak, 1.0f) * (float)count))
-                 : -1;
-
-  return lit != wasLit || peakLamp != wasPeak;
-}
-
-void StereoOutputMeter::push(float l, float r) {
-  const auto count = segments();
-  if (count < 1)
-    return;
-
-  const bool a = left.advance(l, count);
-  const bool b = right.advance(r, count);
-
-  if (a || b)
-    repaint();
-}
-
-void StereoOutputMeter::paintBar(juce::Graphics &g, juce::Rectangle<float> r,
-                                 const Bar &bar, int count) const {
-  g.setColour(colours::groove);
-  g.fillRoundedRectangle(r, 1.5f);
-
-  const auto step = r.getWidth() / (float)count;
-  const auto gap = juce::jlimit(1.0f, 3.0f, step * 0.18f);
-
-  for (int i = 0; i < count; ++i) {
-    const auto lamp = juce::Rectangle<float>(r.getX() + (float)i * step,
-                                             r.getY(), step, r.getHeight())
-                          .reduced(gap * 0.5f, 1.0f);
-
-    const auto colour = lampColour(((float)i + 0.5f) / (float)count);
-
-    // The peak stays alight above the bar it came from.
-    const bool on = i < bar.lit || i == bar.peakLamp;
-
-    g.setColour(colour.withAlpha(on ? 0.92f : 0.13f));
-    g.fillRoundedRectangle(lamp, juce::jmin(1.5f, lamp.getWidth() * 0.4f));
-  }
-}
-
-void StereoOutputMeter::paint(juce::Graphics &g) {
-  auto area = getLocalBounds().toFloat();
-
-  // Scale marks at the decibel values worth aiming at.
-  const auto scale = area.removeFromBottom((float)kScaleHeight);
-  for (const float db : {-48.0f, -36.0f, -24.0f, -12.0f, -6.0f, 0.0f}) {
-    const auto t = (db - kMeterFloorDb) / -kMeterFloorDb;
-    const auto x = scale.getX() + t * (scale.getWidth() - 1.5f);
-
-    g.setColour(colours::textDim.withAlpha(db >= -6.0f ? 0.55f : 0.30f));
-    g.fillRect(x, scale.getY(), 1.0f, 3.0f);
-  }
-
-  const auto count = segments();
-  const auto gap = 2.0f;
-  const auto barH = (area.getHeight() - gap) * 0.5f;
-
-  paintBar(g, area.removeFromTop(barH), left, count);
-  area.removeFromTop(gap);
-  paintBar(g, area.removeFromTop(barH), right, count);
-}
 
 // =============================================================================
 
@@ -349,21 +282,18 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
       "88 sympathetic strings that resonate with what you play, before the bus "
       "drive. Piano rings the held keys' strings, and all 88 while the "
       "sustain pedal is down. Open rings all 88 as if the pedal were always "
-      "down. Octave rings twelve strings from C3, and Series the tuning root's "
-      "harmonics.");
+      "down. Octave rings twelve strings from C3, Series the tuning root's "
+      "harmonics, and Fifths the root and its fifth in four octaves. Chord "
+      "is Piano that keeps the last chord's strings ringing after you let "
+      "go.");
 
   // The click opens a menu rather than toggling, and the light says what came
   // back.
   resonatorButton.setClickingTogglesState(false);
 
   resonatorButton.onClick = [this] {
-    auto m = buildResonatorMenu();
-    m.setLookAndFeel(&getLookAndFeel());
-
-    m.showMenuAsync(juce::PopupMenu::Options()
-                        .withTargetComponent(&resonatorButton)
-                        .withStandardItemHeight(22),
-                    [this](int result) { chooseResonator(result); });
+    showMenuUnder(resonatorButton, buildResonatorMenu(),
+                  [this](int result) { chooseResonator(result); });
   };
 
   // ---- presets --------------------------------------------------------------
@@ -446,13 +376,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
               "differently on each.");
 
   echoButton.onClick = [this] {
-    auto m = buildEchoMenu();
-    m.setLookAndFeel(&getLookAndFeel());
-
-    m.showMenuAsync(juce::PopupMenu::Options()
-                        .withTargetComponent(&echoButton)
-                        .withStandardItemHeight(22),
-                    [this](int result) { chooseEcho(result); });
+    showMenuUnder(echoButton, buildEchoMenu(),
+                  [this](int result) { chooseEcho(result); });
   };
   styleToggle(reverbButton, "REVERB",
               "A reverb on the instrument, after the echo: a room, a "
@@ -460,13 +385,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
               "falling chirp.");
 
   reverbButton.onClick = [this] {
-    auto m = buildReverbMenu();
-    m.setLookAndFeel(&getLookAndFeel());
-
-    m.showMenuAsync(juce::PopupMenu::Options()
-                        .withTargetComponent(&reverbButton)
-                        .withStandardItemHeight(22),
-                    [this](int result) { chooseReverb(result); });
+    showMenuUnder(reverbButton, buildReverbMenu(),
+                  [this](int result) { chooseReverb(result); });
   };
 
   // The output stage, with the converter at the end of the chain. A machine
@@ -480,13 +400,8 @@ TopBar::TopBar(juce::AudioProcessorValueTreeState &state,
               "cassette. Off lets the output go past full scale.");
 
   clipButton.onClick = [this] {
-    auto m = buildClipMenu();
-    m.setLookAndFeel(&getLookAndFeel());
-
-    m.showMenuAsync(juce::PopupMenu::Options()
-                        .withTargetComponent(&clipButton)
-                        .withStandardItemHeight(22),
-                    [this](int result) { chooseClip(result); });
+    showMenuUnder(clipButton, buildClipMenu(),
+                  [this](int result) { chooseClip(result); });
   };
 
   addKnob(resonatorControls, "Resonator", "MIX", params::resonatorMixId,
@@ -588,11 +503,6 @@ void TopBar::setBarsOpen(bool playing, bool tuning) {
   tuningButton.setToggleState(tuning, juce::dontSendNotification);
 }
 
-void TopBar::setMacrosOn(bool on) {
-  // The lamp says whether any macros are made, not whether the panel is up.
-  juce::ignoreUnused(on);
-}
-
 void TopBar::setMacroCount(int made) {
   if (made == macrosMade)
     return;
@@ -638,16 +548,23 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     options = options.withTargetScreenArea({p.x, p.y, 1, 1});
   }
 
-  m.showMenuAsync(options, [this, settings, map, parameter](int result) {
+  // A SafePointer, since a menu with no target component outlives the window,
+  // and closing the window dismisses it with a call to this.
+  juce::Component::SafePointer<TopBar> self(this);
+
+  m.showMenuAsync(options, [self, settings, map, parameter](int result) {
+    if (self == nullptr || result == 0)
+      return;
+
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
       return;
 
-    if (glide::applyChoice(result, apvts))
+    if (glide::applyChoice(result, self->apvts))
       return;
 
     if (isClearSelectionChoice(result)) {
-      if (onSelectionCleared != nullptr)
-        onSelectionCleared();
+      if (self->onSelectionCleared != nullptr)
+        self->onSelectionCleared();
 
       return;
     }
@@ -655,8 +572,8 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     auto picked = PointerTool::Pointer;
 
     if (applyToolMenuChoice(result, picked)) {
-      if (onToolChosen != nullptr)
-        onToolChosen(picked);
+      if (self->onToolChosen != nullptr)
+        self->onToolChosen(picked);
 
       return;
     }
@@ -666,12 +583,12 @@ void TopBar::showLinkMenu(juce::Component *anchor,
     if (!applyLinkMenuChoice(result, chosen))
       return;
 
-    linkOn = chosen.enabled;
-    scope = chosen.scope;
-    curve = chosen.curve;
+    self->linkOn = chosen.enabled;
+    self->scope = chosen.scope;
+    self->curve = chosen.curve;
 
-    if (onLinkSettingsChanged)
-      onLinkSettingsChanged();
+    if (self->onLinkSettingsChanged)
+      self->onLinkSettingsChanged();
   });
 }
 
@@ -689,102 +606,59 @@ void TopBar::setPresetName(const juce::String &name) {
 
 juce::String TopBar::getPresetName() const { return presetName; }
 
+void TopBar::showMachine(juce::Button &button, const juce::String &label,
+                         bool running, const juce::String &name,
+                         const juce::String &shortName, juce::Colour colour) {
+  // The short name, since the menu has room to say "Modulated Plate" and a
+  // button on the bar has not.
+  button.setButtonText(running ? shortName.toUpperCase() : juce::String("OFF"));
+
+  // The title says which control it is, for a screen reader.
+  button.setTitle(label + ": " + (running ? name : juce::String("off")));
+
+  // The lamp colour, one for each machine. See GlowButton.
+  button.setColour(juce::TextButton::textColourOnId, colour);
+  button.setToggleState(running, juce::dontSendNotification);
+}
+
+void TopBar::showMenuUnder(juce::Button &button, juce::PopupMenu menu,
+                           std::function<void(int)> chosen) {
+  menu.setLookAndFeel(&getLookAndFeel());
+
+  // A SafePointer, since the window can close while the menu is open.
+  juce::Component::SafePointer<TopBar> self(this);
+
+  menu.showMenuAsync(juce::PopupMenu::Options()
+                         .withTargetComponent(&button)
+                         .withStandardItemHeight(22),
+                     [self, callback = std::move(chosen)](int result) {
+                       if (self != nullptr)
+                         callback(result);
+                     });
+}
+
 juce::PopupMenu TopBar::buildClipMenu() {
-  juce::PopupMenu m;
-
-  auto *on = apvts.getParameter(params::safetyClipId);
-  auto *type = apvts.getParameter(params::clipTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
-
-  m.addItem(1, "Off", true, !running);
-  m.addSeparator();
-
-  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
-    m.addItem(i + 2, clipTypeName((ClipType)i), true, running && i == which);
-
-  return m;
+  return machineMenu(apvts, params::safetyClipId, params::clipTypeId,
+                     namesOf(dm::clipTypeName, (int)dm::ClipType::NumTypes));
 }
 
 void TopBar::chooseClip(int id) {
-  if (id <= 0)
-    return;
-
-  auto *on = apvts.getParameter(params::safetyClipId);
-  auto *type = apvts.getParameter(params::clipTypeId);
-
-  if (on == nullptr)
-    return;
-
-  // Off writes the switch alone, so coming back on returns to the shape that
-  // was chosen.
-  if (id == 1) {
-    on->setValueNotifyingHost(0.0f);
-    return;
-  }
-
-  if (type != nullptr)
-    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
-
-  on->setValueNotifyingHost(1.0f);
+  chooseMachine(apvts, params::safetyClipId, params::clipTypeId, id);
 }
 
 juce::PopupMenu TopBar::buildEchoMenu() {
-  juce::PopupMenu m;
-
-  auto *on = apvts.getParameter(params::echoOnId);
-  auto *type = apvts.getParameter(params::echoTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
-
-  m.addItem(1, "Off", true, !running);
-  m.addSeparator();
-
-  for (int i = 0; i < (int)EchoType::NumTypes; ++i)
-    m.addItem(i + 2, echoTypeName((EchoType)i), true, running && i == which);
-
-  return m;
+  return machineMenu(apvts, params::echoOnId, params::echoTypeId,
+                     namesOf(echoTypeName, (int)EchoType::NumTypes));
 }
 
 void TopBar::chooseEcho(int id) {
-  if (id <= 0)
-    return;
-
-  auto *on = apvts.getParameter(params::echoOnId);
-  auto *type = apvts.getParameter(params::echoTypeId);
-
-  if (on == nullptr)
-    return;
-
-  // Off writes the switch alone, so coming back on returns to the machine that
-  // was chosen.
-  if (id == 1) {
-    on->setValueNotifyingHost(0.0f);
-    return;
-  }
-
-  if (type != nullptr)
-    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
-
-  on->setValueNotifyingHost(1.0f);
+  chooseMachine(apvts, params::echoOnId, params::echoTypeId, id);
 }
 
 juce::PopupMenu TopBar::buildResonatorMenu() {
   juce::PopupMenu m;
 
-  auto *mode = apvts.getParameter(params::resonatorModeId);
-  const auto which =
-      mode == nullptr
-          ? 0
-          : juce::roundToInt(mode->convertFrom0to1(mode->getValue()));
+  const auto which = settings::choiceIndex(apvts, params::resonatorModeId);
 
   // Off apart from the rest.
   for (int i = 0; i < (int)ResonatorMode::NumModes; ++i) {
@@ -806,48 +680,12 @@ void TopBar::chooseResonator(int id) {
 }
 
 juce::PopupMenu TopBar::buildReverbMenu() {
-  juce::PopupMenu m;
-
-  auto *on = apvts.getParameter(params::reverbOnId);
-  auto *type = apvts.getParameter(params::reverbTypeId);
-
-  const bool running = on != nullptr && on->getValue() > 0.5f;
-  const auto which =
-      type == nullptr
-          ? 0
-          : juce::roundToInt(type->convertFrom0to1(type->getValue()));
-
-  m.addItem(1, "Off", true, !running);
-  m.addSeparator();
-
-  for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
-    m.addItem(i + 2, reverbTypeName((ReverbType)i), true,
-              running && i == which);
-
-  return m;
+  return machineMenu(apvts, params::reverbOnId, params::reverbTypeId,
+                     namesOf(reverbTypeName, (int)ReverbType::NumTypes));
 }
 
 void TopBar::chooseReverb(int id) {
-  if (id <= 0)
-    return;
-
-  auto *on = apvts.getParameter(params::reverbOnId);
-  auto *type = apvts.getParameter(params::reverbTypeId);
-
-  if (on == nullptr)
-    return;
-
-  // Off leaves the type alone, as the echo's does, so coming back on returns
-  // to the machine that was chosen.
-  if (id == 1) {
-    on->setValueNotifyingHost(0.0f);
-    return;
-  }
-
-  if (type != nullptr)
-    type->setValueNotifyingHost(type->convertTo0to1((float)(id - 2)));
-
-  on->setValueNotifyingHost(1.0f);
+  chooseMachine(apvts, params::reverbOnId, params::reverbTypeId, id);
 }
 
 void TopBar::showChoiceMenu(const char *paramId,
@@ -857,8 +695,7 @@ void TopBar::showChoiceMenu(const char *paramId,
   if (param == nullptr)
     return;
 
-  const auto current =
-      juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  const auto current = settings::choiceIndex(apvts, paramId);
 
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
@@ -1004,16 +841,24 @@ void TopBar::askForPresetName() {
   nameWindow->addButton("Save", 1, juce::KeyPress(juce::KeyPress::returnKey));
   nameWindow->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
 
+  // A SafePointer, since the window is a member: closing the plugin window
+  // while it is open deletes it, and JUCE still calls this afterwards to say
+  // it was dismissed.
+  juce::Component::SafePointer<TopBar> self(this);
+
   nameWindow->enterModalState(
-      true, juce::ModalCallbackFunction::create([this](int result) {
-        const auto name = nameWindow != nullptr
-                              ? nameWindow->getTextEditorContents("name")
+      true, juce::ModalCallbackFunction::create([self](int result) {
+        if (self == nullptr)
+          return;
+
+        const auto name = self->nameWindow != nullptr
+                              ? self->nameWindow->getTextEditorContents("name")
                               : juce::String();
 
-        nameWindow.reset();
+        self->nameWindow.reset();
 
-        if (result == 1 && onSaveUserPreset)
-          onSaveUserPreset(name);
+        if (result == 1 && self->onSaveUserPreset)
+          self->onSaveUserPreset(name);
       }));
 }
 
@@ -1027,10 +872,6 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   juce::PopupMenu m;
   m.setLookAndFeel(&getLookAndFeel());
 
-  auto *phase = apvts.getParameter(params::phaseResetId);
-  auto *clip = apvts.getParameter(params::safetyClipId);
-  auto *ahead = apvts.getParameter(params::lookaheadId);
-
   // A list the bars offer too, laid into this menu in place rather than a
   // level down.
   const auto addInPlace = [&m](const juce::PopupMenu &list) {
@@ -1042,18 +883,19 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   // header, since it is a fact rather than a choice. The bug report template
   // asks for this version.
   if (updateVersion.isNotEmpty()) {
-    m.addItem(703, "Overtonium " + updateVersion + " is available...");
+    m.addItem(kUpdateAvailable,
+              "Overtonium " + updateVersion + " is available...");
     m.addSeparator();
   }
 
   m.addSectionHeader(versionLine());
 
-  m.addItem(702, "Check for new versions", true,
+  m.addItem(kCheckForUpdates, "Check for new versions", true,
             isUpdateCheckAllowed && isUpdateCheckAllowed());
   m.addSeparator();
 
-  m.addItem(700, "Undo", canUndo && canUndo());
-  m.addItem(701, "Redo", canRedo && canRedo());
+  m.addItem(kUndo, "Undo", canUndo && canUndo());
+  m.addItem(kRedo, "Redo", canRedo && canRedo());
   m.addSeparator();
 
   m.addSectionHeader("Polyphony");
@@ -1111,28 +953,28 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
     const auto percent = juce::roundToInt(kZoomChoices[i] * 100.0f);
 
-    zooms.addItem(800 + i, juce::String(percent) + "%", true,
+    zooms.addItem(kZoomBase + i, juce::String(percent) + "%", true,
                   std::abs(kZoomChoices[i] - zoom) < 0.01f);
   }
 
   m.addSeparator();
   m.addSectionHeader("Output");
-  m.addItem(300, "Phase reset", true,
-            phase != nullptr && phase->getValue() > 0.5f);
-  m.addItem(301, "Safety clip", true,
-            clip != nullptr && clip->getValue() > 0.5f);
+  m.addItem(settings::kPhaseReset, "Phase reset", true,
+            settings::isOn(apvts, params::phaseResetId));
+  m.addItem(settings::kSafetyClip, "Safety clip", true,
+            settings::isOn(apvts, params::safetyClipId));
 
   // The clipper's limiter. It changes the latency reported to the host, so
   // the item says so.
-  m.addItem(304, "Limiter lookahead (2 ms latency)", true,
-            ahead != nullptr && ahead->getValue() > 0.5f);
+  m.addItem(settings::kLookahead, "Limiter lookahead (2 ms latency)", true,
+            settings::isOn(apvts, params::lookaheadId));
 
   // Last, and apart, since it is about the window rather than the instrument.
   m.addSeparator();
   m.addSubMenu("Zoom", zooms);
 
   // Beside the zoom, since both are about the window.
-  m.addItem(820, "Fit all 32 channels");
+  m.addItem(kFitAllChannels, "Fit all 32 channels");
 
   return m;
 }
@@ -1151,11 +993,11 @@ void TopBar::showSettingsMenu() {
                     if (settings::apply(apvts, result))
                       return;
 
-                    if (result == 820)
+                    if (result == kFitAllChannels)
                       return onFitAllChannels ? onFitAllChannels() : void();
 
-                    if (result >= 800) {
-                      const auto index = result - 800;
+                    if (result >= kZoomBase) {
+                      const auto index = result - kZoomBase;
 
                       if (index < (int)std::size(kZoomChoices) && onZoomChanged)
                         onZoomChanged(kZoomChoices[index]);
@@ -1163,18 +1005,18 @@ void TopBar::showSettingsMenu() {
                       return;
                     }
 
-                    if (result == 700)
+                    if (result == kUndo)
                       return onUndo ? onUndo() : void();
 
-                    if (result == 701)
+                    if (result == kRedo)
                       return onRedo ? onRedo() : void();
 
-                    if (result == 703) {
+                    if (result == kUpdateAvailable) {
                       juce::URL(updateUrl).launchInDefaultBrowser();
                       return;
                     }
 
-                    if (result == 702) {
+                    if (result == kCheckForUpdates) {
                       const bool now =
                           isUpdateCheckAllowed && isUpdateCheckAllowed();
 
@@ -1220,12 +1062,7 @@ void TopBar::setRingColour(std::vector<Control> &controls,
 
 void TopBar::updatePanelReadouts(double hostSampleRate) {
   const auto chosen = [this](const char *id, int count) {
-    auto *p = apvts.getParameter(id);
-
-    return p == nullptr ? 0
-                        : juce::jlimit(0, count - 1,
-                                       juce::roundToInt(
-                                           p->convertFrom0to1(p->getValue())));
+    return juce::jlimit(0, count - 1, settings::choiceIndex(apvts, id));
   };
 
   const auto rate = params::kLofiRateChoices[(size_t)chosen(
@@ -1265,27 +1102,12 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
   //
   // The machine's name when it is running and OFF when it is not.
   {
-    auto *on = apvts.getParameter(params::echoOnId);
-    auto *type = apvts.getParameter(params::echoTypeId);
+    const bool running = settings::isOn(apvts, params::echoOnId);
+    const auto which =
+        (EchoType)settings::choiceIndex(apvts, params::echoTypeId);
 
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? EchoType::Tape
-                           : (EchoType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
-
-    const juce::String name = echoTypeName(which);
-
-    echoButton.setButtonText(
-        running ? juce::String(echoTypeShortName(which)).toUpperCase()
-                : juce::String("OFF"));
-
-    // The title says which control it is, for a screen reader.
-    echoButton.setTitle(running ? "Echo: " + name : juce::String("Echo: off"));
-
-    // The lamp colour, one for each machine. See GlowButton.
-    echoButton.setColour(juce::TextButton::textColourOnId, echoColour(which));
-    echoButton.setToggleState(running, juce::dontSendNotification);
+    showMachine(echoButton, "Echo", running, echoTypeName(which),
+                echoTypeShortName(which), echoColour(which));
 
     setRingColour(echoControls, echoColour(which));
     setRingsLive(echoControls, running);
@@ -1293,14 +1115,10 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and what the resonator is tuned to, by the same rule ----------------
   {
-    auto *mode = apvts.getParameter(params::resonatorModeId);
 
-    const auto which =
-        mode == nullptr
-            ? ResonatorMode::Off
-            : (ResonatorMode)juce::jlimit(
-                  0, (int)ResonatorMode::NumModes - 1,
-                  juce::roundToInt(mode->convertFrom0to1(mode->getValue())));
+    const auto which = (ResonatorMode)juce::jlimit(
+        0, (int)ResonatorMode::NumModes - 1,
+        settings::choiceIndex(apvts, params::resonatorModeId));
 
     const bool running = which != ResonatorMode::Off;
     const juce::String name = resonatorModeName(which);
@@ -1321,28 +1139,12 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and which reverb, by the same rule ----------------------------------
   {
-    auto *on = apvts.getParameter(params::reverbOnId);
-    auto *type = apvts.getParameter(params::reverbTypeId);
+    const bool running = settings::isOn(apvts, params::reverbOnId);
+    const auto which =
+        (ReverbType)settings::choiceIndex(apvts, params::reverbTypeId);
 
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? ReverbType::Room
-                           : (ReverbType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
-
-    const juce::String name = reverbTypeName(which);
-
-    // The short name, as the echo does it: the menu has room to say
-    // "Modulated Plate" and a button on the bar has not.
-    reverbButton.setButtonText(
-        running ? juce::String(reverbTypeShortName(which)).toUpperCase()
-                : juce::String("OFF"));
-
-    reverbButton.setTitle(running ? "Reverb: " + name
-                                  : juce::String("Reverb: off"));
-    reverbButton.setColour(juce::TextButton::textColourOnId,
-                           reverbColour(which));
-    reverbButton.setToggleState(running, juce::dontSendNotification);
+    showMachine(reverbButton, "Reverb", running, reverbTypeName(which),
+                reverbTypeShortName(which), reverbColour(which));
 
     setRingColour(reverbControls, reverbColour(which));
     setRingsLive(reverbControls, running);
@@ -1350,26 +1152,13 @@ void TopBar::updatePanelReadouts(double hostSampleRate) {
 
   // ---- and which output stage, by the same rule ----------------------------
   {
-    auto *on = apvts.getParameter(params::safetyClipId);
-    auto *type = apvts.getParameter(params::clipTypeId);
-
-    const bool running = on != nullptr && on->getValue() > 0.5f;
-    const auto which = type == nullptr
-                           ? ClipType::Soft
-                           : (ClipType)juce::roundToInt(
-                                 type->convertFrom0to1(type->getValue()));
-
-    const juce::String name = clipTypeName(which);
-
-    // The short form, to fit the button. See clipTypeShortName.
-    clipButton.setButtonText(
-        running ? juce::String(clipTypeShortName(which)).toUpperCase()
-                : juce::String("OFF"));
+    const bool running = settings::isOn(apvts, params::safetyClipId);
+    const auto which =
+        (dm::ClipType)settings::choiceIndex(apvts, params::clipTypeId);
 
     // Named after the caption on the bar.
-    clipButton.setTitle(running ? "Clip: " + name : juce::String("Clip: off"));
-    clipButton.setColour(juce::TextButton::textColourOnId, clipColour(which));
-    clipButton.setToggleState(running, juce::dontSendNotification);
+    showMachine(clipButton, "Clip", running, dm::clipTypeName(which),
+                dm::clipTypeShortName(which), clipColour(which));
   }
 
   // In capitals, like every other word on the bar.

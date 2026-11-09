@@ -8,7 +8,7 @@ By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). For how t
 
 ## Before a pull request
 
-CI runs six jobs on every push and pull request: the build and both test suites on all three platforms, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. Each one can be run locally, and this section says how.
+CI runs six jobs on every push and pull request: the build and both test suites on all three platforms, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. A seventh, pluginval against a sanitized plugin, runs weekly and when started by hand. Each one can be run locally, and this section says how.
 
 **The tests pass.** `ctest --test-dir build --build-config Release` runs both suites.
 
@@ -34,7 +34,7 @@ pip install clang-format==23.1.1
 clang-format --style=LLVM -i $(find Source Tests Tools -name '*.cpp' -o -name '*.h')
 ```
 
-One region is deliberately exempt. The factory presets inside `apply` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. If they were reformatted, a preset regenerated from the same patch would no longer match the file it came from. That match is how a preset is checked against what its author actually set.
+One region is deliberately exempt. The factory presets inside `build` in `Presets.cpp` sit between `clang-format off` and `on`, because `factoryCode` writes them and does its own wrapping. If they were reformatted, a preset regenerated from the same patch would no longer match the file it came from. That match is how a preset is checked against what its author actually set.
 
 **pluginval.** CI loads the built VST3 into [pluginval](https://github.com/Tracktion/pluginval) at strictness 8 on all three platforms. pluginval is a host that misuses the plugin on purpose. It reaches things the suites here cannot, because they drive the processor directly, not through a plugin format. To run it yourself, point it at a built or installed plugin:
 
@@ -43,6 +43,8 @@ pluginval --strictness-level 8 --validate ~/Library/Audio/Plug-Ins/VST3/Overtoni
 ```
 
 pluginval picks random parameter values. CI fixes the seed on a push and leaves it random on a weekly scheduled run. A failure prints the seed it used, and passing that seed back with `--random-seed` reproduces it exactly. For some failures that is the only way to reproduce them at all.
+
+On Linux, pluginval has sometimes passed every test and then crashed while shutting down, with glibc reporting heap corruption. A re-run has always been green, and the sanitized run below has never found anything in the plugin. So on Linux a crash after pluginval prints `SUCCESS` passes the job with a warning that shows the stack. A failed test, or a crash before `SUCCESS`, still fails it.
 
 **The VST3 validator.** This is Steinberg's own conformance suite, which is different from pluginval. It checks the VST3 contracts instead of misusing the plugin through a host. CI builds it from a pinned revision of the SDK and runs it on Linux, where the build is cheapest. To run it yourself, build the `validator` target from [the SDK](https://github.com/steinbergmedia/vst3sdk) with the flags CI uses, `-DSMTG_ENABLE_VST3_PLUGIN_EXAMPLES=OFF -DSMTG_ENABLE_VST3_HOSTING_EXAMPLES=OFF -DSMTG_ENABLE_VSTGUI_SUPPORT=OFF -DSMTG_CREATE_PLUGIN_LINK=OFF`, which skip the parts it does not link. Without the hosting examples switched off, the SDK wants GTK 3 on Linux. Point the result at a built `.vst3`.
 
@@ -56,7 +58,21 @@ ctest --test-dir build-san --output-on-failure
 
 This is off by default, and best kept in a build tree of its own. The build is instrumented throughout, and the result runs several times slower than a plugin you would want to listen to. The sanitizers are set to report everything instead of stopping at the first problem, so a run can find a fault and still exit with zero. For that reason CI reads the log, and a leak counts the same as an overflow.
 
-**The DSP core on its own.** A separate job compiles `Source/dsp/` and its tests with a bare compiler and `-Werror`, so the claim that the core needs no build system and no JUCE is checked, not just stated. The command is under [Tests](#tests). The same job runs the lambda scan below.
+**pluginval, sanitized.** Once a week, and when started by hand, CI builds the VST3 with the same two sanitizers across the plugin and JUCE and runs pluginval against it twice, with the pinned seed and with a random one. The suites drive the processor directly, so this is the check that has a host misuse a sanitized plugin, editor included. It stops at the first bad write, where a plain build only notices damage later, when the memory is freed. It is also what makes it safe for the build job to pass a crash in pluginval's own shutdown. On Linux:
+
+```sh
+CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+CXXFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+LDFLAGS="-fsanitize=address,undefined" \
+  cmake -B build-san-vst3 -DCMAKE_BUILD_TYPE=RelWithDebInfo -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+cmake --build build-san-vst3 --target Overtonium_VST3
+xvfb-run -a env LD_PRELOAD="$(gcc -print-file-name=libasan.so)" \
+  pluginval --strictness-level 8 --validate build-san-vst3/Overtonium_artefacts/RelWithDebInfo/VST3/Overtonium.vst3
+```
+
+pluginval itself is not built with the sanitizers, so their runtime has to be preloaded into it, and the plugin will not load without it. Preload it into pluginval alone. Given to `xvfb-run` as well, it reports the leaks in Xvfb and stops before pluginval starts.
+
+**The DSP core on its own.** A separate job compiles `Source/dsp/`, the library's sources and the DSP tests with a bare compiler and `-Werror`, so the claim that the core needs no build system and no JUCE is checked, not just stated. The command is under [Tests](#tests). The same job runs the lambda scan below.
 
 **One check runs for a compiler that is not here.** `.github/scripts/lambda_captures.py` looks for lambdas that read a function-local `constexpr` without capturing it. The standard requires no capture, and gcc and clang agree, but MSVC refuses it with C3493. So the fault only shows up in the Windows job. That job runs last and takes twenty minutes to report. Run the script before pushing:
 
@@ -71,7 +87,7 @@ Reading a Windows log takes practice for the same reason. When one lambda will n
 
 **The structured data.** The site's pages carry JSON-LD, which nothing renders, so a block broken by an edit would fail without anyone seeing it. The job parses every block and checks that the version in it, and the `version:` in `CITATION.cff`, match `project(Overtonium VERSION ...)` in CMakeLists.
 
-**The counts in the docs.** The number of factory presets, published clips and host parameters is written in words across the readme, the design notes, this guide and the site. The job reads the real counts from `kNames` in `Presets.cpp`, the files in `docs/audio/` and the expected total in `Tests/plugin_runtime_test.cpp`, and fails on any number that sits next to one of those nouns and disagrees. So write a count beside the noun it counts. "All forty-one presets" can be checked, and "all forty-one" cannot. Release notes and the releases page are left out, since each describes its own release. The same job runs `image_dimensions.py` and `css_cascade.py` over `docs/`, and `release_docs.py` for the version in CMakeLists, which fails until that version has its notes file and its section on the releases page. The structured data and counts checks are written inline in `.github/workflows/build.yml` and run from the repository root as they are.
+**The counts in the docs.** The number of factory presets, published clips and host parameters is written in words across the readme, the design notes, this guide and the site. The job reads the real counts from `kNames` in `Presets.cpp`, the files in `docs/audio/` and the expected total in `Tests/plugin_runtime_test.cpp`, and fails on any number that sits next to one of those nouns and disagrees. So write a count beside the noun it counts. "All forty-four presets" can be checked, and "all forty-four" cannot. Release notes and the releases page are left out, since each describes its own release. The same job runs `image_dimensions.py` and `css_cascade.py` over `docs/`, and `release_docs.py` for the version in CMakeLists, which fails until that version has its notes file and its section on the releases page. The structured data and counts checks are `.github/scripts/structured_data.py` and `doc_counts.py`, and run from anywhere: `python3 .github/scripts/doc_counts.py`.
 
 **A new control needs a name before anything else.** JUCE reads a control's accessible name from `Component::setTitle`, and accessibility clients may skip an element entirely if it has neither a name nor a description. The runtime suite walks the whole mixer and fails if a slider has no title or shares one with another. So "attack" on its own will not pass, and "Harmonic 19 attack" will. A control that draws its value instead of writing it, as the segment readouts do, needs its own spoken name and value. Replacing a plain label with one of those removes a name without any warning. [ACCESSIBILITY.md](ACCESSIBILITY.md) describes what the project does and does not do here.
 
@@ -86,6 +102,8 @@ Nothing in `Source/` holds anything in a static except plain data, such as table
 ## Building
 
 You need CMake 3.22 or newer and a C++17 compiler. JUCE is downloaded at configure time. Pass `-DJUCE_PATH=/path/to/JUCE` to use a local checkout instead. The download is the archive of one JUCE commit, and the configure stops if its SHA-256 differs from the one in `CMakeLists.txt`. To move to a new JUCE release, put in the archive of the commit its tag points to, with that archive's hash.
+
+The output stage comes from [dehli-musikk-plugin-core](https://github.com/benjamindehli/dehli-musikk-plugin-core), the library the Dehli Musikk plugins share, and is downloaded at configure time in the same way. To work on the library and Overtonium together, clone it beside this repository and pass `-DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=../dehli-musikk-plugin-core`. To move Overtonium to a newer library, put in the archive of the library's merge commit on `main`, with that archive's hash. The CI jobs read both pins from `CMakeLists.txt`, so nothing else needs to change.
 
 The build copies the plugins into your user plugin folders. Pass `-DOVERTONIUM_INSTALL_AFTER_BUILD=OFF` to skip that. CI does this, and you want it on any machine with no host to rescan them.
 
@@ -135,10 +153,11 @@ cmake --build build -j
 
 ### Tests
 
-The DSP core has no JUCE dependency, so its tests compile with a compiler alone, with no build system and no third-party headers:
+The DSP core has no JUCE dependency, so its tests compile with a compiler alone, with no build system and no third-party headers. They need the library's sources too, from a clone of it beside this repository at the commit `CMakeLists.txt` pins:
 
 ```sh
-c++ -std=c++17 -O2 -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
+c++ -std=c++17 -O2 -I Source -I ../dehli-musikk-plugin-core/include \
+  Tests/dsp_test.cpp Source/dsp/*.cpp ../dehli-musikk-plugin-core/src/dsp/*.cpp -o dsp_test
 ./dsp_test
 ```
 
@@ -150,7 +169,7 @@ cmake --build build --target overtonium_dsp_test
 ./build/overtonium_dsp_test
 ```
 
-The tests cover every block in the core: the tuning tables, the temperaments and Adaptive, which is checked against all 125 chord types in `Tests/music_utils_chord_types.h`, the oscillators and characters, envelopes, modulation, glide, voice allocation, the noise channel's string, the resonator, the bus drive, wobble, the three echoes, the three reverbs, the converter and the output stage. They also check that parameter changes do not click, and they end by printing a CPU benchmark.
+The tests cover every block in the core: the tuning tables, the temperaments and Adaptive, which is checked against all 125 chord types in `Tests/music_utils_chord_types.h`, the oscillators and characters, envelopes, modulation, glide, voice allocation, the noise channel's string, the resonator, the bus drive, wobble, the three echoes, the three reverbs, the converter and the output stage through the whole instrument. The output stage's own tests are in the library. They also check that parameter changes do not click, and they end by printing a CPU benchmark.
 
 In the DSP tests, a `SynthEngine` is created with `make_unique` and used through a reference, not declared as a local variable. One engine is about 260 kB. MSVC gives the main thread a 1 MB stack, where macOS and Linux give 8, so a test that holds a few of them overflows it on Windows alone.
 
@@ -162,18 +181,18 @@ Both run in CI on macOS, Windows and Linux on every push and pull request. CI bu
 
 ### Factory presets
 
-Factory presets are code, not embedded data. The cases in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and give a table of thirty-two figures where it does not. That makes a preset something you can read and argue with, not a blob. The cost is one extra step between setting up a patch and shipping it, and `Tools/preset_to_code.cpp` is that step:
+Factory presets are code, not embedded data. The blocks in `Presets.cpp` say `1.0 / n` and `6.0 / (1 + 0.35 * (n - 1))` where the shape has a formula behind it, and give a table of thirty-two figures where it does not. That makes a preset something you can read and argue with, not a blob. The cost is one extra step between setting up a patch and shipping it, and `Tools/preset_to_code.cpp` is that step:
 
 ```sh
 cmake --build build --target overtonium_preset_to_code
-./build/overtonium_preset_to_code_artefacts/Release/overtonium_preset_to_code "Synth Ensemble.ovtpreset" 31
+./build/overtonium_preset_to_code_artefacts/Release/overtonium_preset_to_code "Synth Ensemble.ovtpreset"
 ```
 
-Save the patch from the plugin's own preset menu, run the tool on the file it saved, and paste the result over the case it names. The second argument is the case number. Without it, the output says `case N:` for you to fill in by hand. It writes to stdout so you can diff it against what is already there. That is the quickest way to see what a patch actually changed.
+Save the patch from the plugin's own preset menu, run the tool on the file it saved, and paste the result over the block with the same name. Each block is found by the preset's name, so a new preset goes anywhere in the list, with its name added to `kNames` in alphabetical order. It writes to stdout so you can diff it against what is already there. That is the quickest way to see what a patch actually changed.
 
 It loads the preset into a processor and calls `presets::factoryCode`, the same function the plugin's own authoring menu entry calls, instead of reimplementing the generation. That menu entry is only built with `-DOVERTONIUM_PRESET_AUTHORING=ON`, which is off by default. A second implementation that agreed most of the time would be worse than none. The runtime test already checks that `factoryCode` reproduces every factory preset it is given, so the tool gets that check without needing one of its own.
 
-There are two things it does not do. It does not edit `Presets.cpp`, because each case has a hand-written comment above it saying what the patch is and why, and a generator writing the file in place would lose them without notice. It also writes no session parameters. The polyphony, the temperament and the reference pitch belong to the player, not to the sound, so `factoryCode` leaves them out, and a test fails the build if one ever appears in a case.
+There are two things it does not do. It does not edit `Presets.cpp`, because each block has a hand-written comment saying what the patch is and why, and a generator writing the file in place would lose them without notice. It also writes no session parameters. The polyphony, the temperament and the reference pitch belong to the player, not to the sound, so `factoryCode` leaves them out, and a test fails the build if one ever appears in a block.
 
 Regenerating an existing preset is how to check that a patch really is what you think. Running the tool on the file and diffing against the committed case shows every row that changed and nothing else.
 
@@ -290,11 +309,13 @@ cmake --build build --target overtonium_render_docs_audio
 ./build/overtonium_render_docs_audio_artefacts/Release/overtonium_render_docs_audio docs/audio
 ```
 
-The presets page also has one clip per factory preset, all forty-one presets playing the same spread C major chord, its notes coming in one at a time and released together. Using the same gesture on every preset is deliberate. The page is for listening down the list, and a patch that showed itself off in its own way would be advertising, not describing. The file names come from `slugOf`, which lowercases the preset's name and hyphenates it, so adding a preset adds a clip without a second list to keep up to date. There are two things these clips deliberately do not do. The levels are left where the presets set them, because forty-one clips meant to be browsed have to show truthfully which patches are quiet. Only clips meant to be compared with each other are level-matched. And nothing sweeps. Anything that needs a control moved, or the keyboard played across, already has its own clip on the tuning page.
+That command is for listening. The clips that are committed come from the Linux build job, because the job checks them exactly and another compiler, or another version of the same one, rounds some samples the other way by a step of 16-bit audio. When a change to the sound moves any clip, the job fails and keeps the clips that changed, FLAC and Ogg, as the `clips-changed` artifact of the run. Download it from the run's summary page, unpack it into `docs/audio` and commit those files. The clips that did not change are left out of it, so their Ogg files, which come out different on every render, stay as they are. A new compiler on GitHub's runner moves every clip by a step at once, and the same artifact puts that right.
+
+The presets page also has one clip per factory preset, all forty-four presets playing the same spread C major chord, its notes coming in one at a time and released together. Using the same gesture on every preset is deliberate. The page is for listening down the list, and a patch that showed itself off in its own way would be advertising, not describing. The file names come from `slugOf`, which lowercases the preset's name and hyphenates it, so adding a preset adds a clip without a second list to keep up to date. There are two things these clips deliberately do not do. The levels are left where the presets set them, because forty-four clips meant to be browsed have to show truthfully which patches are quiet. Only clips meant to be compared with each other are level-matched. And nothing sweeps. Anything that needs a control moved, or the keyboard played across, already has its own clip on the tuning page.
 
 Each clip is a note, a chord or a run of notes, held and released, with a short fade at both ends so a file cannot start or stop on a step. TRACK needs the run: the rolloff sits at a fixed 1 kHz while the partials climb through it, so one note shows nothing. A clip may sweep a control as it plays, as the TUNE and STRETCH clips do. The page says those knobs move through a range instead of switching between two states, and a pair of fixed clips cannot show that. The clips are mono, because neither patch pans anything and a stereo file would hold two copies of one signal. The renderer asserts this instead of assuming it. Both clips in a pair come out at the same RMS, so they can be compared without the louder one seeming better.
 
-Ogg comes first with FLAC behind it, because that is the only pair JUCE can write that covers every browser. Current versions of Safari play the Ogg, so on every browser anyone has checked, the FLAC is never fetched. It stays as cheap insurance against a browser nobody checked. It is also what the page offers as a download to anyone whose browser plays neither, and that has to be a file worth keeping, not the lossy one. Both are lossless or near enough. FLAC is used instead of WAV because the fallback is the expensive half: across all fifty-five clips the WAVs come to 40.0 MB and the FLACs to 15.8, for the same samples. A repository whose packed history is 13 MB should not triple in size to carry a format that exists for one browser. The `<audio>` elements have `preload="none"`, so a page with audio costs the same as a page of text until somebody presses play. Re-rendering on the same JUCE version gives a byte-identical FLAC and a different Ogg every time, because the Ogg container carries a random stream serial. Across a JUCE upgrade the FLAC changes too, without the sound changing: 9.0.1 builds libflac as C instead of C++ and encodes differently because of it. To tell the two cases apart, compare the MD5 of the unencoded audio that FLAC stores in its own header, which stays the same when only the encoder changed. That holds for the DRIFT clip too: drift is a random walk, but each voice reseeds from a fixed number in `prepare`, so the same command draws the same contour.
+Ogg comes first with FLAC behind it, because that is the only pair JUCE can write that covers every browser. Current versions of Safari play the Ogg, so on every browser anyone has checked, the FLAC is never fetched. It stays as cheap insurance against a browser nobody checked. It is also what the page offers as a download to anyone whose browser plays neither, and that has to be a file worth keeping, not the lossy one. Both are lossless or near enough. FLAC is used instead of WAV because the fallback is the expensive half: across all fifty-eight clips the WAVs come to 42.3 MB and the FLACs to 16.2, for the same samples. A repository whose packed history is 13 MB should not triple in size to carry a format that exists for one browser. The `<audio>` elements have `preload="none"`, so a page with audio costs the same as a page of text until somebody presses play. Re-rendering on the same JUCE version gives a byte-identical FLAC and a different Ogg every time, because the Ogg container carries a random stream serial. Across a JUCE upgrade the FLAC changes too, without the sound changing: 9.0.1 builds libflac as C instead of C++ and encodes differently because of it. To tell the two cases apart, compare the MD5 of the unencoded audio that FLAC stores in its own header, which stays the same when only the encoder changed. The Linux build job does that on every push: it renders the clips again and `.github/scripts/audio_clips.py` fails if any committed clip no longer matches what the plugin plays. That holds for the DRIFT clip too: drift is a random walk, but each voice reseeds from a fixed number in `prepare`, so the same command draws the same contour.
 
 The pages load WebP, encoded losslessly, which is a third smaller than the PNG for a screenshot and pixel-identical to it. Lossy WebP is worse here, not better. The panel grain is high-frequency noise, and at quality 95 the window shot comes out larger than the PNG.
 
@@ -308,7 +329,7 @@ The hero's background is a plain render, and the recipe is written here so that 
 
 A screenshot with a blur and a grade over it, kept outside the repository, cannot be regenerated, so it goes stale as the instrument changes. The stylesheet is what makes a plain render enough. It scales the picture by 1.26, crops it with `object-fit: cover`, lays a radial scrim over it and drifts it. So the softening that was baked into the artwork is applied at display time to whatever the current build looks like. Measured against the brightest patch under each line, a plain render has slightly more contrast than a graded one, not less.
 
-The stylesheet takes its palette from `Source/UI/Theme.h`, so the page and the instrument use the same colours. One value deliberately differs. The instrument's dim text is `#77828d`, which measures 4.97 against the page background, 4.55 against a panel and 4.51 against the alternate. At worst that clears the 4.5 that WCAG AA asks for at this size by a hundredth, and it is the colour of the nav, the fact labels, the captions and the footer. The page raises it to `#838d97`, which clears the bar with a margin on every surface it appears on. Changing it in `Theme.h` instead would change the instrument's own captions too, and put the hero wordmark, which is hand-made, out of step with the plugin.
+The stylesheet takes its palette from the instrument's, which is in `modules/dm_gui/ui/Theme.h` in dehli-musikk-plugin-core, so the page and the instrument use the same colours. One value deliberately differs. The instrument's dim text is `#77828d`, which measures 4.97 against the page background, 4.55 against a panel and 4.51 against the alternate. At worst that clears the 4.5 that WCAG AA asks for at this size by a hundredth, and it is the colour of the nav, the fact labels, the captions and the footer. The page raises it to `#838d97`, which clears the bar with a margin on every surface it appears on. Changing it in the library's `Theme.h` instead would change the instrument's own captions too, and put the hero wordmark, which is hand-made, out of step with the plugin.
 
 Images wider than the column that shows them have a `srcset`. A phone lays the front page out at 364 CSS pixels, so the window shot is sent at 674 instead of 1350. That is about a third of the bytes, on the connection least able to afford it.
 

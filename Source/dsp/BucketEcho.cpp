@@ -1,4 +1,6 @@
 #include "BucketEcho.h"
+#include "DelayLine.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -28,10 +30,6 @@ constexpr float kDriftDepth = 0.0020f;
 constexpr float kClockToneHz = 9000.0f;
 constexpr float kClockRefSeconds = 0.05f;
 
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
-
 /// The line clipping, which it does early and softly.
 inline float squeeze(float x, float drive) noexcept {
   return std::tanh(x * drive) / drive;
@@ -52,30 +50,10 @@ void BucketEcho::Line::clear() noexcept {
 }
 
 float BucketEcho::Line::read(float delaySamples) const noexcept {
-  const auto length = (int)buffer.size();
-
-  if (length <= 1)
-    return 0.0f;
-
-  const auto clamped = std::clamp(delaySamples, 1.0f, (float)(length - 2));
-  const auto whole = (int)clamped;
-  const auto frac = clamped - (float)whole;
-
-  auto index = write - whole;
-  while (index < 0)
-    index += length;
-
-  auto previous = index - 1;
-  if (previous < 0)
-    previous += length;
-
-  const auto a = buffer[(size_t)index];
-  const auto b = buffer[(size_t)previous];
-
-  return a + (b - a) * frac;
+  return readBack(buffer, write, delaySamples, 1.0f);
 }
 
-void BucketEcho::prepare(double newSampleRate) noexcept {
+void BucketEcho::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   // Room for the longest setting and for the clock to wander past it.
@@ -87,15 +65,17 @@ void BucketEcho::prepare(double newSampleRate) noexcept {
   left.rateHz = kSweepL;
   right.rateHz = kSweepR;
 
-  left.rng = Xorshift{0x1f123bb5u};
-  right.rng = Xorshift{0x27d4eb2du};
-
   reset();
 }
 
 void BucketEcho::reset() noexcept {
   left.clear();
   right.clear();
+
+  // Seeded here rather than in prepare, so the hiss starts the same way after
+  // every reset.
+  left.rng.reseed(0x1f123bb5u);
+  right.rng.reseed(0x27d4eb2du);
 
   // Not the same place, or the two clocks would start in step and the first
   // second of a patch would be in mono.
@@ -108,17 +88,7 @@ void BucketEcho::reset() noexcept {
 }
 
 float BucketEcho::tailSeconds(const EchoParams &p) const noexcept {
-  if (!p.enabled || p.type != EchoType::Bucket || p.mix <= 0.0f)
-    return 0.0f;
-
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-
-  if (feedback <= 0.0f)
-    return p.timeSeconds;
-
-  const auto passes = std::log(0.001f) / std::log(feedback);
-
-  return std::min(30.0f, p.timeSeconds * passes);
+  return echo::tailSeconds(p, EchoType::Bucket);
 }
 
 void BucketEcho::process(float *outL, float *outR, int numSamples,
@@ -135,17 +105,12 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
 
   wasEnabled = true;
 
-  const auto mix = std::clamp(p.mix, 0.0f, 1.0f);
-  const auto feedback = std::clamp(p.feedback, 0.0f, 0.95f);
-  const auto age = std::clamp(p.age, 0.0f, 1.0f);
-  const auto time = std::clamp(p.timeSeconds, 0.01f, kMaxTimeSeconds);
-
-  const auto targetDelay = (float)(time * sampleRate);
+  const auto s = echo::settingsFor(p, sampleRate);
+  const auto mix = s.mix, feedback = s.feedback, age = s.age;
+  const auto time = s.timeSeconds, targetDelay = s.targetDelay, glide = s.glide;
 
   if (smoothedDelay < 0.0f)
     smoothedDelay = targetDelay;
-
-  const auto glide = (float)std::exp(-1.0 / (0.09 * sampleRate));
 
   // The clock first, which is the setting, and then the wear on top of it.
   // Halved at the top of AGE, so an old pedal at a long setting is very dark
@@ -154,8 +119,8 @@ void BucketEcho::process(float *outL, float *outR, int numSamples,
       std::clamp(kClockToneHz * (kClockRefSeconds / time), 420.0f, 12000.0f);
   const auto toneHz = clockTone * (1.0f - 0.5f * age);
 
-  const auto lpCoef = onePole(toneHz, sampleRate);
-  const auto hpCoef = onePole(70.0f, sampleRate);
+  const auto lpCoef = dm::onePole(toneHz, sampleRate);
+  const auto hpCoef = dm::onePole(70.0f, sampleRate);
 
   // How hard the line is driven. Inside the loop, so the dirt compounds along
   // the tail. The base sits below one so a new line passes the bus, which runs

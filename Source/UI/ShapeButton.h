@@ -5,7 +5,7 @@
 
 #include "../PluginParameters.h"
 #include "../dsp/Lfo.h"
-#include "PaintCache.h"
+#include "Theme.h"
 
 namespace ovt::ui {
 
@@ -47,8 +47,15 @@ public:
   /// The menu the glyph opens, as data, so tests can walk it without a window.
   juce::PopupMenu buildMenu() const;
 
+  /// Does what the menu entry with this id says, as the menu does when one is
+  /// picked. Zero, for a menu put away, does nothing. Public so a test can
+  /// pick entries without opening the menu, which needs a window.
+  void chooseFromMenu(int result);
+
 private:
-  /// Sets this shape on every channel that has this control.
+  /// Sets the shape at `index` in this button's list on every channel that has
+  /// this control, as one step in the undo history. What both "Set every
+  /// channel" entries in the menu do.
   void applyToEveryChannel(int index);
 
   /// Everything paint draws, before it is kept as a picture.

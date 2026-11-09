@@ -19,9 +19,18 @@
 
 /// Left-hand caption column. Lays out the same rows as a channel strip so
 /// every knob in the mixer has a name without repeating it 32 times.
-class RowGutter : public juce::Component {
+class RowGutter : public juce::Component, public juce::TooltipClient {
 public:
   RowGutter();
+
+  /// What the caption under the pointer does. See tooltipAt.
+  juce::String getTooltip() override;
+
+  /// What the caption at this point does, from the manual's description of
+  /// its row, or empty where there is no caption. A folded row has none, and
+  /// the band under LEVEL's caption belongs to the fader. Public so a test can
+  /// ask without a pointer.
+  juce::String tooltipAt(juce::Point<int>) const;
 
   void paint(juce::Graphics &) override;
 
@@ -55,6 +64,14 @@ public:
   /// parameter.
   std::function<void()> onGlideLegatoClicked;
   std::function<void()> onGlideFixedTimeClicked;
+
+  /// The dB switch beside the VELOCITY caption: whether every channel's
+  /// velocity row works in decibels or on the Classic curve. Part of the patch.
+  void setVelocityCurve(bool decibels);
+
+  /// Fired when the dB switch is clicked. The editor owns the parameter, and
+  /// converts every channel's amount with it.
+  std::function<void()> onVelocityCurveClicked;
 
   /// Fired when a heading is clicked. The editor owns the fold state, since the
   /// strips are told too.
@@ -93,6 +110,9 @@ private:
 
   /// The glide switches, a pair just left of the GLIDE caption. Lit is on.
   ovt::ui::ScreenSwitch glideLegato, glideFixedTime;
+
+  /// The velocity curve switch, just left of the VELOCITY caption. Lit is dB.
+  ovt::ui::ScreenSwitch velocityDecibels;
 
   /// The in-phase switches, one just left of each shape caption. Lit is one
   /// modulator shared by the whole keyboard.
@@ -341,7 +361,14 @@ private:
   /// Deliberately never reseeded, so each spread differs from the last.
   ovt::Xorshift spreadRandom{0x9e3779b9u};
 
+  /// A channel's parameter for a row, or nullptr for a row with none.
   juce::RangedAudioParameter *oscParameter(ovt::ui::Role, int index) const;
+
+  /// Every channel's parameters, looked up once. The macro tints read all of
+  /// them 30 times a second, and a lookup builds the id and searches a map.
+  std::array<std::array<juce::RangedAudioParameter *, ovt::ui::kNumRoles>,
+             ovt::kNumHarmonics>
+      oscParams{};
 
   /// The processor the base class holds, cast to its real type rather than
   /// kept in a second reference.
@@ -398,9 +425,7 @@ private:
   int scrollY = 0;
   int scrollRange = 0;
 
-  /// The rectangle a column lays its rows in and the height of the band, both
-  /// recorded by resized() for scrollParameters.
-  juce::Rectangle<int> stripLayoutArea;
+  /// The height of the band, recorded by resized() for scrollParameters.
   int scrollBandHeight = 0;
 
   /// Whether the scroll is being driven by a drag on the bar itself, in which

@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "Drift.h"
+#include "Echo.h"
 #include "Params.h"
 
 namespace ovt {
@@ -23,13 +24,13 @@ class TapeEcho {
 public:
   /// Longest head distance the buffer has to allow for, plus room for the
   /// motor to wander past it.
-  static constexpr float kMaxTimeSeconds = 2.0f;
+  static constexpr float kMaxTimeSeconds = echo::kMaxTimeSeconds;
 
   /// The least worn the machine is allowed to be. At zero both paths wander by
   /// nothing and the repeat collapses to mono, so a floor keeps some width.
   static constexpr float kMinAge = 0.08f;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// Processes in place. Runs even with no input, since a tail is still a tail.

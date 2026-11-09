@@ -2,6 +2,7 @@
 #include "Presets.h"
 
 #include <utility>
+#include <vector>
 
 namespace {
 /// One step in the history: the normalised values of everything that moved
@@ -87,8 +88,8 @@ OvertoniumProcessor::OvertoniumProcessor()
   // audioProcessorParameterChangeGestureBegin.
   addListener(this);
 
-  // Only carries program changes from MIDI, so it can run slowly and keeps
-  // running with no window open.
+  // Only carries housekeeping, so it can run slowly and keeps running with no
+  // window open. See timerCallback.
   startTimerHz(20);
 }
 
@@ -150,6 +151,19 @@ void OvertoniumProcessor::endEdit(const juce::String &name) {
       std::move(moved), name, paramCache.macroChannels, masksBaseline, masks));
 }
 
+void OvertoniumProcessor::forgetEdits() {
+  undoManager.clearUndoHistory();
+  openGestures = 0;
+  editBaseline.clear();
+}
+
+void OvertoniumProcessor::windowClosing() {
+  if (openGestures > 0) {
+    openGestures = 0;
+    endEdit("Move a control");
+  }
+}
+
 void OvertoniumProcessor::recordEdit(const juce::String &name,
                                      const std::function<void()> &change) {
   if (change == nullptr)
@@ -197,7 +211,7 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   // output stage's limiter lookahead. Both delay by the same amount whatever
   // the patch, so choosing a preset does not change the reported latency.
   // Only the Settings lookahead switch does. See BusDrive::kLatency,
-  // OutputStage::kLookaheadSeconds and reportLatency.
+  // dm::OutputStage::kLookaheadSeconds and reportLatency.
   hostRate = sampleRate;
   setLatencySamples(latencyAtThisRate());
 
@@ -209,10 +223,11 @@ void OvertoniumProcessor::prepareToPlay(double sampleRate,
   channelPressure = 0.0f;
   modWheel = 0.0f;
   pedalChannels = 0;
+  pedalDepths.fill(0.0f);
 }
 
 bool OvertoniumProcessor::mpeIsOn() const noexcept {
-  return paramCache.mpe != nullptr && paramCache.mpe->load() > 0.5f;
+  return paramCache.mpe->load() > 0.5f;
 }
 
 void OvertoniumProcessor::setMpeEnabled(bool on) {
@@ -223,6 +238,7 @@ void OvertoniumProcessor::setMpeEnabled(bool on) {
   mpeInstrument.releaseAllNotes();
   engine.allNotesOff();
   pedalChannels = 0;
+  pedalDepths.fill(0.0f);
 
   if (!on) {
     mpeInstrument.setZoneLayout({});
@@ -233,9 +249,7 @@ void OvertoniumProcessor::setMpeEnabled(bool on) {
   // layout messages may replace. The master bend range follows the BEND knob,
   // and the per-note range is the 48 semitones the specification asks for.
   const auto masterRange =
-      paramCache.bendRange != nullptr
-          ? juce::jlimit(1, 96, (int)std::lround(paramCache.bendRange->load()))
-          : 2;
+      juce::jlimit(1, 96, (int)std::lround(paramCache.bendRange->load()));
 
   juce::MPEZoneLayout layout;
   layout.setLowerZone(15, 48, masterRange);
@@ -283,6 +297,14 @@ void OvertoniumProcessor::notePitchbendChanged(juce::MPENote note) {
                      (float)note.totalPitchbendInSemitones);
 }
 
+void OvertoniumProcessor::noteKeyStateChanged(juce::MPENote note) {
+  // A key come up under its zone's sustain pedal. The parser holds it, and the
+  // engine fades it as far as that pedal is up.
+  if (note.keyState == juce::MPENote::sustained)
+    engine.holdByPedal(note.midiChannel, note.initialNote,
+                       ovt::liftFromVelocity(note.noteOffVelocity.as7BitInt()));
+}
+
 void OvertoniumProcessor::noteReleased(juce::MPENote note) {
   engine.noteOffPerNote(
       note.midiChannel, note.initialNote,
@@ -309,34 +331,33 @@ bool OvertoniumProcessor::isBusesLayoutSupported(
 }
 
 double OvertoniumProcessor::getTailLengthSeconds() const {
+  // A snapshot of its own, since the host asks from its own thread while the
+  // audio thread rewrites currentParams every block. The snapshot only reads
+  // the parameters' atomics, and it applies the macros, so a macro on Release
+  // or Key-off swell counts.
+  ovt::SynthParams now;
+  paramCache.snapshot(now, 0.0f);
+
   // The longest release currently dialled in rather than the worst case the
-  // ranges allow, so offline bounces are not padded with silence.
+  // ranges allow, so offline bounces are not padded with silence. The key-off
+  // swell runs before the release.
   float longest = 0.0f;
 
-  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
-    const auto &osc = paramCache.osc[(size_t)i];
+  for (const auto &osc : now.osc)
+    longest = juce::jmax(longest, osc.swell + osc.release);
 
-    // The key-off swell runs before the release.
-    const auto swell = osc.swell != nullptr ? osc.swell->load() : 0.0f;
-    const auto release = osc.release != nullptr ? osc.release->load() : 0.0f;
-
-    longest = juce::jmax(longest, swell + release);
-  }
+  longest = juce::jmax(longest, now.noise.swell + now.noise.release);
 
   // Plus whatever is still ringing in the master effects.
-  return (double)longest + (double)engine.effectsTailSeconds(currentParams) +
-         0.1;
+  return (double)longest + (double)engine.effectsTailSeconds(now) + 0.1;
 }
 
 void OvertoniumProcessor::updateAftertouch() {
   using ovt::params::AftertouchSource;
 
-  const auto source =
-      paramCache.atSource != nullptr
-          ? (AftertouchSource)juce::jlimit(
-                0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
-                (int)std::lround(paramCache.atSource->load()))
-          : AftertouchSource::Either;
+  const auto source = (AftertouchSource)juce::jlimit(
+      0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
+      (int)std::lround(paramCache.atSource->load()));
 
   switch (source) {
   case AftertouchSource::ChannelPressure:
@@ -364,6 +385,38 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
   followPedal(m);
 
   if (mpeWasOn) {
+    // The sostenuto pedal goes to the engine rather than the parser, which
+    // keeps one state for both pedals, so lifting either would let go of
+    // what the other holds. On a zone's master channel, as the parser takes
+    // the sustain pedal, and ignored on a member channel, as that is.
+    if (m.isController() && m.getControllerNumber() == 66) {
+      if (mpeInstrument.isMasterChannel(m.getChannel()))
+        engine.setSostenutoPedal(m.isSostenutoPedalOn(),
+                                 sustainedZoneChannels());
+      return;
+    }
+
+    // A zone's sustain pedal. The engine is told how far down it is, so the
+    // notes it holds fade as far as it is up, and the parser is told only
+    // whether it is down at all, at the engine's own point rather than at 64.
+    // Notes the sostenuto pedal handed to the sustain pedal are the engine's
+    // to let go of, since the parser released them long ago.
+    if (m.isController() && m.getControllerNumber() == 64 &&
+        mpeInstrument.isMasterChannel(m.getChannel())) {
+      const auto channel = m.getChannel();
+      const auto depth =
+          ovt::SynthEngine::sustainDepthFor(m.getControllerValue());
+
+      engine.setZoneSustainDepth(zoneChannels(channel), depth);
+
+      if (depth <= 0.0f)
+        engine.releaseHeldBySustain(zoneChannels(channel));
+
+      mpeInstrument.processNextMidiEvent(juce::MidiMessage::controllerEvent(
+          channel, 64, depth > 0.0f ? 127 : 0));
+      return;
+    }
+
     // With MPE on, the parser takes notes, bend, pressure, the pedal and the
     // layout messages. An ordinary keyboard on the master channel still plays.
     mpeInstrument.processNextMidiEvent(m);
@@ -386,25 +439,60 @@ void OvertoniumProcessor::handleMidiMessage(const juce::MidiMessage &m) {
 }
 
 void OvertoniumProcessor::followPedal(const juce::MidiMessage &m) noexcept {
-  const auto bit = 1u << (unsigned)juce::jlimit(0, 31, m.getChannel());
+  const auto channel = juce::jlimit(0, 31, m.getChannel());
+  const auto bit = 1u << (unsigned)channel;
 
-  if (m.isSustainPedalOn())
-    pedalChannels |= bit;
-  else if (m.isSustainPedalOff())
-    pedalChannels &= ~bit;
-  else if (m.isAllNotesOff() || m.isAllSoundOff())
+  if (m.isController() && m.getControllerNumber() == 64) {
+    const auto depth =
+        ovt::SynthEngine::sustainDepthFor(m.getControllerValue());
+    pedalDepths[(size_t)channel] = depth;
+
+    if (depth > 0.0f)
+      pedalChannels |= bit;
+    else
+      pedalChannels &= ~bit;
+  } else if (m.isAllNotesOff() || m.isAllSoundOff()) {
     pedalChannels = 0;
+    pedalDepths.fill(0.0f);
+  }
 
+  publishPedal();
+}
+
+void OvertoniumProcessor::publishPedal() noexcept {
   // The engine reads the pedal for the strings' dampers, and under MPE would
-  // otherwise never hear it.
+  // otherwise never hear it. The dampers follow the pedal furthest down.
   currentParams.pedalDown = pedalChannels != 0;
+  currentParams.pedalDepth =
+      *std::max_element(pedalDepths.begin(), pedalDepths.end());
+}
+
+uint32_t OvertoniumProcessor::zoneChannels(int masterChannel) const noexcept {
+  const auto layout = mpeInstrument.getZoneLayout();
+  const auto zone =
+      masterChannel == 1 ? layout.getLowerZone() : layout.getUpperZone();
+  uint32_t channels = 0;
+
+  for (int channel = 1; channel <= 16; ++channel)
+    if (zone.isUsing(channel))
+      channels |= 1u << (unsigned)channel;
+
+  return channels;
+}
+
+uint32_t OvertoniumProcessor::sustainedZoneChannels() const noexcept {
+  uint32_t channels = 0;
+
+  for (const int master : {1, 16})
+    if ((pedalChannels & (1u << (unsigned)master)) != 0)
+      channels |= zoneChannels(master);
+
+  return channels;
 }
 
 void OvertoniumProcessor::publishPlaying() noexcept {
   const auto held = engine.heldExpression();
-  const auto range = paramCache.bendRange != nullptr
-                         ? juce::jmax(1.0f, paramCache.bendRange->load())
-                         : 2.0f;
+  const auto range = juce::jmax(1.0f, paramCache.bendRange->load());
 
   // The meter shows the furthest bend, whether from the wheel or one MPE note.
   auto bend = pitchBendNormalised;
@@ -413,6 +501,9 @@ void OvertoniumProcessor::publishPlaying() noexcept {
     bend = perNote;
 
   sustainShown.store(pedalChannels != 0, std::memory_order_relaxed);
+  sostenutoShown.store(engine.isSostenutoDown(), std::memory_order_relaxed);
+  sustainDepthShown.store(pedalChannels != 0 ? currentParams.pedalDepth : 0.0f,
+                          std::memory_order_relaxed);
   bendShown.store(juce::jlimit(-1.0f, 1.0f, bend), std::memory_order_relaxed);
   wheelShown.store(modWheel, std::memory_order_relaxed);
   // What the keyboard sends, before Aftertouch from is applied.
@@ -444,10 +535,14 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
   } else if (m.isAftertouch()) {
     engine.setPolyPressure(m.getNoteNumber(),
                            (float)m.getAfterTouchValue() / 127.0f);
-  } else if (m.isSustainPedalOn()) {
-    engine.setSustainPedal(true);
-  } else if (m.isSustainPedalOff()) {
-    engine.setSustainPedal(false);
+  } else if (m.isController() && m.getControllerNumber() == 64) {
+    // How far down, rather than only whether, for half-pedalling.
+    engine.setSustainDepth(
+        ovt::SynthEngine::sustainDepthFor(m.getControllerValue()));
+  } else if (m.isSostenutoPedalOn()) {
+    engine.setSostenutoPedal(true);
+  } else if (m.isSostenutoPedalOff()) {
+    engine.setSostenutoPedal(false);
   } else if (m.isAllNotesOff()) {
     engine.allNotesOff();
   } else if (m.isAllSoundOff()) {
@@ -465,14 +560,15 @@ void OvertoniumProcessor::handleOrdinaryMidiMessage(
 void OvertoniumProcessor::timerCallback() {
   applyPendingProgramChange();
   reportLatency();
+
+  if (forgetEditsPending.exchange(false))
+    forgetEdits();
 }
 
 int OvertoniumProcessor::latencyAtThisRate() const {
-  const auto *ahead = apvts.getRawParameterValue(ovt::params::lookaheadId);
-
   return ovt::BusDrive::kLatency +
-         (ahead == nullptr || ahead->load() > 0.5f
-              ? ovt::OutputStage::lookaheadSamples(hostRate)
+         (paramCache.lookahead->load() > 0.5f
+              ? dm::OutputStage::lookaheadSamples(hostRate)
               : 0);
 }
 
@@ -520,7 +616,7 @@ void OvertoniumProcessor::processBlock(juce::AudioBuffer<float> &buffer,
     setMpeEnabled(on);
 
   paramCache.snapshot(currentParams, pitchBendNormalised);
-  currentParams.pedalDown = pedalChannels != 0;
+  publishPedal();
   updateAftertouch();
   engine.setPolyphony(paramCache.polyphonyValue());
   engine.setLegato(paramCache.legatoValue());
@@ -717,11 +813,38 @@ void OvertoniumProcessor::setStateInformation(const void *data,
                                               int sizeInBytes) {
   if (auto xml = getXmlFromBinary(data, sizeInBytes)) {
     if (xml->hasTagName(apvts.state.getType())) {
-      const auto tree = juce::ValueTree::fromXml(*xml);
+      auto tree = juce::ValueTree::fromXml(*xml);
+
+      // A value that is not a number, from a corrupted or hand edited file, is
+      // put back to the default before anything reads it. NaN is the one value
+      // the range clamps let through, and replaceState hands it straight to
+      // the parameters, where a block rendered in between would carry it into
+      // the feedback in the effects.
+      for (auto child : tree)
+        if (child.hasProperty("value") &&
+            !std::isfinite((double)child.getProperty("value")))
+          if (auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(
+                  apvts.getParameter(child.getProperty("id").toString())))
+            child.setProperty(
+                "value", ranged->convertFrom0to1(ranged->getDefaultValue()),
+                nullptr);
 
       // Read before replaceState, so the host's own program restore is a no-op.
       // Defaults to the first preset when absent.
       const int saved = tree.getProperty(kCurrentProgramProperty, 0);
+
+      // The parameters this state does not name, found before replaceState,
+      // which adds an entry for each of them to this same tree. See
+      // params::valueInOlderFiles.
+      std::vector<std::pair<juce::RangedAudioParameter *, float>> older;
+
+      for (auto *parameter : getParameters())
+        if (auto *ranged =
+                dynamic_cast<juce::RangedAudioParameter *>(parameter))
+          if (!tree.getChildWithProperty("id", ranged->paramID).isValid())
+            if (const auto value =
+                    ovt::params::valueInOlderFiles(ranged->paramID))
+              older.emplace_back(ranged, *value);
 
       {
         // Everything here that getStateInformation reads, changed under the
@@ -759,12 +882,19 @@ void OvertoniumProcessor::setStateInformation(const void *data,
         paramCache.macroChannels[(size_t)m].store(ovt::params::channelListMask(
             tree.getProperty(macroChannelsProperty(m)).toString()));
 
-      // A value that is not a number, from a corrupted or hand edited file, is
-      // put back to the default. NaN is the one value the range clamps let
-      // through, and checking it here keeps the check off the audio thread.
-      for (auto *parameter : getParameters())
-        if (!std::isfinite(parameter->getValue()))
-          parameter->setValueNotifyingHost(parameter->getDefaultValue());
+      // A session saved before a parameter existed gets the value it was made
+      // with, where that is not the parameter's default.
+      for (const auto &entry : older)
+        entry.first->setValueNotifyingHost(
+            entry.first->convertTo0to1(entry.second));
+
+      // The history belongs to the patch that was just replaced. The undo
+      // manager is not thread safe, so a restore on another thread leaves it
+      // to the timer.
+      if (juce::MessageManager::existsAndIsCurrentThread())
+        forgetEdits();
+      else
+        forgetEditsPending.store(true);
     }
   }
 }

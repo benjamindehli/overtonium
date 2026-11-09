@@ -145,6 +145,10 @@ struct PlayingActivity {
   /// Voices sounding, release tails included.
   int voicesInUse = 0;
   bool sustain = false;
+  bool sostenuto = false;
+
+  /// How far down the sustain pedal is, nought to one.
+  float sustainDepth = 0.0f;
 
   /// -1 to 1 against the BEND range.
   float bend = 0.0f;
@@ -172,6 +176,7 @@ public:
 
   const SegmentDisplay &inUseDisplay() const { return inUse; }
   const ScreenSwitch &sustainLamp() const { return sustain; }
+  const ScreenSwitch &sostenutoLamp() const { return sostenuto; }
   const ActivityNeedle &bendMeter() const { return bendNeedle; }
   const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
   const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
@@ -186,7 +191,8 @@ public:
   /// What a right-click on a macro knob offers: for a made macro, MIDI Learn
   /// for its amount and a way into MACROS to change it, and for one that is
   /// not, only a way to make it.
-  enum MacroMenuIds { kAssignMacro = 9101, kEditMacro = 9102 };
+  /// Clear of the glide items' 9100s and MIDI Learn's 9000s.
+  enum MacroMenuIds { kAssignMacro = 9201, kEditMacro = 9202 };
   static juce::PopupMenu macroMenu(int macro, bool made, const MidiLearn &,
                                    juce::RangedAudioParameter *amount);
 
@@ -208,7 +214,7 @@ private:
   GlowButton legato, noStack, mpe;
 
   SegmentDisplay inUse{{}, SegmentDisplay::Bars::Seven, 2};
-  ScreenSwitch sustain;
+  ScreenSwitch sustain, sostenuto;
   ActivityNeedle bendNeedle{colours::accent}, wheelNeedle{colours::accent},
       pressureNeedle{colours::accent};
 

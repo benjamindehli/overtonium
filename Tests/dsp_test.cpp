@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include "dm/dsp/OutputStage.h"
 #include "dsp/BucketEcho.h"
 #include "dsp/BusDrive.h"
 #include "dsp/Character.h"
@@ -32,7 +33,6 @@
 #include "dsp/Halfband.h"
 #include "dsp/Harmonics.h"
 #include "dsp/KarplusString.h"
-#include "dsp/OutputStage.h"
 #include "dsp/PlateReverb.h"
 #include "dsp/Reverb.h"
 #include "dsp/SineTable.h"
@@ -83,6 +83,28 @@ double binMagnitude(const std::vector<float> &x, double freq,
   return std::sqrt(re * re + im * im) / norm;
 }
 
+/// The amplitude of one frequency between two samples, through a Hann window
+/// over just that stretch, so a sine at full scale reads one. Each sample is
+/// measured at its place in the whole buffer, so stretches can be compared by
+/// phase as well.
+double levelBetween(const std::vector<float> &x, size_t from, size_t to,
+                    double hz, double sr) {
+  constexpr double kTwoPi = 6.283185307179586;
+  double re = 0.0, im = 0.0, norm = 0.0;
+
+  for (size_t n = from; n < to && n < x.size(); ++n) {
+    const auto w =
+        0.5 *
+        (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
+
+    re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
+    im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
+    norm += w;
+  }
+
+  return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+}
+
 /// Mean magnitude across a band. A single bin of noise varies wildly, so a
 /// spectral claim about noise needs many bins averaged.
 double bandMagnitude(const std::vector<float> &x, double lowHz, double highHz,
@@ -121,6 +143,10 @@ SynthParams makeFlatParams(float volumePerPartial) {
   p.global.bendSemitones = 0.0f;
   p.global.phaseReset = true;
   p.global.safetyClip = false;
+
+  // The curve the velocity tests were written against. The Decibels curve has
+  // its own, see testVelocityCurve.
+  p.global.velocityCurve = VelocityCurve::Classic;
 
   return p;
 }
@@ -411,7 +437,7 @@ void testStartPhase() {
     // How much has arrived one millisecond in, against everything it reaches,
     // counted from where the sound starts rather than from the first sample.
     // The bus stage and the output stage lookahead both delay it, see
-    // BusDrive::kLatency and OutputStage::kLookaheadSeconds.
+    // BusDrive::kLatency and dm::OutputStage::kLookaheadSeconds.
     const int late = BusDrive::kLatency + engine.outputLatency();
 
     double early = 0.0, whole = 0.0;
@@ -4215,6 +4241,58 @@ void testLegato() {
   check(poly.getActiveVoiceCount() == 3,
         "and with legato off they are three again (" +
             std::to_string(poly.getActiveVoiceCount()) + ")");
+
+  // ---- keys forgotten by a panic or a change of mode -----------------------
+  //
+  // A key that was down when the sound was stopped, or when legato was
+  // switched off, must not come back as held. If it did, letting go of the
+  // next key would move the note to it rather than end it.
+  //
+  // A short release, so a note that ends is gone well inside the wait.
+  auto quick = p;
+  quick.osc[0].release = 0.1f;
+
+  const auto endsAfter = [&](const std::function<void(SynthEngine &)> &between,
+                             const std::string &what) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    e.setPolyphony(1);
+    e.setLegato(true);
+
+    std::vector<float> bl((size_t)(0.05 * sr)), br((size_t)(0.05 * sr));
+    const auto run = [&](double seconds) {
+      for (int done = 0; done < (int)(seconds * sr); done += (int)bl.size())
+        e.render(bl.data(), br.data(), (int)bl.size(), quick);
+    };
+
+    e.noteOn(60, 1.0f, quick);
+    e.noteOn(62, 1.0f, quick);
+    run(0.1);
+
+    between(e);
+
+    e.noteOn(64, 1.0f, quick);
+    run(0.1);
+    e.noteOff(64);
+    run(2.0);
+
+    check(e.getActiveVoiceCount() == 0,
+          "after " + what + ", letting go of the next key ends the note (" +
+              std::to_string(e.getActiveVoiceCount()) + " still sounding)");
+  };
+
+  endsAfter([](SynthEngine &e) { e.allSoundOff(); }, "all sound off");
+  endsAfter([](SynthEngine &e) { e.allNotesOff(); }, "all notes off");
+  endsAfter([](SynthEngine &e) { e.reset(); }, "a reset");
+  endsAfter(
+      [](SynthEngine &e) {
+        e.setLegato(false);
+        e.noteOff(60);
+        e.noteOff(62);
+        e.setLegato(true);
+      },
+      "the keys came up with legato off");
 }
 
 /// Glide: each partial travels to a new note's pitch over its own channel's
@@ -5340,7 +5418,7 @@ void testActivity() {
     render(0.2);
 
     const auto lamp = engine.getPartialVelocity(0);
-    const auto expected = velocityGain(0.6f, 0.25f);
+    const auto expected = velocityGain(0.6f, 0.25f, p.global.velocityCurve);
 
     std::printf("  a blow at 0.25 into a row at 0.6 reads %.3f, the row "
                 "leaves %.3f\n",
@@ -5526,6 +5604,252 @@ double pitchNear(const std::vector<float> &x, size_t from, size_t count,
 /// The string the noise channel strikes: in tune, ringing for as long as
 /// DECAY says, following a pitch that moves, quiet where it cannot be tuned,
 /// and as loud as the noise that breathes into it.
+/// The resonator's strings follow STRETCH. Two allpasses in each loop spread
+/// a string's overtones the way the stiff-string law spreads the partials, so
+/// a stretched partial still finds its string.
+void testStiffStrings() {
+  section("Stiff strings");
+
+  constexpr double sr = 48000.0;
+
+  // A string rung by one impulse and left, with nothing taking its top away,
+  // so its modes stay sharp.
+  const auto ring = [&](double hz, double stiffness, bool stiffable,
+                        int samples) {
+    KarplusString s;
+    s.setStiffable(stiffable);
+    s.prepare(sr, 20.0);
+    std::vector<float> out((size_t)samples);
+    for (int n = 0; n < samples; n += 256) {
+      s.setBlock(hz, 20.0, 0.0f, -1.0f, 256, stiffness);
+      for (int i = 0; i < 256 && n + i < samples; ++i)
+        out[(size_t)(n + i)] = s.tick(n + i == 0 ? 1.0f : 0.0f);
+    }
+    return out;
+  };
+
+  // Where a mode near `near` really is: the loudest point of a Hann-windowed
+  // transform within 40 cents of it, a cent apart, refined by a parabola.
+  const auto peakNear = [&](const std::vector<float> &x, double near) {
+    const auto power = [&](double hz) {
+      const double w = 6.283185307179586 * hz / sr;
+      const double c = 2.0 * std::cos(w);
+      double s1 = 0.0, s2 = 0.0;
+      const auto len = x.size();
+      for (size_t n = 0; n < len; ++n) {
+        const double hann =
+            0.5 - 0.5 * std::cos(6.283185307179586 * (double)n / (double)len);
+        const double s0 = (double)x[n] * hann + c * s1 - s2;
+        s2 = s1;
+        s1 = s0;
+      }
+      return std::log(s1 * s1 + s2 * s2 - c * s1 * s2 + 1.0e-30);
+    };
+
+    int best = -40;
+    double bestPower = -1.0e300;
+    std::vector<double> p(81);
+    for (int cents = -40; cents <= 40; ++cents) {
+      p[(size_t)(cents + 40)] = power(near * std::exp2(cents / 1200.0));
+      if (p[(size_t)(cents + 40)] > bestPower) {
+        bestPower = p[(size_t)(cents + 40)];
+        best = cents;
+      }
+    }
+
+    if (best == -40 || best == 40)
+      return near * std::exp2(best / 1200.0);
+
+    const auto a = p[(size_t)(best + 39)], b = p[(size_t)(best + 40)],
+               c = p[(size_t)(best + 41)];
+    const auto shift = 0.5 * (a - c) / (a - 2.0 * b + c);
+    return near * std::exp2((best + shift) / 1200.0);
+  };
+
+  // How far the string's modes up to `last` are from where the law moves
+  // them, worst first. Measured against the plain string's own modes, so
+  // what the loop does to the series without stiffness, which the lowpass
+  // and the interpolation both do a little at the top, is left out, and only
+  // what stiffness adds is judged.
+  const auto worstCents = [&](double hz, double stretch, double stiffness,
+                              int last) {
+    const auto plain = ring(hz, 0.0, true, 1 << 16);
+    const auto x = ring(hz, stiffness, true, 1 << 16);
+    const auto b = stiffnessFor(stretch);
+    double worst = 0.0;
+    for (int k = 1; k <= last; ++k) {
+      const auto ratio = std::sqrt(1.0 + b * (double)(k * k));
+      const auto own = peakNear(plain, (double)k * hz);
+      const auto law = own * ratio;
+      worst =
+          std::max(worst, std::abs(1200.0 * std::log2(peakNear(x, law) / law)));
+    }
+    return worst;
+  };
+
+  // ---- without stiffness, exactly the plain string --------------------------
+  {
+    const auto plain = ring(220.0, 0.0, false, 20000);
+    const auto stiffable = ring(220.0, 0.0, true, 20000);
+    check(plain == stiffable,
+          "with no stiffness the loop rings exactly as the plain string does, "
+          "sample for sample");
+  }
+
+  // ---- the allpasses go in and out of the loop without a trace -------------
+  //
+  // They are only there while a string is stiff. A vanishingly small
+  // stiffness puts them in and taking it away takes them out, and the string
+  // has to carry on as if nothing had happened. Moving the line by the wrong
+  // amount would put it a whole wave out.
+  {
+    const auto driven = [&](bool tiny) {
+      KarplusString s;
+      s.setStiffable(true);
+      s.prepare(sr, 20.0);
+      std::vector<float> out;
+      for (int block = 0; block < 60; ++block) {
+        const bool in = tiny && block >= 20 && block < 40;
+        s.setBlock(220.0, 4.0, 0.25f, -1.0f, 256,
+                   in ? stiffnessFor(1.0e-6) : 0.0);
+        for (int n = 0; n < 256; ++n)
+          out.push_back(
+              s.tick(0.01f * (float)std::sin(6.283185307179586 * 331.0 *
+                                             (double)(block * 256 + n) / sr)));
+      }
+      return out;
+    };
+
+    const auto plain = driven(false);
+    const auto through = driven(true);
+    float worst = 0.0f, peak = 0.0f;
+    for (size_t n = 0; n < plain.size(); ++n) {
+      worst = std::max(worst, std::abs(plain[n] - through[n]));
+      peak = std::max(peak, std::abs(plain[n]));
+    }
+    check(worst < 1.0e-6f * peak,
+          "the allpasses go into the loop and out again without a trace (" +
+              std::to_string(worst / peak) + " of the level)");
+  }
+
+  // ---- with it, the modes sit where the law puts the partials ---------------
+  {
+    const auto b24 = stiffnessFor(24.0);
+    const auto stiff = worstCents(220.0, 24.0, b24, 16);
+    const auto plain = worstCents(220.0, 24.0, 0.0, 16);
+
+    check(stiff < 0.5 && plain > 5.0,
+          "at 24 cents of STRETCH the first sixteen modes of A3 are within "
+          "half a cent of the partials, where the plain string misses by " +
+              std::to_string(plain) + " (" + std::to_string(stiff) + ")");
+
+    const auto high = worstCents(1046.5, 24.0, b24, 16);
+    // Its sixteenth mode is near 17 kHz, where the interpolation's own delay
+    // is no longer flat and the fit, which takes it as flat, is a little out.
+    check(high < 1.0,
+          "and on C6, whose sixteenth mode is near 17 kHz, within a cent (" +
+              std::to_string(high) + ")");
+
+    const auto b80 = stiffnessFor(80.0);
+    const auto far = worstCents(220.0, 80.0, b80, 16);
+    check(far < 3.0,
+          "and at 80 cents within three (" + std::to_string(far) + ")");
+
+    // Squeezed, where an allpass can only help where little is needed.
+    const auto bLess = stiffnessFor(-3.0);
+    const auto squeezed = worstCents(1046.5, -3.0, bLess, 16);
+    const auto unsqueezed = worstCents(1046.5, -3.0, 0.0, 16);
+    check(squeezed < unsqueezed && squeezed < 0.5,
+          "pulled in, a high string follows too (" + std::to_string(squeezed) +
+              " cents, against " + std::to_string(unsqueezed) + " without)");
+  }
+
+  // ---- so a stretched partial rings its string ------------------------------
+  //
+  // The twelfth partial of A3 at 24 cents of STRETCH, played into the
+  // resonator with A3's string free. What comes back is what matters.
+  {
+    const auto wet = [&](double stiffness) {
+      const auto owner = std::make_unique<SympatheticStrings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+      rp.damping = 0.0f;
+
+      SympatheticStrings::Plan plan;
+      const auto s = (size_t)SympatheticStrings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.stiffness = stiffness;
+
+      const auto b = stiffnessFor(24.0);
+      const auto hz = 12.0 * 220.0 * std::sqrt(1.0 + b * 144.0);
+
+      std::vector<float> l(512), r(512);
+      double energy = 0.0;
+      for (int block = 0; block < 400; ++block) {
+        for (int n = 0; n < 512; ++n)
+          l[(size_t)n] = r[(size_t)n] =
+              0.1f * (float)std::sin(6.283185307179586 * hz *
+                                     (double)(block * 512 + n) / sr);
+        strings.process(l.data(), r.data(), 512, rp, plan);
+        if (block >= 200)
+          for (float x : l)
+            energy += (double)x * (double)x;
+      }
+      return energy;
+    };
+
+    const auto stiff = wet(stiffnessFor(24.0));
+    const auto plain = wet(0.0);
+    check(stiff > 10.0 * plain,
+          "a stretched partial rings its string far more once the string is "
+          "as stiff (" +
+              std::to_string(10.0 * std::log10(stiff / plain)) + " dB more)");
+  }
+
+  // ---- moving STRETCH under a ringing string does not click -----------------
+  //
+  // Driven by a steady sine at its own pitch, a string's output is as smooth
+  // as the sine, whose second difference is tiny. A step in the loop, where
+  // STRETCH moves, would stand far above it.
+  {
+    KarplusString s;
+    s.setStiffable(true);
+    s.prepare(sr, 20.0);
+    std::vector<float> out;
+    for (int block = 0; block < 60; ++block) {
+      const auto stretch = block < 20 ? 0.0 : block < 40 ? 24.0 : 180.0;
+      s.setBlock(220.0, 4.0, 0.25f, -1.0f, 256, stiffnessFor(stretch));
+      for (int n = 0; n < 256; ++n)
+        out.push_back(
+            s.tick(0.01f * (float)std::sin(6.283185307179586 * 220.0 *
+                                           (double)(block * 256 + n) / sr)));
+    }
+
+    float atMove = 0.0f, elsewhere = 0.0f, peak = 0.0f;
+    for (size_t n = 10 * 256; n < out.size(); ++n) {
+      const auto bend = std::abs(out[n] - 2.0f * out[n - 1] + out[n - 2]);
+      const auto block = n / 256;
+      peak = std::max(peak, std::abs(out[n]));
+      if (block == 20 || block == 40)
+        atMove = std::max(atMove, bend);
+      else
+        elsewhere = std::max(elsewhere, bend);
+    }
+
+    check(atMove <= 2.0f * elsewhere && elsewhere < 0.01f * peak,
+          "moving STRETCH under a ringing string changes it without a step "
+          "(the sharpest bend where it moves " +
+              std::to_string(atMove / peak) + " of the level, elsewhere " +
+              std::to_string(elsewhere / peak) + ")");
+  }
+}
+
 void testKarplusString() {
   section("The string in the noise channel");
 
@@ -5793,6 +6117,1193 @@ void testKarplusString() {
 
 /// The strings nobody plays: which ones sound, tuned where, with whose
 /// dampers up, and what they do to the sound.
+/// The sostenuto pedal holds the keys that were down when it went down, and
+/// no others. With the resonator in Piano a string is free while its note is
+/// held, by its key or by a pedal, so the plan shows which notes are held.
+void testSostenutoPedal() {
+  section("Sostenuto pedal");
+
+  constexpr double sr = 48000.0;
+  using Strings = SympatheticStrings;
+
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+  engine.prepare(sr);
+
+  // Every release short, since a voice lasts until all its channels have
+  // finished, at any level.
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  for (auto &o : p.osc)
+    o.release = 0.03f;
+  p.noise.release = 0.02f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+  p.resonator.mode = ResonatorMode::Piano;
+
+  std::vector<float> l(512), r(512);
+  const auto render = [&](int blocks) {
+    for (int b = 0; b < blocks; ++b)
+      engine.render(l.data(), r.data(), 512, p);
+  };
+
+  // Long enough for a 30 ms release to finish, with room to spare.
+  const auto settle = [&] { render(20); };
+
+  const auto held = [&](int key) {
+    return (bool)engine.planStrings(p).free[(size_t)Strings::stringOf(key)];
+  };
+  const auto sounding = [&] { return engine.getActiveVoiceCount(); };
+
+  // ---- it holds the key that was down, and not one played after ------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    engine.noteOn(64, 1.0f, p);
+    render(2);
+    engine.noteOff(64);
+    settle();
+
+    check(held(60) && !held(64) && sounding() == 1,
+          "a key down when the pedal goes down holds after it comes up, and "
+          "one played after the pedal does not (" +
+              std::to_string(sounding()) + " sounding)");
+
+    engine.setSostenutoPedal(false);
+    settle();
+    check(!held(60) && sounding() == 0,
+          "and lifting the pedal lets it go and damps its string");
+  }
+
+  // ---- a note only the sustain pedal holds is not caught -------------------
+  {
+    engine.setSustainPedal(true);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    engine.setSostenutoPedal(true);
+    engine.setSustainPedal(false);
+    settle();
+
+    check(!held(60) && sounding() == 0,
+          "a note held only by the sustain pedal is not caught, so it goes "
+          "when that pedal comes up");
+    engine.setSostenutoPedal(false);
+
+    // Where it shows: played again while both pedals are down, then let go
+    // once the sustain pedal is up, a note that was not caught goes, where a
+    // caught one would hold.
+    engine.setSustainPedal(true);
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.noteOff(62);
+    engine.setSostenutoPedal(true);
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.setSustainPedal(false);
+    engine.noteOff(62);
+    settle();
+
+    check(!held(62) && sounding() == 0,
+          "and played again under the sostenuto pedal it still is not");
+    engine.setSostenutoPedal(false);
+    settle();
+  }
+
+  // ---- with both down, lifting the sustain pedal leaves what it caught ------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.setSustainPedal(true);
+    engine.noteOn(64, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    engine.noteOff(64);
+    render(2);
+    engine.setSustainPedal(false);
+    settle();
+
+    check(held(60) && !held(64) && sounding() == 1,
+          "with both pedals down, lifting the sustain pedal lets go of what "
+          "only it held and keeps what the sostenuto pedal caught");
+
+    engine.setSostenutoPedal(false);
+    settle();
+    check(sounding() == 0, "until that comes up too");
+  }
+
+  // ---- the sustain pedal takes over a note when the sostenuto pedal lifts ---
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    render(2);
+    engine.setSustainPedal(true);
+    engine.setSostenutoPedal(false);
+    settle();
+
+    check(held(60) && sounding() == 1,
+          "a caught note whose key is up stays when the sostenuto pedal lifts "
+          "under the sustain pedal");
+
+    engine.setSustainPedal(false);
+    settle();
+    check(!held(60) && sounding() == 0, "and goes when that lifts");
+  }
+
+  // ---- under MPE the processor says which zones are sustained ---------------
+  {
+    engine.noteOnPerNote(2, 60, 1.0f, p);
+    engine.noteOnPerNote(3, 64, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOffPerNote(2, 60);
+    engine.noteOffPerNote(3, 64);
+    render(2);
+
+    // Channel 2's zone has its sustain pedal down, channel 3's has not.
+    engine.setZoneSustainDepth(1u << 2, 1.0f);
+    engine.setSostenutoPedal(false, 1u << 2);
+    settle();
+    check(held(60) && !held(64) && sounding() == 1,
+          "under MPE a note passes to the sustain pedal only if its own "
+          "zone's is down");
+
+    engine.releaseHeldBySustain(1u << 3);
+    settle();
+    check(held(60), "and another zone's pedal coming up does not touch it");
+
+    engine.setZoneSustainDepth(1u << 2, 0.0f);
+    engine.releaseHeldBySustain(1u << 2);
+    settle();
+    check(!held(60) && sounding() == 0, "while its own zone's does");
+  }
+
+  // ---- played again under the pedal, a caught key stays caught -------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    render(2);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    const auto once = sounding();
+    engine.noteOff(60);
+    settle();
+
+    check(once == 1 && held(60) && sounding() == 1,
+          "a caught key played again sounds once, and still holds after it "
+          "comes up (" +
+              std::to_string(once) + " voice)");
+
+    engine.setSostenutoPedal(false);
+    settle();
+  }
+
+  // ---- down with nothing held, it catches nothing ---------------------------
+  {
+    engine.setSostenutoPedal(true);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.noteOff(60);
+    settle();
+    check(!held(60) && sounding() == 0,
+          "down with no key held, it catches nothing");
+
+    // A continuous pedal sends more values on the way down. They must not
+    // catch again.
+    engine.noteOn(62, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(62);
+    settle();
+    check(!held(62) && sounding() == 0,
+          "and a second value above the middle does not catch again");
+
+    engine.setSostenutoPedal(false);
+  }
+
+  // ---- the panics let go
+  // -----------------------------------------------------
+  {
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOff(60);
+    engine.allNotesOff();
+    settle();
+
+    check(!engine.isSostenutoDown() && sounding() == 0,
+          "All Notes Off lets go of what it holds and lifts it");
+
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.allSoundOff();
+    check(!engine.isSostenutoDown() && sounding() == 0,
+          "and so does All Sound Off");
+
+    // Nothing caught before the panic is caught after it.
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.setSostenutoPedal(false);
+    engine.noteOff(60);
+    settle();
+    check(sounding() == 0, "and nothing it caught before is held after");
+  }
+
+  // ---- a stolen voice forgets it was caught ---------------------------------
+  {
+    engine.setPolyphony(1);
+    engine.noteOn(60, 1.0f, p);
+    render(2);
+    engine.setSostenutoPedal(true);
+    engine.noteOn(64, 1.0f, p); // takes 60's voice
+    render(2);
+    engine.noteOff(64);
+    settle();
+
+    check(!held(64) && sounding() == 0,
+          "a note on a voice taken from a caught one is not caught itself");
+
+    engine.setSostenutoPedal(false);
+    engine.setPolyphony(16);
+    engine.allSoundOff();
+  }
+}
+
+/// Half-pedalling. A note the sustain pedal holds fades at a share of its
+/// release rate set by how far down the pedal is, between holding, at the
+/// bottom of the pedal's travel, and its own release, at the top. The
+/// resonator's dampers rest on their strings as far as the pedal is up.
+void testHalfPedal() {
+  section("Half-pedalling");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 512;
+  using Strings = SympatheticStrings;
+
+  // The pedal's travel: 0 and 127 are up and down exactly, as an on/off
+  // pedal sends them, and between the ends it rises evenly.
+  check(exactly(SynthEngine::sustainDepthFor(0), 0.0f) &&
+            exactly(SynthEngine::sustainDepthFor(SynthEngine::kPedalUpTo),
+                    0.0f) &&
+            SynthEngine::sustainDepthFor(SynthEngine::kPedalUpTo + 1) > 0.0f &&
+            std::abs(SynthEngine::sustainDepthFor(64) - 0.5f) < 1.0e-6f &&
+            exactly(SynthEngine::sustainDepthFor(SynthEngine::kPedalDownFrom),
+                    1.0f) &&
+            exactly(SynthEngine::sustainDepthFor(127), 1.0f),
+        "CC 64 at 0 is up and at 127 all the way down, with 64 half way");
+
+  check(exactly(SynthEngine::pedalFadeRate(1.0f), 0.0f) &&
+            exactly(SynthEngine::pedalFadeRate(0.0f), 1.0f) &&
+            SynthEngine::pedalFadeRate(0.75f) <
+                SynthEngine::pedalFadeRate(0.25f),
+        "all the way down holds, and the less it is down the faster a note "
+        "fades, up to its own release");
+
+  // One partial, held at full sustain, released over 100 ms.
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  for (auto &o : p.osc)
+    o.release = 0.1f;
+  p.noise.release = 0.1f;
+  p.global.masterGain = 1.0f;
+  p.global.safetyClip = false;
+
+  // Each block's peak, from a note struck and let go under a pedal at
+  // `depth`, `blocks` long after its key comes up.
+  const auto afterKeyUp =
+      [&](float depth, int blocks,
+          const std::function<void(SynthEngine &, int)> &during = {}) {
+        const auto owner = std::make_unique<SynthEngine>();
+        auto &e = *owner;
+        e.prepare(sr);
+        std::vector<float> l(kBlock), r(kBlock);
+        std::vector<float> peaks;
+
+        const auto block = [&] {
+          e.render(l.data(), r.data(), kBlock, p);
+          float peak = 0.0f;
+          for (int n = 0; n < kBlock; ++n)
+            peak = std::max(peak, std::abs(l[(size_t)n]));
+          return peak;
+        };
+
+        e.noteOn(69, 1.0f, p);
+        for (int b = 0; b < 10; ++b)
+          block();
+
+        if (depth >= 0.0f)
+          e.setSustainDepth(depth);
+        e.noteOff(69);
+
+        for (int b = 0; b < blocks; ++b) {
+          if (during)
+            during(e, b);
+          peaks.push_back(block());
+        }
+
+        return peaks;
+      };
+
+  // When the peaks first fall 40 dB under where they started, in blocks, or
+  // -1 if they never do.
+  const auto fortyDown = [](const std::vector<float> &peaks) {
+    for (size_t b = 0; b < peaks.size(); ++b)
+      if (peaks[b] < peaks[0] * 0.01f)
+        return (int)b;
+    return -1;
+  };
+
+  const auto noPedal = afterKeyUp(-1.0f, 400);
+  const auto upAtNought = afterKeyUp(0.0f, 400);
+  const auto down = afterKeyUp(1.0f, 400);
+
+  check(noPedal == upAtNought,
+        "a pedal at nought lets a note go exactly as no pedal does");
+  check(std::abs(down.back() - down.front()) < down.front() * 1.0e-3f &&
+            down.front() > 0.1f,
+        "all the way down it holds a note at its level, as before (" +
+            std::to_string(down.front()) + " to " +
+            std::to_string(down.back()) + ")");
+
+  // Part way down, it fades over the release time divided by the share of
+  // the release rate the depth gives. 40 dB is 99% of the way, which is what
+  // a release time covers.
+  {
+    const double blockSeconds = kBlock / sr;
+    const int release = fortyDown(noPedal);
+    int last = release;
+    bool slower = true, onTime = true;
+    std::string seen;
+
+    for (const float depth : {0.25f, 0.5f, 0.75f}) {
+      const auto when = fortyDown(afterKeyUp(depth, 2000));
+      const auto expected =
+          0.1 / (double)SynthEngine::pedalFadeRate(depth) / blockSeconds;
+
+      slower &= when > last;
+      onTime &= when > 0 && std::abs((double)when - expected) < 0.1 * expected;
+      last = when;
+      seen += std::to_string(when) + " ";
+    }
+
+    check(release > 0 && slower,
+          "the further down, the longer a note takes to fade, and never "
+          "quicker than its release (" +
+              std::to_string(release) + " blocks with no pedal, then " + seen +
+              ")");
+    check(onTime, "each in the time its depth gives, within a tenth");
+  }
+
+  // Moved while a note fades, it changes the rate from there without a step,
+  // and back all the way down it holds the note where it has got to. A step
+  // shows as one block's fall standing outside the falls either side of it.
+  {
+    const auto moved = afterKeyUp(0.5f, 60, [](SynthEngine &e, int b) {
+      if (b == 10)
+        e.setSustainDepth(0.9f);
+      if (b == 30)
+        e.setSustainDepth(1.0f);
+    });
+
+    const auto fall = [&moved](int b) {
+      return moved[(size_t)b] / moved[(size_t)b - 1];
+    };
+    const auto between = [&](int b) {
+      return fall(b) >= std::min(fall(b - 2), fall(b + 2)) - 0.005f &&
+             fall(b) <= std::max(fall(b - 2), fall(b + 2)) + 0.005f;
+    };
+
+    bool neverUp = true;
+    for (int b = 1; b < 60; ++b)
+      neverUp &= fall(b) <= 1.0001f;
+
+    check(between(10) && between(11) && between(30) && between(31) && neverUp,
+          "moving it while a note fades changes the rate without a step, "
+          "and never brings the note back up (falls " +
+              std::to_string(fall(9)) + ", " + std::to_string(fall(11)) + ", " +
+              std::to_string(fall(13)) + ")");
+    check(fall(20) > fall(5) &&
+              std::abs(moved[59] - moved[40]) < moved[40] * 1.0e-3f,
+          "further down it fades more slowly, and all the way down it holds "
+          "the note where it had got to");
+
+    const auto lifted = afterKeyUp(0.5f, 120, [](SynthEngine &e, int b) {
+      if (b == 10)
+        e.setSustainDepth(0.0f);
+    });
+
+    int gone = -1;
+    for (size_t b = 10; b < lifted.size() && gone < 0; ++b)
+      if (lifted[b] < lifted[9] * 0.01f)
+        gone = (int)b - 10;
+
+    check(lifted[10] <= lifted[9] && gone > 0 &&
+              std::abs(gone - fortyDown(noPedal)) <= 2,
+          "and lifted all the way it lets the note go from where it was, "
+          "over its own release (" +
+              std::to_string(gone) + " blocks against " +
+              std::to_string(fortyDown(noPedal)) + ")");
+  }
+
+  // Sample by sample, the fade is a ramp and never a step. A sine's second
+  // difference is (2 pi f / rate) squared of its amplitude, about 0.3% at
+  // 440 Hz, and a step of a few percent at a block boundary stands far above
+  // that, where a block's peak would not show it.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock), out;
+
+    e.noteOn(69, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    e.setSustainDepth(0.5f);
+    e.noteOff(69);
+
+    for (int b = 0; b < 30; ++b) {
+      if (b == 15)
+        e.setSustainDepth(0.8f);
+      e.render(l.data(), r.data(), kBlock, p);
+      out.insert(out.end(), l.begin(), l.end());
+    }
+
+    float peak = 0.0f, bend = 0.0f;
+    for (size_t n = 2; n < out.size(); ++n) {
+      peak = std::max(peak, std::abs(out[n]));
+      bend = std::max(bend, std::abs(out[n] - 2.0f * out[n - 1] + out[n - 2]));
+    }
+
+    const auto sine = std::pow(6.283185307179586 * 440.0 / sr, 2.0);
+    check(bend < 2.0 * sine * peak,
+          "and sample by sample the fade has no step in it (" +
+              std::to_string(bend / peak) + " of the peak, a sine alone " +
+              std::to_string(sine) + ")");
+  }
+
+  // A note the sostenuto pedal holds is not the sustain pedal's to fade.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(69, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    e.setSostenutoPedal(true);
+    e.setSustainDepth(0.3f);
+    e.noteOff(69);
+    float first = 0.0f, last = 0.0f;
+    for (int b = 0; b < 200; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      float peak = 0.0f;
+      for (float x : l)
+        peak = std::max(peak, std::abs(x));
+      (b == 0 ? first : last) = peak;
+    }
+    check(std::abs(last - first) < first * 1.0e-3f,
+          "a note the sostenuto pedal caught holds under a half pedal");
+  }
+
+  // Under MPE each zone's pedal fades its own notes.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+
+    e.setZoneSustainDepth(1u << 2, 0.5f);
+    e.setZoneSustainDepth(1u << 3, 1.0f);
+    e.noteOnPerNote(2, 60, 1.0f, p);
+    e.noteOnPerNote(3, 64, 1.0f, p);
+    for (int b = 0; b < 10; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+
+    // The parser holds the notes and says so.
+    e.holdByPedal(2, 60, 1.0f);
+    e.holdByPedal(3, 64, 1.0f);
+    for (int b = 0; b < 600; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+
+    check(e.getActiveVoiceCount() == 1 && e.frequencyOfNote(64) > 0.0 &&
+              e.frequencyOfNote(60) <= 0.0,
+          "under MPE a zone's pedal half way down fades its notes, and "
+          "another zone's all the way down holds its own");
+  }
+
+  // ---- the resonator's dampers ----------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    std::vector<float> l(kBlock), r(kBlock);
+
+    auto q = p;
+    q.resonator.mode = ResonatorMode::Piano;
+    const auto c4 = (size_t)Strings::stringOf(60);
+    const auto a4 = (size_t)Strings::stringOf(69);
+
+    q.pedalDown = true;
+    q.pedalDepth = 1.0f;
+    const auto all = e.planStrings(q);
+    q.pedalDepth = 0.5f;
+    const auto half = e.planStrings(q);
+
+    check(all.free[a4] && exactly(all.rest[a4], 0.0f) && half.free[a4] &&
+              std::abs(half.rest[a4] - 0.5f) < 1.0e-6f,
+          "all the way down every damper is off its string, and half way "
+          "they rest half way");
+
+    // A key that is down has its damper off whatever the pedal does. Its
+    // note held by the pedal has its key up, so its damper follows the pedal.
+    e.setSustainDepth(0.5f);
+    e.noteOn(60, 1.0f, q);
+    e.render(l.data(), r.data(), kBlock, q);
+    const auto keyDown = e.planStrings(q);
+    e.noteOff(60);
+    e.render(l.data(), r.data(), kBlock, q);
+    const auto keyUp = e.planStrings(q);
+
+    check(keyDown.free[c4] && exactly(keyDown.rest[c4], 0.0f) &&
+              keyUp.free[c4] && std::abs(keyUp.rest[c4] - 0.5f) < 1.0e-6f,
+          "a key that is down has its string free, and once the pedal holds "
+          "its note, its damper rests as far as the pedal is up");
+
+    q.pedalDown = false;
+    e.allSoundOff();
+  }
+
+  // A string rings longer the further its damper is off.
+  {
+    float after[3] = {};
+    const float rests[3] = {0.0f, 0.5f, 1.0f};
+
+    for (int k = 0; k < 3; ++k) {
+      const auto owner = std::make_unique<Strings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+
+      Strings::Plan plan;
+      const auto s = (size_t)Strings::stringOf(57); // A3
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+      plan.rest[s] = rests[k];
+
+      std::vector<float> l(kBlock), r(kBlock);
+      for (int b = 0; b < 40; ++b) {
+        for (int n = 0; n < kBlock; ++n)
+          l[(size_t)n] = r[(size_t)n] =
+              b < 10 ? 0.3f * (float)std::sin(6.283185307179586 * 220.0 *
+                                              (double)(b * kBlock + n) / sr)
+                     : 0.0f;
+        strings.process(l.data(), r.data(), kBlock, rp, plan);
+      }
+
+      for (int n = 0; n < kBlock; ++n)
+        after[k] = std::max(after[k], std::abs(l[(size_t)n]));
+    }
+
+    check(after[0] > after[1] && after[1] > after[2] && after[2] >= 0.0f,
+          "a string rings on longest free, less with its damper resting "
+          "half way, and least with it settled (" +
+              std::to_string(after[0]) + ", " + std::to_string(after[1]) +
+              ", " + std::to_string(after[2]) + ")");
+  }
+}
+
+/// The resonator rings each string back on the side of what drives it, so a
+/// panned patch keeps its resonator with it, and a centred one is as it was.
+void testStereoResonator() {
+  section("Stereo resonator");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 512;
+  using Strings = SympatheticStrings;
+
+  // One partial or two, the resonator alone, ringing A4's string.
+  const auto setUp = [](float firstPan, float secondPan, float second) {
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].pan = firstPan;
+    p.osc[1].volume = second;
+    p.osc[1].pan = secondPan;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.resonator.mode = ResonatorMode::Piano;
+    p.resonator.mix = 1.0f;
+    p.pedalDown = true;
+    return p;
+  };
+
+  // ---- a centred patch is exactly as it was
+  // ----------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = setUp(0.0f, 0.0f, 0.3f);
+    p.resonator.mix = 0.5f;
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(57, 1.0f, p);
+    bool same = true;
+    for (int b = 0; b < 100; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      same &= l == r;
+    }
+    check(same, "a centred patch's resonator rings in the middle, the two "
+                "sides the same sample for sample");
+  }
+
+  // ---- a string takes the side of what drives it ----------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = setUp(1.0f, 1.0f, 0.0f);
+    std::vector<float> l(kBlock), r(kBlock);
+    e.noteOn(69, 1.0f, p);
+    double left = 0.0, right = 0.0;
+    for (int b = 0; b < 200; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      if (b >= 100)
+        for (int n = 0; n < kBlock; ++n) {
+          left += (double)l[(size_t)n] * l[(size_t)n];
+          right += (double)r[(size_t)n] * r[(size_t)n];
+        }
+    }
+    check(right > 0.0 && left < right * 1.0e-3,
+          "a partial panned hard right rings its string on the right (left " +
+              std::to_string(10.0 * std::log10(left / right + 1.0e-30)) +
+              " dB under it)");
+  }
+
+  // ---- driven from both sides it sits between them, by how much each feeds --
+  {
+    const auto sideOf = [&](float second) {
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto p = setUp(1.0f, -1.0f, second);
+      p.osc[0].volume = 0.5f;
+      std::vector<float> l(kBlock), r(kBlock);
+      e.noteOn(69, 1.0f, p);
+      e.noteOn(57, 1.0f, p);
+      for (int b = 0; b < 4; ++b)
+        e.render(l.data(), r.data(), kBlock, p);
+      auto plan = e.planStrings(p);
+      e.panStrings(plan, p);
+      return plan.pan[(size_t)Strings::stringOf(69)];
+    };
+
+    // Three partials feed A4's string: A4's first, panned right, and two
+    // panned left, A3's second and A4's own second, which lands on the
+    // string's second mode. With the second partials at 1/sqrt(2) of the
+    // first's level, the two on the left feed as much power as the one on the
+    // right, so it sits in the middle. At half the level they feed a quarter
+    // each, and it leans right, at (1 - 2/4) / (1 + 2/4), a third.
+    const auto even = sideOf(0.5f / std::sqrt(2.0f));
+    const auto lean = sideOf(0.25f);
+    check(std::abs(even) < 0.02f,
+          "fed as much from each side, a string sits in the middle (" +
+              std::to_string(even) + ")");
+    check(std::abs(lean - 1.0f / 3.0f) < 0.02f,
+          "and fed more from the right, it leans right, weighted by what each "
+          "feeds it (" +
+              std::to_string(lean) + ")");
+  }
+
+  // ---- as loud wherever it is, and it moves without a step ------------------
+  {
+    const auto ringAt = [&](const std::function<float(int)> &panAt,
+                            std::vector<float> &l, std::vector<float> &r) {
+      const auto owner = std::make_unique<Strings>();
+      auto &strings = *owner;
+      strings.prepare(sr);
+
+      ResonatorParams rp;
+      rp.mode = ResonatorMode::Octave;
+      rp.mix = 1.0f;
+      rp.decaySeconds = 4.0f;
+
+      Strings::Plan plan;
+      const auto s = (size_t)Strings::stringOf(57);
+      plan.hz[s] = 220.0;
+      plan.free[s] = true;
+
+      std::vector<float> bl(kBlock), br(kBlock);
+      for (int b = 0; b < 200; ++b) {
+        const auto pan = panAt(b);
+        plan.driven[s] = pan > -2.0f;
+        plan.pan[s] = std::max(-1.0f, pan);
+        for (int n = 0; n < kBlock; ++n)
+          bl[(size_t)n] = br[(size_t)n] =
+              0.01f * (float)std::sin(6.283185307179586 * 220.0 *
+                                      (double)(b * kBlock + n) / sr);
+        strings.process(bl.data(), br.data(), kBlock, rp, plan);
+        l.insert(l.end(), bl.begin(), bl.end());
+        r.insert(r.end(), br.begin(), br.end());
+      }
+    };
+
+    const auto power = [](const std::vector<float> &l,
+                          const std::vector<float> &r, size_t from) {
+      double sum = 0.0;
+      for (size_t n = from; n < l.size(); ++n)
+        sum += (double)l[n] * l[n] + (double)r[n] * r[n];
+      return sum;
+    };
+
+    std::vector<float> lc, rc, lr, rr;
+    ringAt([](int) { return 0.0f; }, lc, rc);
+    ringAt([](int) { return 1.0f; }, lr, rr);
+    const auto from = (size_t)(100 * kBlock);
+    const auto db =
+        10.0 * std::log10(power(lr, rr, from) / power(lc, rc, from));
+    check(std::abs(db) < 0.1,
+          "a string hard right is as loud as one in the middle (" +
+              std::to_string(db) + " dB)");
+
+    // Moved from the middle to the right and back, with nothing driving it in
+    // between, which keeps the side it had.
+    std::vector<float> lm, rm;
+    ringAt(
+        [](int b) {
+          return b < 60 ? 0.0f : b < 100 ? 1.0f : b < 140 ? -5.0f : 0.0f;
+        },
+        lm, rm);
+
+    // Every block of the glide to a new side starts with the gains moving on,
+    // so each one's first samples are where a step would be.
+    float bend = 0.0f, sine = 0.0f, peak = 0.0f;
+    for (size_t n = 50 * kBlock; n < lm.size(); ++n)
+      for (const auto *x : {&lm, &rm}) {
+        const auto d = std::abs((*x)[n] - 2.0f * (*x)[n - 1] + (*x)[n - 2]);
+        peak = std::max(peak, std::abs((*x)[n]));
+        if (((n / kBlock >= 60 && n / kBlock < 90) ||
+             (n / kBlock >= 140 && n / kBlock < 170)) &&
+            n % kBlock < 4)
+          bend = std::max(bend, d);
+        else
+          sine = std::max(sine, d);
+      }
+    check(bend <= 2.0f * sine,
+          "it moves to a new side without a step (sharpest bend where it "
+          "moves " +
+              std::to_string(bend / peak) + " of the level, elsewhere " +
+              std::to_string(sine / peak) + ")");
+
+    float leftAt120 = 0.0f, rightAt120 = 0.0f;
+    for (size_t n = 120 * kBlock; n < 121 * kBlock; ++n) {
+      leftAt120 = std::max(leftAt120, std::abs(lm[n]));
+      rightAt120 = std::max(rightAt120, std::abs(rm[n]));
+    }
+    check(leftAt120 < 0.05f * rightAt120,
+          "and with nothing driving it, it keeps the side it had");
+
+    bool backInMiddle = true;
+    for (size_t n = 190 * kBlock; n < lm.size(); ++n)
+      backInMiddle &= exactly(lm[n], rm[n]);
+    check(backInMiddle, "back in the middle it is exactly in the middle again");
+  }
+}
+
+/// The resonator's Fifths and Chord modes: Fifths rings a drone of the root
+/// and its fifth, pure, and Chord holds the last chord struck after its keys
+/// come up, while a line played over it leaves it be.
+void testFifthsAndChord() {
+  section("Fifths and Chord");
+
+  constexpr double sr = 48000.0;
+  constexpr int kBlock = 256;
+  using Strings = SympatheticStrings;
+
+  const auto near = [](double a, double b) {
+    return a > 0.0 && b > 0.0 && std::abs(1200.0 * std::log2(a / b)) < 0.01;
+  };
+  const auto equal = [](int key) {
+    return 440.0 * std::exp2((double)(key - 69) / 12.0);
+  };
+
+  // Which strings a plan has free, by key.
+  const auto freeKeys = [](const Strings::Plan &plan) {
+    std::vector<int> keys;
+    for (int s = 0; s < Strings::kStrings; ++s)
+      if (plan.free[(size_t)s])
+        keys.push_back(Strings::keyOf(s));
+    return keys;
+  };
+
+  // ---- Fifths ---------------------------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.resonator.mode = ResonatorMode::Fifths;
+
+    bool right = true;
+    std::string got;
+    for (const int root : {0, 2, 11}) {
+      p.global.tuningRoot = root;
+      const auto plan = e.planStrings(p);
+      const auto keys = freeKeys(plan);
+      const auto bottom = 36 + root;
+      std::vector<int> want;
+      for (int o = 0; o < SynthEngine::kFifthsOctaves; ++o) {
+        want.push_back(bottom + 12 * o);
+        want.push_back(bottom + 12 * o + 7);
+      }
+      std::sort(want.begin(), want.end());
+      right &= keys == want;
+      for (int o = 0; o < SynthEngine::kFifthsOctaves; ++o) {
+        const auto hz = equal(bottom) * (double)(1 << o);
+        right &= near(plan.hz[(size_t)Strings::stringOf(bottom + 12 * o)], hz);
+        right &= near(plan.hz[(size_t)Strings::stringOf(bottom + 12 * o + 7)],
+                      hz * 1.5);
+      }
+      if (!right && got.empty())
+        got = "root " + std::to_string(root);
+    }
+    check(right, "Fifths rings the root from its second octave and the pure "
+                 "fifth above it, in four octaves, undamped, for any root" +
+                     (got.empty() ? std::string() : " (wrong at " + got + ")"));
+
+    // The root's own key, as Series takes it, under an unequal temperament.
+    p.global.tuningRoot = 2;
+    p.global.temperament = Temperament::Werckmeister3;
+    const auto plan = e.planStrings(p);
+    check(
+        near(plan.hz[(size_t)Strings::stringOf(38)],
+             noteFrequency(38, Temperament::Werckmeister3, 2, 440.0)) &&
+            near(plan.hz[(size_t)Strings::stringOf(45)],
+                 1.5 * noteFrequency(38, Temperament::Werckmeister3, 2, 440.0)),
+        "and its fifths are pure whatever the temperament makes of the "
+        "root");
+  }
+
+  // ---- Chord: what it holds -------------------------------------------------
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.resonator.mode = ResonatorMode::Chord;
+    std::vector<float> l(kBlock), r(kBlock);
+    const auto wait = [&](double seconds) {
+      for (int b = 0; b < (int)(seconds * sr) / kBlock + 1; ++b)
+        e.render(l.data(), r.data(), kBlock, p);
+    };
+    const auto press = [&](std::initializer_list<int> keys) {
+      for (int k : keys)
+        e.noteOn(k, 0.8f, p);
+    };
+    const auto lift = [&](std::initializer_list<int> keys) {
+      for (int k : keys)
+        e.noteOff(k);
+    };
+    const auto freeNow = [&] { return freeKeys(e.planStrings(p)); };
+    using Keys = std::vector<int>;
+
+    press({48, 52, 55});
+    wait(0.2);
+    check(freeNow() == Keys{48, 52, 55},
+          "Chord frees the strings of a chord while it is held, as Piano does");
+
+    lift({48, 52, 55});
+    wait(0.2);
+    check(freeNow() == Keys{48, 52, 55},
+          "and keeps them free once its keys come up");
+
+    // A line over it: one key at a time, overlapping, each struck well apart.
+    press({72});
+    wait(0.1);
+    const auto lineHeld = freeNow();
+    press({74});
+    wait(0.1);
+    lift({72});
+    wait(0.1);
+    lift({74});
+    wait(0.2);
+    check(lineHeld == Keys{48, 52, 55, 72} && freeNow() == Keys{48, 52, 55},
+          "a line played over it rings its own strings while each key is "
+          "held, and leaves the chord as it was");
+
+    // A key added while the chord is down joins it.
+    press({53, 57, 60});
+    wait(0.2);
+    press({64});
+    wait(0.1);
+    lift({53, 57, 60, 64});
+    wait(0.2);
+    check(freeNow() == Keys{53, 57, 60, 64},
+          "a new chord struck after letting go replaces the old one, and a key "
+          "added while it is down joins it");
+
+    // Under the sustain pedal the keys are up, so a chord struck while the
+    // pedal holds the last one is new rather than added to it.
+    p.pedalDown = true;
+    e.setSustainPedal(true);
+    press({50, 57});
+    wait(0.1);
+    lift({50, 57});
+    wait(0.1);
+    press({52, 59});
+    wait(0.1);
+    lift({52, 59});
+    p.pedalDown = false;
+    e.setSustainPedal(false);
+    wait(0.2);
+    check(freeNow() == Keys{52, 59},
+          "keys the pedal holds are up, so a chord struck after them is new");
+
+    // A note struck alone after everything is up leaves the chord.
+    press({62});
+    wait(0.1);
+    lift({62});
+    wait(0.2);
+    check(freeNow() == Keys{52, 59}, "a lone note is not a chord");
+
+    // Another mode, and back, and the chord is still there.
+    p.resonator.mode = ResonatorMode::Piano;
+    wait(0.1);
+    const auto piano = freeNow();
+    p.resonator.mode = ResonatorMode::Chord;
+    check(piano.empty() && freeNow() == Keys{52, 59},
+          "Piano lets the chord's strings go, and Chord, chosen again, has "
+          "them back");
+
+    e.allNotesOff();
+    check(freeNow().empty(), "and all notes off forgets it");
+  }
+
+  // ---- Chord: the strings follow Adaptive -----------------------------------
+  //
+  // C and F sharp struck together, then A under both: one of the two held
+  // notes has to move a comma to make both intervals pure, and its string
+  // goes with it, and stays there once the keys come up.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.global.temperament = Temperament::Adaptive;
+    p.global.adaptiveRetuneSeconds = 0.05f;
+    p.resonator.mode = ResonatorMode::Chord;
+    std::vector<float> l(kBlock), r(kBlock);
+
+    e.noteOn(60, 0.8f, p);
+    e.noteOn(66, 0.8f, p);
+    for (int b = 0; b < 20; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    const auto before = e.frequencyOfNote(60) * e.frequencyOfNote(66);
+
+    e.noteOn(57, 0.8f, p);
+    bool following = true;
+    for (int b = 0; b < 40; ++b) {
+      e.render(l.data(), r.data(), kBlock, p);
+      const auto plan = e.planStrings(p);
+      for (int key : {57, 60, 66})
+        following &= near(plan.hz[(size_t)Strings::stringOf(key)],
+                          e.frequencyOfNote(key));
+    }
+    const auto moved = 1200.0 * std::log2(e.frequencyOfNote(60) *
+                                          e.frequencyOfNote(66) / before);
+    const auto sounded = std::array<double, 3>{
+        e.frequencyOfNote(57), e.frequencyOfNote(60), e.frequencyOfNote(66)};
+
+    for (int key : {57, 60, 66})
+      e.noteOff(key);
+    for (int b = 0; b < 40; ++b)
+      e.render(l.data(), r.data(), kBlock, p);
+    const auto after = e.planStrings(p);
+    bool stayed = true;
+    int i = 0;
+    for (int key : {57, 60, 66})
+      stayed &=
+          after.free[(size_t)Strings::stringOf(key)] &&
+          near(after.hz[(size_t)Strings::stringOf(key)], sounded[(size_t)i++]);
+
+    check(std::abs(std::abs(moved) - tuning::kAdaptiveComma) < 0.01 &&
+              following,
+          "under Adaptive the chord's strings follow a held key as it is "
+          "retuned (" +
+              std::to_string(moved) + " cents)");
+    check(stayed, "and stay where its keys last sounded once they come up");
+  }
+
+  // ---- Chord rings on where Piano stops -------------------------------------
+  {
+    const auto ringing = [sr](ResonatorMode mode) {
+      constexpr int block = 256;
+      const auto owner = std::make_unique<SynthEngine>();
+      auto &e = *owner;
+      e.prepare(sr);
+      auto p = makeFlatParams(0.0f);
+      p.osc[0].volume = 0.5f;
+      p.osc[0].release = 0.03f;
+      p.global.masterGain = 1.0f;
+      p.global.safetyClip = false;
+      p.resonator.mode = mode;
+      p.resonator.mix = 1.0f;
+      p.resonator.decaySeconds = 3.0f;
+      std::vector<float> l(block), r(block);
+      for (int k : {48, 52, 55})
+        e.noteOn(k, 0.8f, p);
+      double sum = 0.0;
+      long counted = 0;
+      for (int b = 0; b < (int)(1.5 * sr) / block; ++b) {
+        if (b == (int)(0.5 * sr) / block)
+          for (int k : {48, 52, 55})
+            e.noteOff(k);
+        e.render(l.data(), r.data(), block, p);
+        if (b > (int)(1.2 * sr) / block)
+          for (auto x : l) {
+            sum += (double)x * x;
+            ++counted;
+          }
+      }
+      return std::sqrt(sum / (double)counted);
+    };
+    const auto chord = ringing(ResonatorMode::Chord);
+    const auto piano = ringing(ResonatorMode::Piano);
+    check(chord > 1.0e-3 && chord > 30.0 * piano,
+          "the chord rings on after its keys come up, where Piano's strings "
+          "are damped (" +
+              std::to_string(chord) + " against " + std::to_string(piano) +
+              ")");
+  }
+
+  // ---- no clicks ------------------------------------------------------------
+  //
+  // A chord of sines that start and stop smoothly, the resonator alone,
+  // switched between modes and moved from chord to chord. Every change is
+  // moved rather than stepped, so the energy above 16 kHz just after each
+  // stays far under the signal. Strings freed or damped leave a trace there,
+  // about 90 dB under it, as they do switching between the older modes. A
+  // level stepped rather than moved is 30 to 45 dB under it.
+  {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &e = *owner;
+    e.prepare(sr);
+    auto p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.4f;
+    p.osc[0].attack = 0.05f;
+    p.osc[0].release = 0.05f;
+    p.osc[1].volume = 0.2f;
+    p.osc[1].attack = 0.05f;
+    p.osc[1].release = 0.05f;
+    p.osc[1].audible = true;
+    p.global.masterGain = 1.0f;
+    p.global.safetyClip = false;
+    p.resonator.mix = 1.0f;
+    p.resonator.decaySeconds = 2.0f;
+    p.resonator.damping = 0.0f;
+
+    struct Event {
+      double at;
+      ResonatorMode mode;
+      std::vector<int> press, lift;
+    };
+    using M = ResonatorMode;
+    const std::vector<Event> events{{0.0, M::Fifths, {48, 52, 55}, {}},
+                                    {0.6, M::Chord, {}, {}},
+                                    {1.2, M::Chord, {}, {48, 52, 55}},
+                                    {1.8, M::Chord, {50, 53, 57}, {}},
+                                    {2.4, M::Chord, {}, {50, 53, 57}},
+                                    {3.0, M::Chord, {52, 55, 59}, {}},
+                                    {3.6, M::Series, {}, {}},
+                                    {4.2, M::Chord, {}, {}},
+                                    {4.8, M::Fifths, {}, {}},
+                                    {5.4, M::Chord, {}, {}},
+                                    {6.0, M::Chord, {}, {52, 55, 59}},
+                                    {6.6, M::Piano, {}, {}},
+                                    {7.2, M::Fifths, {}, {}}};
+
+    std::vector<float> out;
+    std::vector<size_t> changes;
+    std::vector<float> l(kBlock), r(kBlock);
+    size_t next = 0;
+    for (int b = 0; b < (int)(7.8 * sr) / kBlock; ++b) {
+      const auto t = (double)b * kBlock / sr;
+      while (next < events.size() && t >= events[next].at) {
+        const auto &ev = events[next++];
+        p.resonator.mode = ev.mode;
+        for (int k : ev.press)
+          e.noteOn(k, 0.8f, p);
+        for (int k : ev.lift)
+          e.noteOff(k);
+        changes.push_back(out.size());
+      }
+      e.render(l.data(), r.data(), kBlock, p);
+      out.insert(out.end(), l.begin(), l.end());
+    }
+
+    const int w = 240;
+    const auto above16k = [&out, w, sr](size_t start) {
+      double energy = 0.0;
+      for (int k = (int)(16000.0 / sr * w); k < w / 2; ++k) {
+        double re = 0.0, im = 0.0;
+        for (int n = 0; n < w; ++n) {
+          const auto hann = 0.5 - 0.5 * std::cos(6.283185307 * n / (w - 1));
+          re +=
+              out[start + (size_t)n] * hann * std::cos(6.283185307 * k * n / w);
+          im -=
+              out[start + (size_t)n] * hann * std::sin(6.283185307 * k * n / w);
+        }
+        energy += re * re + im * im;
+      }
+      return energy;
+    };
+
+    // The first change is the chord starting out of silence, nothing to
+    // compare with.
+    // Against the run's own level, as the energy the same window would hold
+    // of it, Hann and all, since a change into near silence has little of
+    // its own to be under.
+    double signal = 0.0;
+    for (auto x : out)
+      signal += (double)x * x;
+    signal *= (double)w * w * 0.375 / 2.0 / (double)out.size();
+
+    double closest = 1.0e9;
+    std::string worst;
+    for (size_t c = 1; c < changes.size(); ++c) {
+      const auto at = changes[c];
+      double here = 0.0;
+      for (size_t from = at - 240; from < at + 960; from += 60)
+        here = std::max(here, above16k(from));
+      const auto under = 10.0 * std::log10(signal / here);
+      if (under < closest) {
+        closest = under;
+        worst = std::string(resonatorModeName(events[c - 1].mode)) + " to " +
+                resonatorModeName(events[c].mode) + " at " +
+                std::to_string(events[c].at).substr(0, 3) + " s";
+      }
+    }
+    check(
+        closest > 70.0,
+        "switching into and out of Fifths and Chord, and from one chord to "
+        "the next, makes no click (energy above 16 kHz at a change at least " +
+            std::to_string(closest) + " dB under the signal, " + worst + ")");
+  }
+}
+
 void testSympatheticStrings() {
   section("Sympathetic strings");
 
@@ -6423,8 +7934,9 @@ void testSympatheticStrings() {
 
     std::string worst;
     double furthest = 0.0;
-    for (const auto mode : {ResonatorMode::Piano, ResonatorMode::Open,
-                            ResonatorMode::Octave, ResonatorMode::Series}) {
+    for (const auto mode :
+         {ResonatorMode::Piano, ResonatorMode::Open, ResonatorMode::Octave,
+          ResonatorMode::Series, ResonatorMode::Fifths, ResonatorMode::Chord}) {
       const auto dry = level(mode, 0.0f);
       for (const float mix : {0.25f, 0.5f, 0.75f, 1.0f}) {
         const auto off = 20.0 * std::log10(level(mode, mix) / dry);
@@ -6928,6 +8440,282 @@ void testVoiceAllocation() {
     engine.render(l.data(), r.data(), N, p);
   check(engine.getActiveVoiceCount() == 0,
         "releasing the pedal releases the note");
+}
+
+// -----------------------------------------------------------------------------
+// The Decibels velocity curve, and the conversion the switch on the row makes.
+// -----------------------------------------------------------------------------
+void testVelocityCurve() {
+  section("Velocity curve in decibels");
+
+  const auto db = [](float gain) { return 20.0f * std::log10(gain); };
+  constexpr auto kDb = VelocityCurve::Decibels;
+  constexpr auto kClassic = VelocityCurve::Classic;
+
+  // Equal steps of velocity are equal steps of dB, and full amount reaches
+  // the whole range on the softest note.
+  const auto at = [&db](float amount, float velocity) {
+    return db(velocityGain(amount, velocity, VelocityCurve::Decibels));
+  };
+
+  std::printf("  at 100%%: velocity 0 %.1f dB, 0.25 %.1f, 0.5 %.1f, 0.75 %.1f, "
+              "1 %.1f\n",
+              at(1.0f, 0.0f), at(1.0f, 0.25f), at(1.0f, 0.5f), at(1.0f, 0.75f),
+              at(1.0f, 1.0f));
+
+  check(std::abs(at(1.0f, 0.0f) + kVelocityRangeDb) < 1.0e-3f &&
+            std::abs(at(1.0f, 0.5f) + kVelocityRangeDb * 0.5f) < 1.0e-3f &&
+            std::abs(at(1.0f, 1.0f)) < 1.0e-4f,
+        "at full amount the softest note is 40 dB down, a medium one 20 and "
+        "the hardest untouched");
+
+  bool even = true;
+
+  for (int i = 0; i < 10; ++i) {
+    const auto step =
+        at(1.0f, (float)(i + 1) / 10.0f) - at(1.0f, (float)i / 10.0f);
+    even &= std::abs(step - kVelocityRangeDb / 10.0f) < 1.0e-3f;
+  }
+
+  check(even, "every tenth of velocity is the same number of dB");
+
+  check(std::abs(at(0.5f, 0.5f) - 0.5f * at(1.0f, 0.5f)) < 1.0e-3f,
+        "half the amount is half the dB, where Classic at 50% leaves a medium "
+        "note 2.5 dB down");
+
+  check(std::abs(at(-1.0f, 1.0f) - at(1.0f, 0.0f)) < 1.0e-3f &&
+            std::abs(at(-1.0f, 0.0f)) < 1.0e-4f,
+        "a negative amount is the mirror, taking the hardest note down");
+
+  check(std::abs(velocityGain(0.0f, 0.1f, kDb) - 1.0f) < 1.0e-6f &&
+            std::abs(velocityGain(0.0f, 0.1f, kClassic) - 1.0f) < 1.0e-6f,
+        "zero amount leaves the fader alone on both curves");
+
+  // The conversion keeps a medium note where it was, in both directions and
+  // with the sign kept.
+  bool keepsMiddle = true, roundTrips = true;
+
+  for (int i = -10; i <= 10; ++i) {
+    const auto classic = (float)i / 10.0f;
+    const auto converted = decibelsAmountFor(classic);
+
+    keepsMiddle &= std::abs(velocityGain(classic, 0.5f, kClassic) -
+                            velocityGain(converted, 0.5f, kDb)) < 1.0e-5f;
+    keepsMiddle &= (classic < 0.0f) == (converted < 0.0f);
+    roundTrips &= std::abs(classicAmountFor(converted) - classic) < 1.0e-5f;
+  }
+
+  check(keepsMiddle, "converting to dB keeps a medium note at the level it "
+                     "had, on both sides of zero");
+
+  check(roundTrips, "and converting back gives the amount it started from");
+
+  std::printf("  Classic 100%% converts to %.3f and 70%% to %.3f\n",
+              decibelsAmountFor(1.0f), decibelsAmountFor(0.7f));
+
+  check(std::abs(decibelsAmountFor(1.0f) - 0.30103f) < 1.0e-4f,
+        "Classic at full becomes about 30% on the dB curve");
+
+  check(std::abs(classicAmountFor(1.0f) - 1.0f) < 1.0e-6f &&
+            std::abs(classicAmountFor(-0.8f) + 1.0f) < 1.0e-6f,
+        "a dB amount past what Classic can reach is held at full");
+
+  // Through the engine: the curve the global setting names is the one a note
+  // is struck with.
+  constexpr double sr = 48000.0;
+  SynthEngine engine;
+  engine.prepare(sr);
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 1.0f;
+  p.osc[0].velAmount = 1.0f;
+
+  std::vector<float> l(256), r(256);
+
+  const auto lampFor = [&](VelocityCurve curve) {
+    p.global.velocityCurve = curve;
+    engine.allSoundOff();
+    engine.noteOn(60, 0.5f, p);
+    engine.render(l.data(), r.data(), 256, p);
+    return engine.getPartialVelocity(0);
+  };
+
+  const auto classicLamp = lampFor(kClassic);
+  const auto dbLamp = lampFor(kDb);
+
+  check(std::abs(classicLamp - 0.5f) < 1.0e-5f &&
+            std::abs(dbLamp - 0.1f) < 1.0e-5f,
+        "a medium note at full amount is struck at half its fader on Classic "
+        "and a tenth on dB (" +
+            std::to_string(classicLamp) + ", " + std::to_string(dbLamp) + ")");
+}
+
+void testKeyboardRow() {
+  section("The keyboard row");
+
+  // Middle C is never changed while the tilt turns around it.
+  bool middleKept = true;
+  for (int i = -20; i <= 20; ++i)
+    middleKept &=
+        std::abs(keyboardGain((float)i / 20.0f, 60.0) - 1.0f) < 1.0e-6f;
+
+  check(middleKept, "middle C keeps its level at every amount up to 100% "
+                    "either way");
+
+  // The slope at full amount, and the side it turns down.
+  check(std::abs(keyboardDecibels(1.0f, 48.0) + 24.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(1.0f, 36.0) + 48.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(1.0f, 84.0)) < 1.0e-6f,
+        "at 100% the keys below middle C fall 24 dB an octave and the keys "
+        "above are left alone");
+
+  check(std::abs(keyboardDecibels(-1.0f, 72.0) + 24.0f) < 1.0e-4f &&
+            std::abs(keyboardDecibels(-1.0f, 36.0)) < 1.0e-6f,
+        "and at -100% it is the keys above");
+
+  // Shaped so the gentle slopes get most of the travel.
+  check(std::abs(keyboardTilt(0.5f).dbPerOctave - 6.0f) < 1.0e-4f &&
+            std::abs(keyboardTilt(0.25f).dbPerOctave - 1.5f) < 1.0e-4f &&
+            std::abs(keyboardTilt(-0.5f).dbPerOctave - 6.0f) < 1.0e-4f,
+        "50% is 6 dB an octave and 25% is 1.5");
+
+  // Past 100% the slope holds and the centre moves an octave for every 20%.
+  const auto at = [](float amount) { return keyboardTilt(amount); };
+
+  check(std::abs(at(1.2f).centre - 72.0f) < 1.0e-3f &&
+            std::abs(at(1.2f).dbPerOctave - 24.0f) < 1.0e-6f &&
+            std::abs(at(-1.2f).centre - 48.0f) < 1.0e-3f &&
+            std::abs(at(2.0f).centre - 120.0f) < 1.0e-3f &&
+            std::abs(at(-2.0f).centre) < 1.0e-3f && at(2.0f).below &&
+            !at(-2.0f).below,
+        "past 100% the slope stays at 24 and the centre moves an octave for "
+        "every 20%, to key 120 at 200% and key 0 at -200%");
+
+  check(std::abs(keyboardDecibels(1.2f, 72.0)) < 1.0e-6f &&
+            std::abs(keyboardDecibels(1.2f, 60.0) + 24.0f) < 1.0e-3f,
+        "and the fade starts at the moved centre");
+
+  check(std::abs(at(1.0001f).centre - at(1.0f).centre) < 0.01f &&
+            std::abs(at(0.9999f).dbPerOctave - at(1.0f).dbPerOctave) < 0.01f,
+        "the two halves meet at 100% without a jump");
+
+  // Every step away from zero turns more of the keyboard down, on every key.
+  bool monotonic = true;
+  for (int key = 0; key <= 127; ++key)
+    for (int step = 1; step <= 200; ++step) {
+      const auto a = (float)step / 100.0f, b = (float)(step - 1) / 100.0f;
+      monotonic &= keyboardGain(a, key) <= keyboardGain(b, key) + 1.0e-7f &&
+                   keyboardGain(-a, key) <= keyboardGain(-b, key) + 1.0e-7f;
+    }
+
+  check(monotonic, "every step away from zero turns each key down further or "
+                   "leaves it, on both sides");
+
+  bool neverLouder = true;
+  for (int key = 0; key <= 127; ++key)
+    for (int step = -200; step <= 200; ++step)
+      neverLouder &= keyboardGain((float)step / 100.0f, key) <= 1.0f;
+
+  check(neverLouder, "and no amount ever raises a key above the fader");
+
+  // Through the engine, on a partial and on the noise.
+  constexpr double sr = 48000.0;
+  const auto engineOwner = std::make_unique<SynthEngine>();
+  auto &engine = *engineOwner;
+
+  std::vector<float> l(4800), r(4800);
+
+  const auto settled = [&](SynthParams &p, int note) {
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+    engine.render(l.data(), r.data(), (int)l.size(), p);
+    return std::pair<float, float>{engine.getPartialLevel(0),
+                                   engine.getPartialKeyboard(0)};
+  };
+
+  auto p = makeFlatParams(0.0f);
+  p.osc[0].volume = 0.5f;
+  p.osc[0].sustain = 1.0f;
+
+  const auto flat = settled(p, 48);
+  p.osc[0].keyAmount = 1.0f;
+  const auto tilted = settled(p, 48);
+
+  std::printf("  C3 at 100%%: level %.4f against %.4f, lamp %.4f\n",
+              tilted.first, flat.first, tilted.second);
+
+  check(std::abs(flat.second - 1.0f) < 1.0e-6f &&
+            std::abs(tilted.second - 0.0631f) < 1.0e-4f &&
+            std::abs(tilted.first / flat.first - tilted.second) < 1.0e-3f,
+        "an octave under middle C at 100% plays 24 dB down, which the lamp "
+        "shows");
+
+  // The key number, not the pitch.
+  p.global.bendSemitones = 2.0f;
+  for (auto &o : p.osc)
+    o.tuneBlend = 1.0f;
+
+  const auto bent = settled(p, 48);
+
+  check(std::abs(bent.second - tilted.second) < 1.0e-6f,
+        "bend and TUNE leave the level alone, since the row reads the key");
+
+  p = makeFlatParams(0.0f);
+  p.noise.volume = 0.5f;
+  p.noise.keyAmount = -1.0f;
+
+  engine.prepare(sr);
+  engine.noteOn(84, 1.0f, p);
+  engine.render(l.data(), r.data(), (int)l.size(), p);
+
+  check(std::abs(engine.getNoiseKeyboard() - 0.003981f) < 1.0e-5f,
+        "the noise channel has its own row, two octaves above middle C at "
+        "-100% being 48 dB down (" +
+            std::to_string(engine.getNoiseKeyboard()) + ")");
+
+  // Under Glide the level follows the key across, without a step.
+  {
+    p = makeFlatParams(0.0f);
+    p.osc[0].volume = 0.5f;
+    p.osc[0].sustain = 1.0f;
+    p.osc[0].keyAmount = 1.0f;
+    p.osc[0].glideSeconds = 0.4f;
+    p.global.glideMode = GlideMode::Time;
+
+    engine.prepare(sr);
+    engine.setPolyphony(1);
+    engine.setLegato(true);
+    engine.noteOn(36, 1.0f, p);
+    engine.render(l.data(), r.data(), 4800, p);
+
+    const auto low = engine.getPartialKeyboard(0);
+    engine.noteOn(60, 1.0f, p);
+
+    float last = low, biggestStep = 0.0f;
+    bool rising = true;
+    std::vector<float> chunk(256), chunkR(256);
+
+    for (int i = 0; i < (int)(0.5 * sr) / 256; ++i) {
+      engine.render(chunk.data(), chunkR.data(), 256, p);
+      const auto now = engine.getPartialKeyboard(0);
+      rising &= now >= last - 1.0e-6f;
+      biggestStep = std::max(biggestStep, std::abs(20.0f * std::log10(now) -
+                                                   20.0f * std::log10(last)));
+      last = now;
+    }
+
+    std::printf("  glide C2 to C4: lamp %.4f to %.4f, largest step %.2f dB\n",
+                low, last, biggestStep);
+
+    check(std::abs(low - 0.003981f) < 1.0e-4f &&
+              std::abs(last - 1.0f) < 1.0e-5f,
+          "a glide from two octaves below middle C starts 48 dB down and "
+          "arrives at the fader");
+
+    check(rising && biggestStep < 1.0f,
+          "and the level follows the key there in steps under a dB, without "
+          "a jump");
+  }
 }
 
 // -----------------------------------------------------------------------------
@@ -8150,8 +9938,8 @@ void testStrikeVelocity() {
       const auto a = (float)i / 10.0f;
       const auto v = (float)j / 10.0f;
 
-      oneShape &=
-          std::abs(velocityGain(a, v) - (1.0f - velocityReach(a, v))) < 1.0e-6f;
+      oneShape &= std::abs(velocityGain(a, v, VelocityCurve::Classic) -
+                           (1.0f - velocityReach(a, v))) < 1.0e-6f;
     }
 
   check(oneShape,
@@ -9166,21 +10954,9 @@ void testDigitalEcho() {
     return s;
   };
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   const auto through = [&](float age, float time, float feedback) {
@@ -9362,21 +11138,9 @@ void testBucketEcho() {
     return s;
   };
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   const auto through = [&](float age, float time, double freq) {
@@ -10241,6 +12005,47 @@ void testBusDriveIsSmooth() {
   check(worstOverall < 1.0e-4,
         "no sample stands off the wave at any level the bus is driven to (" +
             std::to_string(worstOverall) + " at the worst)");
+
+  // ---- switching into a curve ----------------------------------------------
+  //
+  // A character with no curve, or the lamp, passes the samples through. The
+  // first block on a curve after it must carry on from them, not start its
+  // filters from silence.
+  constexpr int kBlock = 512;
+  constexpr size_t kSwitch = 8 * kBlock;
+
+  for (auto from : {Character::Pure, Character::Bulb}) {
+    std::vector<float> l(kLength), r(kLength);
+
+    for (size_t n = 0; n < kLength; ++n)
+      l[n] = r[n] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)n / sr));
+
+    BusDrive bus;
+    bus.prepare(sr);
+
+    for (size_t at = 0; at < kLength; at += kBlock) {
+      const auto c = at < kSwitch ? from : Character::Rail;
+      bus.process(l.data() + at, r.data() + at,
+                  (int)std::min((size_t)kBlock, kLength - at), c,
+                  (float)BusDrive::amountFor(c));
+    }
+
+    double worst = 0.0;
+
+    for (size_t n = kSwitch - 64; n < kSwitch + 256; ++n) {
+      const double predicted = (-(double)l[n - 2] + 4.0 * (double)l[n - 1] +
+                                4.0 * (double)l[n + 1] - (double)l[n + 2]) /
+                               6.0;
+      worst = std::max(worst, std::abs((double)l[n] - predicted));
+    }
+
+    std::printf("  from %s into Rail: worst sample %.1e off its neighbours\n",
+                characterName(from), worst);
+
+    check(worst < 0.01, std::string("switching from ") + characterName(from) +
+                            " into a curve does not drop out (" +
+                            std::to_string(worst) + ")");
+  }
 }
 
 /// The bus the whole series is summed onto, the one place two partials meet.
@@ -10257,20 +12062,8 @@ void testBusDrive() {
 
   /// Amplitude at one frequency, windowed, since the question is always whether
   /// a partial is present and how loud.
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = 0; n < x.size(); ++n) {
-      const auto win =
-          0.5 * (1.0 - std::cos(kTwoPi * (double)n / (double)x.size()));
-      const auto t = kTwoPi * hz * (double)n / sr;
-
-      re += win * (double)x[n] * std::cos(t);
-      im -= win * (double)x[n] * std::sin(t);
-      norm += win;
-    }
-
-    return 2.0 * std::hypot(re, im) / norm;
+  const auto levelAt = [sr](const std::vector<float> &x, double hz) {
+    return levelBetween(x, 0, x.size(), hz, sr);
   };
 
   const auto through = [kTwoPi, sr, kSettle,
@@ -10813,21 +12606,9 @@ void testFirstRepeatIsAlreadyWorn() {
   constexpr double sr = 48000.0;
   constexpr double kTwoPi = 6.283185307179586;
 
-  const auto levelAt = [kTwoPi, sr](const std::vector<float> &x, size_t from,
-                                    size_t to, double hz) {
-    double re = 0.0, im = 0.0, norm = 0.0;
-
-    for (size_t n = from; n < to && n < x.size(); ++n) {
-      const auto w =
-          0.5 *
-          (1.0 - std::cos(kTwoPi * (double)(n - from) / (double)(to - from)));
-
-      re += w * (double)x[n] * std::cos(kTwoPi * hz * (double)n / sr);
-      im -= w * (double)x[n] * std::sin(kTwoPi * hz * (double)n / sr);
-      norm += w;
-    }
-
-    return norm > 0.0 ? 2.0 * std::hypot(re, im) / norm : 0.0;
+  const auto levelAt = [sr](const std::vector<float> &x, size_t from, size_t to,
+                            double hz) {
+    return levelBetween(x, from, to, hz, sr);
   };
 
   TapeEcho echo;
@@ -12092,7 +13873,7 @@ void testLofi() {
   // resampler phase that restarted every block would give. Counted past the
   // latency of the bus and output stages, whose leading silence would count as
   // the longest hold of all.
-  const int late = BusDrive::kLatency + OutputStage::lookaheadSamples(sr);
+  const int late = BusDrive::kLatency + dm::OutputStage::lookaheadSamples(sr);
 
   int longest = 1, run = 1;
   for (int n = late + 1; n < N; ++n) {
@@ -12290,802 +14071,81 @@ void benchmarkLofi() {
   }
 }
 
-/// The Cassette output machine against the measured recorder: unity and the
-/// lows at a quiet tone, Dolby's mistracking, the tape speed, hiss that follows
-/// the notes, a fade when it is chosen mid-note, and a NaN that stays a NaN.
-void testCassette() {
-  section("Cassette");
+/// Two renders of the same thing, with a reset between them, come out the same
+/// sample for sample. Every random stream and every running modulator starts
+/// again from where it started after prepare, so a bounce does not depend on
+/// what was played before it.
+void testRendersRepeatAfterReset() {
+  section("Renders repeat after a reset");
 
-  constexpr double kTwoPi = 6.283185307179586;
   constexpr double sr = 48000.0;
 
-  // A tone through the recorder, read over its last second with a taper.
-  struct Read {
-    double gainDb, thirdDb;
-  };
-
-  const auto steady = [sr, kTwoPi](double f, double db) {
-    constexpr int kN = 96000;
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const double a = std::pow(10.0, db / 20.0);
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-
-    for (int i = 0; i < kN; ++i)
-      l[(size_t)i] = r[(size_t)i] =
-          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
-
-    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
-
-    const int from = kN - 48000;
-    std::complex<double> h1{}, h3{};
-    double norm = 0.0;
-
-    for (int i = from; i < kN; ++i) {
-      const double t = (double)(i - from) / 48000.0;
-      const double w = 0.5 - 0.5 * std::cos(kTwoPi * t);
-      norm += w;
-
-      // Each stage starts its transport from the same place, so two tones
-      // read here flutter alike and compare fairly, and over a second the
-      // flutter moves a tone by less than the window can see.
-      const double ph = kTwoPi * f * (double)i / sr;
-      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
-      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
-    }
-
-    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
-                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
-  };
-
-  // ---- unity, and the lows first -------------------------------------------
-  const auto quiet = steady(1000.0, -40.0);
-  std::printf("  1 kHz at -40 dBFS: %+.2f dB\n", quiet.gainDb);
-  check(std::abs(quiet.gainDb) < 0.8,
-        "a quiet 1 kHz tone comes through at unity, give or take the tape's "
-        "slow wobble (" +
-            std::to_string(quiet.gainDb) + " dB)");
-
-  const auto low = steady(30.0, -3.0);
-  const auto mid = steady(1000.0, -3.0);
-  std::printf("  third harmonic at -3 dBFS: 30 Hz %.1f dB, 1 kHz %.1f dB\n",
-              low.thirdDb, mid.thirdDb);
-  check(low.thirdDb > -24.0 && low.thirdDb < -16.0 && mid.thirdDb < -38.0,
-        "the tape saturates the lows first, as measured: a third harmonic "
-        "near -18 dB at 30 Hz and under -38 at 1 kHz");
-
-  // ---- Dolby's mistracking --------------------------------------------------
-  const auto quietTop = steady(10000.0, -36.0);
-  const auto loudTop = steady(10000.0, -8.0);
-  std::printf("  10 kHz: %+.2f dB at -36 dBFS, %+.2f dB at -8\n",
-              quietTop.gainDb, loudTop.gainDb);
-  check(loudTop.gainDb - quietTop.gainDb > 2.0,
-        "quiet highs come back duller than loud ones, as the machine's Dolby "
-        "does");
-
-  // ---- the speed -----------------------------------------------------------
-  {
-    // A 3150 Hz tone's period over 16 cycles at a time, which is the speed the
-    // tape played it back at. Sixteen rather than one, since a single cycle's
-    // two crossings move with the hiss as much as with the speed. That keeps
-    // what flutters below about 100 Hz, which is most of it.
-    constexpr int kN = 480000;
-    OutputStage stage;
-    stage.prepare(sr);
-
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-    const double a = std::pow(10.0, -18.0 / 20.0);
-
-    for (int i = 0; i < kN; ++i)
-      l[(size_t)i] = r[(size_t)i] =
-          (float)(a * std::sin(kTwoPi * 3150.0 * (double)i / sr));
-
-    stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
-
-    std::vector<double> crossings;
-
-    for (int i = (int)sr; i < kN; ++i) {
-      const double y0 = (double)l[(size_t)i - 1], y1 = (double)l[(size_t)i];
-
-      if (y0 < 0.0 && y1 >= 0.0)
-        crossings.push_back((double)(i - 1) + y0 / (y0 - y1));
-    }
-
-    constexpr size_t kSpan = 16;
-    const size_t spans = crossings.size() - kSpan;
-
-    double mean = 0.0;
-    for (size_t k = 0; k < spans; ++k)
-      mean += crossings[k + kSpan] - crossings[k];
-    mean /= (double)spans;
-
-    double spread = 0.0;
-    for (size_t k = 0; k < spans; ++k) {
-      const double d = (crossings[k + kSpan] - crossings[k]) / mean - 1.0;
-      spread += d * d;
-    }
-
-    const double rms = 100.0 * std::sqrt(spread / (double)spans);
-
-    std::printf("  wow and flutter: %.3f%% rms\n", rms);
-    check(rms > 0.06 && rms < 0.16,
-          "the speed wanders by about a tenth of a percent, as the "
-          "machine's did (" +
-              std::to_string(rms) + "%)");
-  }
-
-  // ---- the hiss follows the notes -------------------------------------------
-  {
-    constexpr int kN = 96000;
-
-    const auto noiseAbove = [sr, kN, kTwoPi](double toneDb) {
-      OutputStage stage;
-      stage.prepare(sr);
-
-      std::vector<float> l((size_t)kN), r((size_t)kN);
-      const double a = toneDb < -200.0 ? 0.0 : std::pow(10.0, toneDb / 20.0);
-
-      for (int i = 0; i < kN; ++i)
-        l[(size_t)i] = r[(size_t)i] =
-            (float)(a * std::sin(kTwoPi * 125.0 * (double)i / sr));
-
-      stage.process(l.data(), r.data(), kN, ClipType::Cassette, true, false);
-
-      // What is left once the tone and its harmonics are taken out: the
-      // difference between neighbouring cycles, which a steady 125 Hz tone
-      // repeats every 384 samples and hiss does not.
-      double power = 0.0;
-      int count = 0;
-
-      for (int i = kN / 2; i < kN; ++i) {
-        const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
-        power += d * d;
-        ++count;
-      }
-
-      return 10.0 * std::log10(std::max(1.0e-30, power / (2.0 * count)));
-    };
-
-    const double silent = noiseAbove(-400.0);
-    const double playing = noiseAbove(-20.0);
-
-    std::printf("  hiss: %.1f dBFS with nothing playing, %.1f under a note\n",
-                silent, playing);
-    check(silent < -140.0, "there is no hiss with nothing playing");
-    check(playing > -90.0 && playing < -50.0,
-          "and there is while something plays, at about the tape's level");
-  }
-
-  // ---- chosen part way through a note ---------------------------------------
-  //
-  // It runs only while chosen, so choosing it mid-note starts it from rest,
-  // with its delay empty, and the output fades to it over 30 ms. Without the
-  // fade the first millisecond would be silence with a step on each side.
-  {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    constexpr int kBlock = 256, kBlocks = 40;
-    std::vector<float> l((size_t)(kBlock * kBlocks)), r(l.size());
-
-    for (size_t i = 0; i < l.size(); ++i)
-      l[i] = r[i] = (float)(0.5 * std::sin(kTwoPi * 220.0 * (double)i / sr));
-
-    // The largest step from one sample to the next a 220 Hz sine at half
-    // scale takes, with room for the tape's own colouring.
-    const double allowed = 2.0 * 0.5 * kTwoPi * 220.0 / sr;
-    double worst = 0.0;
-
-    for (int b = 0; b < kBlocks; ++b) {
-      const auto type = b < kBlocks / 2 ? ClipType::Soft : ClipType::Cassette;
-      stage.process(l.data() + b * kBlock, r.data() + b * kBlock, kBlock, type,
-                    true, false);
-    }
-
-    for (size_t i = 1; i < l.size(); ++i)
-      worst = std::max(worst, std::abs((double)l[i] - (double)l[i - 1]));
-
-    std::printf("  switched to mid-note: largest step %.4f against %.4f\n",
-                worst, allowed);
-    check(worst < allowed, "chosen part way through a note, it fades in "
-                           "without a click");
-  }
-
-  // ---- a NaN, which must not become a table index ---------------------------
-  //
-  // The recorder runs on every sample whatever machine is chosen, and its limit
-  // is read from a table, so a NaN arriving there must come out as a NaN and
-  // not as an index into the table. A build with -fsanitize=float-cast-overflow
-  // reports the conversion if it happens.
-  {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    std::vector<float> l(64, 0.1f), r(64, 0.1f);
-    l[10] = r[10] = std::numeric_limits<float>::quiet_NaN();
-
-    stage.process(l.data(), r.data(), 64, ClipType::Soft, true, false);
-    check(true, "a NaN through the output stage reads nothing it should not");
-  }
-}
-
-/// The Console output machine against the model it was ported from: the model's
-/// figures on steady tones at 48 kHz, with its gain at unity on a quiet 1 kHz
-/// tone, and the compressor the recordings showed, linked, its sidechain
-/// filtered at 120 Hz, with a release that lets go fast after a short hit and
-
-/// The Print output machine, the console printed to the cassette recorder:
-/// unity at a quiet tone, the console's third harmonic at a moderate level
-/// where the deck alone is clean, tape hiss 6 dB under the deck's alone, and
-/// the deck's low end at full scale.
-void testPrint() {
-  section("Print");
-
-  constexpr double kTwoPi = 6.283185307179586;
-  constexpr double sr = 48000.0;
-
-  struct Read {
-    double gainDb, thirdDb;
-  };
-
-  const auto steady = [sr, kTwoPi](ClipType type, double f, double db) {
-    constexpr int kN = 96000;
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const double a = std::pow(10.0, db / 20.0);
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-
-    for (int i = 0; i < kN; ++i)
-      l[(size_t)i] = r[(size_t)i] =
-          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
-
-    stage.process(l.data(), r.data(), kN, type, true, false);
-
-    const int from = kN - 48000;
-    std::complex<double> h1{}, h3{};
-    double norm = 0.0;
-
-    for (int i = from; i < kN; ++i) {
-      const double w =
-          0.5 - 0.5 * std::cos(kTwoPi * (double)(i - from) / 48000.0);
-      const double ph = kTwoPi * f * (double)i / sr;
-      norm += w;
-      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
-      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
-    }
-
-    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
-                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
-  };
-
-  const auto quiet = steady(ClipType::Print, 1000.0, -40.0);
-  check(std::abs(quiet.gainDb) < 0.8,
-        "a quiet 1 kHz tone comes through Print at unity (" +
-            std::to_string(quiet.gainDb) + " dB)");
-
-  const auto printed = steady(ClipType::Print, 1000.0, -9.0);
-  const auto taped = steady(ClipType::Cassette, 1000.0, -9.0);
-  std::printf("  1 kHz at -9 dBFS: third harmonic %.1f dB printed, %.1f on "
-              "the deck alone\n",
-              printed.thirdDb, taped.thirdDb);
-  check(printed.thirdDb > -45.0 && taped.thirdDb < -50.0,
-        "at a moderate level it carries the console's third harmonic, where "
-        "the deck alone is clean");
-
-  // The hiss under a quiet note, what is left once the note is taken out:
-  // the difference between neighbouring cycles of a 125 Hz tone, which
-  // repeats every 384 samples where hiss does not. At -38 dBFS, quiet enough
-  // that the flutter's own difference between cycles stays under the hiss,
-  // and loud enough to hold the hiss gate open.
-  const auto hissUnder = [sr, kTwoPi](ClipType type) {
-    constexpr int kN = 96000;
-    OutputStage stage;
-    stage.prepare(sr);
-
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-
-    for (int i = 0; i < kN; ++i)
-      l[(size_t)i] = r[(size_t)i] =
-          (float)(0.012 * std::sin(kTwoPi * 125.0 * (double)i / sr));
-
-    stage.process(l.data(), r.data(), kN, type, true, false);
-
-    double power = 0.0;
-
-    for (int i = kN / 2; i < kN; ++i) {
-      const double d = (double)l[(size_t)i] - (double)l[(size_t)i - 384];
-      power += d * d;
-    }
-
-    return 10.0 * std::log10(power / (double)(kN / 2));
-  };
-
-  const double quieter =
-      hissUnder(ClipType::Print) - hissUnder(ClipType::Cassette);
-  std::printf("  hiss under a quiet note: %+.1f dB against the deck alone\n",
-              quieter);
-  check(quieter < -4.5 && quieter > -7.5,
-        "its tape hiss sits about 6 dB under the deck's on its own");
-
-  const auto low = steady(ClipType::Print, 60.0, 0.0);
-  std::printf("  60 Hz at full scale: third harmonic %.1f dB\n", low.thirdDb);
-  check(low.thirdDb > -25.0,
-        "and at full scale the deck still saturates the lows first");
-}
-
-/// slowly after a long one.
-void testConsole() {
-  section("Console");
-
-  constexpr double kTwoPi = 6.283185307179586;
-  constexpr double sr = 48000.0;
-  constexpr int kN = 144000;
-
-  struct Read {
-    double gainDb, thirdDb;
-  };
-
-  const auto steady = [sr, kTwoPi, kN](double f, double db) {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const double a = std::pow(10.0, db / 20.0);
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-
-    for (int i = 0; i < kN; ++i)
-      l[(size_t)i] = r[(size_t)i] =
-          (float)(a * std::sin(kTwoPi * f * (double)i / sr));
-
-    stage.process(l.data(), r.data(), kN, ClipType::Console, true, true);
-
-    const int from = kN - 24000;
-    std::complex<double> h1{}, h3{};
-    double norm = 0.0;
-
-    for (int i = from; i < kN; ++i) {
-      const double t = (double)(i - from) / 24000.0;
-      const double w =
-          0.42 - 0.5 * std::cos(kTwoPi * t) + 0.08 * std::cos(2.0 * kTwoPi * t);
-      const double ph = kTwoPi * f * (double)i / sr;
-      h1 += w * (double)l[(size_t)i] * std::polar(1.0, -ph);
-      h3 += w * (double)l[(size_t)i] * std::polar(1.0, -3.0 * ph);
-      norm += w;
-    }
-
-    return Read{20.0 * std::log10(2.0 * std::abs(h1) / norm / a),
-                20.0 * std::log10(std::abs(h3) / std::abs(h1))};
-  };
-
-  struct Expect {
-    double f, db, gainDb, thirdDb;
-  };
-
-  // The third harmonic is only held where the model has one to speak of.
-  const Expect expect[] = {
-      {1000.0, -40.0, 0.0, -999.0},  {1000.0, -6.0, -0.69, -37.88},
-      {1000.0, -1.0, -2.23, -39.72}, {60.0, -40.0, 0.19, -999.0},
-      {60.0, -1.0, -0.94, -40.49},   {250.0, -1.0, -2.13, -37.77}};
-
-  double worstGain = 0.0, worstThird = 0.0;
-
-  for (const auto &e : expect) {
-    const auto got = steady(e.f, e.db);
-
-    std::printf("  %4.0f Hz at %3.0f dBFS: gain %+6.2f dB (model %+6.2f), "
-                "third %7.2f dB (model %7.2f)\n",
-                e.f, e.db, got.gainDb, e.gainDb, got.thirdDb, e.thirdDb);
-
-    worstGain = std::max(worstGain, std::abs(got.gainDb - e.gainDb));
-
-    if (e.thirdDb > -100.0)
-      worstThird = std::max(worstThird, std::abs(got.thirdDb - e.thirdDb));
-  }
-
-  check(worstGain < 0.15, "the console's gain matches the model it was "
-                          "fitted as, within 0.15 dB (" +
-                              std::to_string(worstGain) + ")");
-  check(worstThird < 1.5, "and its third harmonic within 1.5 dB (" +
-                              std::to_string(worstThird) + ")");
-
-  // ---- the compressor, as recorded ----------------------------------------
-  //
-  // The reduction it applies to a quiet 1 kHz tone, read as the tone's level
-  // in 5 ms windows against where it stood before anything loud arrived.
-  const auto reduction = [sr, kTwoPi](const std::vector<float> &x, int at) {
-    const int n = 240;
-    std::complex<double> h{};
-
-    for (int i = at; i < at + n; ++i)
-      h += (double)x[(size_t)i] *
-           std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
-
-    return 20.0 * std::log10(2.0 * std::abs(h) / (double)n);
-  };
-
-  // A -30 dBFS bed of 1 kHz on both sides, with something loud added to one
-  // or both from one second in, for `seconds`.
-  const auto withBurst = [sr, kTwoPi](double burstHz, double seconds,
-                                      bool leftOnly, int length) {
-    std::vector<float> l((size_t)length), r((size_t)length);
-    const double bed = std::pow(10.0, -30.0 / 20.0);
-    const double loud = std::pow(10.0, -1.0 / 20.0);
-    const int start = (int)sr, stop = start + (int)(seconds * sr);
-
-    for (int i = 0; i < length; ++i) {
-      const double t = (double)i / sr;
-      const double b = bed * std::sin(kTwoPi * 1000.0 * t);
-      const double hit =
-          i >= start && i < stop ? loud * std::sin(kTwoPi * burstHz * t) : 0.0;
-      l[(size_t)i] = (float)(b + hit);
-      r[(size_t)i] = (float)(b + (leftOnly ? 0.0 : hit));
-    }
-
-    OutputStage stage;
-    stage.prepare(sr);
-    stage.process(l.data(), r.data(), length, ClipType::Console, true, true);
-
-    return std::make_pair(l, r);
-  };
-
-  {
-    // The burst at 400 Hz on the left alone, read on the right's 1 kHz bed.
-    const auto [l, r] = withBurst(400.0, 1.0, true, (int)(3.0 * sr));
-    const double before = reduction(r, (int)(0.8 * sr));
-    const double during = reduction(r, (int)(1.9 * sr));
-
-    std::printf("  a loud burst on the left alone: the right moves %+.2f dB\n",
-                during - before);
-    check(during - before < -1.0,
-          "the two sides are linked: a burst on one side turns both down");
-  }
-
-  {
-    // The same burst at 60 Hz and at 400 Hz on both sides, read on the bed.
-    // Over 100 ms with a taper, which keeps a loud 60 Hz out of the reading
-    // of the bed's 1 kHz, where 5 ms with none lets it straight in.
-    const auto bedAt = [sr, kTwoPi](const std::vector<float> &x, int at) {
-      const int n = 4800;
-      std::complex<double> h{};
-      double norm = 0.0;
-
-      for (int i = at; i < at + n; ++i) {
-        const double t = (double)(i - at) / (double)n;
-        const double w = 0.42 - 0.5 * std::cos(kTwoPi * t) +
-                         0.08 * std::cos(2.0 * kTwoPi * t);
-        h += w * (double)x[(size_t)i] *
-             std::polar(1.0, -kTwoPi * 1000.0 * (double)i / sr);
-        norm += w;
-      }
-
-      return 20.0 * std::log10(2.0 * std::abs(h) / norm);
-    };
-
-    const auto [l60, r60] = withBurst(60.0, 1.0, false, (int)(3.0 * sr));
-    const auto [l4, r4] = withBurst(400.0, 1.0, false, (int)(3.0 * sr));
-    const double low =
-        bedAt(l60, (int)(1.8 * sr)) - bedAt(l60, (int)(0.8 * sr));
-    const double mid = bedAt(l4, (int)(1.8 * sr)) - bedAt(l4, (int)(0.8 * sr));
-
-    std::printf("  a loud burst at 60 Hz takes %.2f dB, at 400 Hz %.2f dB\n",
-                -low, -mid);
-    check(mid < -1.0 && low > mid + 1.5,
-          "the sidechain's filter keeps a 60 Hz burst from taking what a "
-          "400 Hz one takes");
-  }
-
-  {
-    // Release after a 20 ms hit and after a 3 s one, as the share of the
-    // reduction still there 300 ms after each ends.
-    const auto left = [&](double seconds) {
-      const auto [l, r] =
-          withBurst(400.0, seconds, false, (int)((2.0 + seconds) * sr));
-      const int end = (int)((1.0 + seconds) * sr);
-      const double before = reduction(l, (int)(0.8 * sr));
-      double deepest = 0.0;
-
-      for (int at = (int)sr; at < end; at += 240)
-        deepest = std::min(deepest, reduction(l, at) - before);
-
-      return (reduction(l, end + (int)(0.3 * sr)) - before) / deepest;
-    };
-
-    const double shortHit = left(0.02), longHit = left(3.0);
-
-    std::printf("  300 ms after a 20 ms hit %.0f%% of the reduction is left, "
-                "after a 3 s hit %.0f%%\n",
-                100.0 * shortHit, 100.0 * longHit);
-    check(shortHit < 0.2 && longHit > 0.5,
-          "the release lets go fast after a short hit and slowly after a "
-          "long one");
-  }
-}
-
-/// The output stage: five ways to run out of room, all of them bounded, since
-/// the host was told what to expect. Soft is bit for bit what it was, each type
-/// differs in the way it claims to, and the limiter holds the ceiling itself,
-/// with or without its lookahead.
-void testOutputStage() {
-  section("The output stage");
-
-  constexpr double sr = 48000.0;
-  constexpr int kN = 4096;
-
-  // The stage is late by its lookahead, so everything below renders that much
-  // extra and drops it, or every comparison against the input would be most of
-  // a quarter cycle out on a 220 Hz sine.
-  const auto run = [&](ClipType type, float drive) {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const auto late = (size_t)stage.latency();
-
-    std::vector<float> l((size_t)kN + late), r((size_t)kN + late);
-
-    for (size_t n = 0; n < l.size(); ++n) {
-      const auto s =
-          (float)(drive * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
-      l[n] = s;
-      r[n] = s;
-    }
-
-    stage.process(l.data(), r.data(), (int)l.size(), type, true, true);
-    l.erase(l.begin(), l.begin() + (long)late);
-
-    return l;
-  };
-
-  // ---- bounded, every one of them ----------------------------------------
-  int unbounded = 0;
-
-  for (int i = 0; i < (int)ClipType::NumTypes; ++i) {
-    const auto type = (ClipType)i;
-
-    // Far past anything the instrument can produce, so the answer is about the
-    // shape rather than about what happens to reach it.
-    for (float drive : {1.01f, 2.0f, 11.0f, 400.0f}) {
-      const auto out = run(type, drive);
-
-      for (float v : out)
-        if (!(std::abs(v) <= 1.0f) || !std::isfinite(v)) {
-          ++unbounded;
-          break;
-        }
-    }
-  }
-
-  check(unbounded == 0, "every type stays inside unity however hard it is "
-                        "driven (" +
-                            std::to_string(unbounded) + " did not)");
-
-  // ---- Soft is exactly what it always was --------------------------------
-  //
-  // Every preset was dialled in against this curve, so it has to stay the same
-  // bit for bit.
-  {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const auto late = (size_t)stage.latency();
-
-    std::vector<float> l, r;
-    for (int n = -2000; n <= 2000; ++n)
-      l.push_back((float)n / 1000.0f);
-
-    const auto before = l;
-
-    // Enough silence after the ramp to push all of it out of the delay.
-    l.resize(l.size() + late, 0.0f);
-    r = l;
-
-    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true,
-                  true);
-    l.erase(l.begin(), l.begin() + (long)late);
-
-    int differed = 0;
-    for (size_t i = 0; i < l.size(); ++i) {
-      const float x = before[i];
-      const float a = std::abs(x);
-
-      // The old function, written out rather than called, so this compares
-      // against the formula and not against the code under test.
-      float want = x;
-      if (a > 0.7f) {
-        const float over = (a - 0.7f) / 0.3f;
-        const float y = 0.7f + 0.3f * std::tanh(over);
-        want = x < 0.0f ? -y : y;
-      }
-
-      if (l[i] != want)
-        ++differed;
-    }
-
-    check(differed == 0, "Soft is the curve every preset was dialled against "
-                         "(" +
-                             std::to_string(differed) + " samples differ)");
-  }
-
-  // ---- and each one differs in the way it claims to ----------------------
-  const auto harmonic = [&](ClipType type, float drive, double multiple) {
-    return binMagnitude(run(type, drive), 220.0 * multiple, sr);
-  };
-
-  // Soft and Hard fold both halves alike, so the even harmonics cancel.
-  // Asymmetric does not, which is the whole of what it is for.
-  const auto soft2 = harmonic(ClipType::Soft, 2.0f, 2.0);
-  const auto asym2 = harmonic(ClipType::Asymmetric, 2.0f, 2.0);
-
-  std::printf("  second harmonic: soft %.5f, asymmetric %.5f\n", soft2, asym2);
-  check(asym2 > 20.0 * soft2 + 1.0e-6,
-        "Asymmetric puts a second harmonic where Soft puts none");
-
-  // A limiter turns the signal down rather than bending it, so what comes out
-  // is still a sine where a clipper's is not. The bound is tight on purpose: a
-  // gain that jumps into place holds the ceiling but puts 0.00185 into the
-  // third harmonic, where the lookahead and the two box filters give 0.00012.
-  const auto hard3 = harmonic(ClipType::Hard, 2.0f, 3.0);
-  const auto limit3 = harmonic(ClipType::Limiter, 2.0f, 3.0);
-
-  std::printf("  third harmonic: hard %.5f, limiter %.5f\n", hard3, limit3);
-  check(limit3 < hard3 * 0.005,
-        "the Limiter holds the ceiling without distorting to do it (" +
-            std::to_string(limit3) + ")");
-
-  // And the folder makes more of everything than Soft.
-  const auto soft5 = harmonic(ClipType::Soft, 2.0f, 5.0);
-  const auto fold5 = harmonic(ClipType::Fold, 2.0f, 5.0);
-
-  std::printf("  fifth harmonic: soft %.5f, fold %.5f\n", soft5, fold5);
-  check(fold5 > soft5 * 2.0, "and Fold generates far more than Soft");
-
-  // ---- below the knee nothing touches it ---------------------------------
-  //
-  // The input is built once and kept, since 0.4f and 0.4 are not the same
-  // number.
-  {
-    std::vector<float> in((size_t)kN);
-    for (int n = 0; n < kN; ++n)
-      in[(size_t)n] =
-          (float)(0.4 * std::sin(6.283185307179586 * 220.0 * n / sr));
-
-    OutputStage stage;
-    stage.prepare(sr);
-
-    const auto late = (size_t)stage.latency();
-
-    auto l = in;
-    auto r = in;
-    l.resize(l.size() + late, 0.0f);
-    r.resize(r.size() + late, 0.0f);
-
-    stage.process(l.data(), r.data(), (int)l.size(), ClipType::Soft, true,
-                  true);
-    l.erase(l.begin(), l.begin() + (long)late);
-
-    int moved = 0;
-    for (size_t i = 0; i < in.size(); ++i)
-      if (l[i] != in[i])
-        ++moved;
-
-    check(moved == 0, "and a signal under the knee comes through untouched");
-  }
-
-  // ---- the limiter limits, rather than leaving it to the backstop ---------
-  //
-  // With the lookahead the gain is in place before the peak lands, so the hard
-  // clip behind it has nothing to do. Asserted as a ceiling below unity rather
-  // than as a count of clipped samples, since anything at unity got there by
-  // being cut off.
-  {
-    OutputStage stage;
-    stage.prepare(sr);
-
-    // Silence, then a loud sine arriving at full amplitude with no ramp. The
-    // envelopes in this instrument open in as little as 0.2 ms, so an onset
-    // this abrupt is not far past what it really produces.
-    std::vector<float> l((size_t)kN), r((size_t)kN);
-
-    for (int n = kN / 4; n < kN; ++n) {
-      const auto s =
-          (float)(2.0 * std::sin(6.283185307179586 * 220.0 * n / sr));
-      l[(size_t)n] = s;
-      r[(size_t)n] = s;
-    }
-
-    stage.process(l.data(), r.data(), kN, ClipType::Limiter, true, true);
-
-    // Four milliseconds from the onset, twice the lookahead. Fixed in
-    // milliseconds rather than taken from latency(), so a zero latency cannot
-    // leave an empty window that passes.
-    const int onsetSamples = (int)(0.004 * sr);
-
-    float onset = 0.0f;
-    for (int n = kN / 4; n < kN / 4 + onsetSamples; ++n)
-      onset = std::max(onset, std::abs(l[(size_t)n]));
-
-    std::printf("  limiter through the onset at %.4f\n", (double)onset);
-
-    check(onset <= 0.99f,
-          "the Limiter holds an abrupt onset below unity with gain rather "
-          "than with the clip behind it (" +
-              std::to_string(onset) + ")");
-  }
-
-  // ---- and without its window it is rougher, not broken -------------------
-  //
-  // The Settings switch with no lookahead: the detector sees one sample, so the
-  // gain is exact and immediate and the ceiling still holds. What is lost is
-  // the smoothing, since a gain that steps is itself a distortion.
-  {
-    const auto run = [&](bool ahead) {
-      OutputStage stage;
-      stage.prepare(sr);
-
-      std::vector<float> l((size_t)kN), r((size_t)kN);
-
-      for (int n = kN / 4; n < kN; ++n) {
-        const auto s =
-            (float)(2.0 * std::sin(6.283185307179586 * 220.0 * n / sr));
-        l[(size_t)n] = s;
-        r[(size_t)n] = s;
-      }
-
-      stage.process(l.data(), r.data(), kN, ClipType::Limiter, true, ahead);
-
-      return std::pair<float, int>{*std::max_element(l.begin(), l.end(),
-                                                     [](float a, float b) {
-                                                       return std::abs(a) <
-                                                              std::abs(b);
-                                                     }),
-                                   stage.latency()};
-    };
-
-    const auto with = run(true);
-    const auto without = run(false);
-
-    check(with.second > 0 && without.second == 0,
-          "refusing the lookahead gives the latency back (" +
-              std::to_string(with.second) + " samples to " +
-              std::to_string(without.second) + ")");
-
-    check(std::abs(without.first) <= 0.99f,
-          "and still holds the ceiling without it (" +
-              std::to_string(std::abs(without.first)) + ")");
-
-    // A steady sine rather than the onset above, since what is being compared
-    // is how the gain moves once it is working rather than how it arrives.
-    const auto steady = [&](bool ahead) {
-      OutputStage stage;
-      stage.prepare(sr);
-
-      const auto late = (size_t)(ahead ? stage.latency() : 0);
-
-      std::vector<float> l((size_t)kN + late), r((size_t)kN + late);
-
-      for (size_t n = 0; n < l.size(); ++n) {
-        const auto s =
-            (float)(2.0 * std::sin(6.283185307179586 * 220.0 * (double)n / sr));
-        l[n] = s;
-        r[n] = s;
-      }
-
-      stage.process(l.data(), r.data(), (int)l.size(), ClipType::Limiter, true,
-                    ahead);
-      l.erase(l.begin(), l.begin() + (long)late);
-
+  const auto twice = [sr](const SynthParams &p) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+
+    const auto once = [&]() {
+      std::vector<float> l((size_t)(0.5 * sr)), r((size_t)(0.5 * sr));
+      engine.noteOn(60, 1.0f, p);
+
+      for (size_t at = 0; at < l.size(); at += 512)
+        engine.render(l.data() + at, r.data() + at,
+                      (int)std::min((size_t)512, l.size() - at), p);
+
+      engine.allSoundOff();
       return l;
     };
 
-    const auto ahead3 = binMagnitude(steady(true), 660.0, sr);
-    const auto flat3 = binMagnitude(steady(false), 660.0, sr);
+    const auto first = once();
+    engine.reset();
+    const auto second = once();
 
-    std::printf("  third harmonic: looking ahead %.5f, not %.5f\n", ahead3,
-                flat3);
+    int differed = 0;
+    for (size_t n = 0; n < first.size(); ++n)
+      if (!exactly(first[n], second[n]))
+        ++differed;
 
-    check(flat3 > ahead3 * 4.0,
-          "and the smoothing is what the window was for (" +
-              std::to_string(flat3 / std::max(1.0e-9, ahead3)) + " times)");
+    return differed;
+  };
+
+  auto base = makeFlatParams(0.2f);
+
+  {
+    auto p = base;
+    p.global.character = Character::Fm;
+    p.global.ampModInPhase = true;
+
+    for (auto &o : p.osc) {
+      o.amShape = LfoShape::Random;
+      o.amDepth = 0.8f;
+    }
+
+    const auto differed = twice(p);
+    check(differed == 0, "FM's hiss and a shared random tremolo repeat (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.echo.enabled = true;
+    p.echo.type = EchoType::Bucket;
+    p.echo.age = 1.0f;
+    p.echo.timeSeconds = 0.05f;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the bucket brigade's hiss repeats (" +
+                             std::to_string(differed) + " samples differed)");
+  }
+
+  {
+    auto p = base;
+    p.global.safetyClip = true;
+    p.global.clipType = dm::ClipType::Cassette;
+
+    const auto differed = twice(p);
+    check(differed == 0, "the cassette's hiss and flutter repeat (" +
+                             std::to_string(differed) + " samples differed)");
   }
 }
 
@@ -13126,7 +14186,12 @@ int main() {
   testOneVoicePerKey();
   testPerNoteChannels();
   testKarplusString();
+  testStiffStrings();
   testSympatheticStrings();
+  testSostenutoPedal();
+  testHalfPedal();
+  testStereoResonator();
+  testFifthsAndChord();
   testHeldExpression();
   testActivity();
   testLampsFollowNewestNote();
@@ -13136,6 +14201,8 @@ int main() {
   testModulation();
   testModulatorsInPhase();
   testPerPartialVelocity();
+  testVelocityCurve();
+  testKeyboardRow();
   testPanning();
   testAftertouch();
   testDrift();
@@ -13162,10 +14229,7 @@ int main() {
   testPlateReverb();
   testSpringReverb();
   testLofi();
-  testOutputStage();
-  testConsole();
-  testCassette();
-  testPrint();
+  testRendersRepeatAfterReset();
   benchmark();
   benchmarkLofi();
 

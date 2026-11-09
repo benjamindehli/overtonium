@@ -11,8 +11,6 @@
 
 namespace ovt::ui {
 
-int meterSegments(int height) { return juce::jlimit(6, 24, height / 15); }
-
 namespace {
 /// The macro colours: none first, then eight hues spread around the wheel
 /// at one lightness, told apart on a knob's ring.
@@ -225,109 +223,6 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
                                              juce::PathStrokeType::rounded));
 }
 
-void ScreenSwitch::paintButton(juce::Graphics &g, bool highlighted, bool) {
-  // Two pixels in from the bounds, so a run of them leaves panel between each.
-  const auto area = getLocalBounds().toFloat().reduced(2.0f);
-
-  paintRecess(g, area, 2.5f);
-  paintDisplayGround(g, area, 2.5f, highlighted);
-
-  const bool on = getToggleState();
-  const auto ink = on ? lamp : colours::textDim.withAlpha(0.55f);
-
-  if (onIcon != nullptr) {
-    const auto glyph = area.reduced(2.5f);
-
-    // The same bloom the letters get, as a wider faint pass under the icon.
-    if (on)
-      onIcon(g, glyph.translated(0.0f, 0.5f), lamp.withAlpha(0.35f));
-
-    onIcon(g, glyph, ink);
-    return;
-  }
-
-  g.setFont(makeFont(10.0f, true));
-
-  // A half-pixel echo under the lit letter, its bloom.
-  if (on) {
-    g.setColour(lamp.withAlpha(0.35f));
-    g.drawText(getButtonText(), area.translated(0.0f, 0.5f),
-               juce::Justification::centred, false);
-  }
-
-  // Unlit, faint but still readable.
-  g.setColour(ink);
-  g.drawText(getButtonText(), area, juce::Justification::centred, false);
-}
-
-void GlowButton::paintButton(juce::Graphics &g, bool highlighted, bool down) {
-  // The icon is a function and cannot be compared, so the key holds a count
-  // of its changes instead. See iconChanged.
-  LookKey key;
-  key.add(getButtonText())
-      .add(getToggleState())
-      .add(highlighted)
-      .add(down)
-      .add(isEnabled())
-      .add(onIcon != nullptr)
-      .add(iconRevision)
-      .add(findColour(juce::TextButton::buttonColourId))
-      .add(findColour(juce::TextButton::textColourOnId))
-      .add(getProperties());
-
-  looks.paint(g, *this, key,
-              [&](juce::Graphics &into) { paintCap(into, highlighted, down); });
-}
-
-void GlowButton::paintCap(juce::Graphics &g, bool highlighted, bool down) {
-  // The cap colour, for the few buttons that set one.
-  const auto fill = findColour(juce::TextButton::buttonColourId);
-
-  if (auto *laf = dynamic_cast<OvertoniumLookAndFeel *>(&getLookAndFeel()))
-    laf->drawButtonFace(g, *this, getToggleState(), fill, highlighted, down);
-  else
-    getLookAndFeel().drawButtonBackground(g, *this, fill, highlighted, down);
-
-  // The same ink whatever the lamp is doing.
-  const auto colour = OvertoniumLookAndFeel::lampLegend();
-
-  const auto h = (float)getHeight();
-
-  // The cap rather than the whole button, which includes the bezel.
-  const auto cap = OvertoniumLookAndFeel::lampCapBounds(
-      getLocalBounds().toFloat(), OvertoniumLookAndFeel::lampGangOf(*this));
-
-  // An icon takes a flat opaque ink, mixed against the plastic here. Icons are
-  // overlapping shapes, and a translucent colour would show the overlaps.
-  if (onIcon != nullptr) {
-    const auto plastic =
-        OvertoniumLookAndFeel::lampFace(fill, getToggleState());
-
-    onIcon(g, cap,
-           colour.interpolatedWith(plastic, getToggleState() ? 0.14f : 0.06f));
-    return;
-  }
-
-  const auto font = makeFont(juce::jlimit(8.0f, 13.0f, h * 0.58f), true);
-
-  // Centred on the cap, since a ganged cap is not centred in its button, but
-  // as wide as the button, since the longest words would not fit the cap.
-  const auto line = juce::Rectangle<float>((float)getWidth(), h)
-                        .withCentre({cap.getCentreX(), h * 0.5f});
-
-  juce::GlyphArrangement glyphs;
-  glyphs.addFittedText(font, getButtonText(), line.getX(), line.getY(),
-                       line.getWidth(), line.getHeight(),
-                       juce::Justification::centred, 1, 1.0f);
-
-  // Thinnest over the middle where the lamp shows through. See
-  // OvertoniumLookAndFeel::legendInk.
-  g.setGradientFill(
-      OvertoniumLookAndFeel::legendInk(colour, cap, getToggleState()));
-
-  glyphs.draw(g);
-}
-
 juce::Colour bandColour(float t) {
   t = std::clamp(t, 0.0f, 1.0f);
 
@@ -388,9 +283,9 @@ juce::Colour characterColour(Character c) {
 // spread evenly round the hue wheel, in the order of its type.
 
 juce::Colour resonatorColour(ResonatorMode m) {
-  // Piano, Open, Octave and Series, a quarter of the wheel apart.
-  constexpr std::array<juce::uint32, 4> kLit{0xffce83de, 0xffee8545, 0xff6ebb5d,
-                                             0xff00b4ec};
+  // Piano, Open, Octave, Series, Fifths and Chord, a sixth of the wheel apart.
+  constexpr std::array<juce::uint32, 6> kLit{
+      0xffce83de, 0xfff47a7c, 0xffd49800, 0xff6dbb5e, 0xff00bbc3, 0xff6ea4ff};
   static_assert(kLit.size() + 1 == (size_t)ResonatorMode::NumModes);
 
   const auto at = (int)m - 1;
@@ -417,13 +312,13 @@ juce::Colour reverbColour(ReverbType t) {
   return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 2)]);
 }
 
-juce::Colour clipColour(ClipType t) {
+juce::Colour clipColour(dm::ClipType t) {
   // Soft, Hard, Asymmetric, Limiter, Fold, Console, Cassette and Print, an
   // eighth apart.
   constexpr std::array<juce::uint32, 8> kLit{0xff00bbc3, 0xff43acfb, 0xffa492fb,
                                              0xffdd7eca, 0xfff47a7d, 0xffe48e26,
                                              0xffabac1d, 0xff43c07a};
-  static_assert(kLit.size() == (size_t)ClipType::NumTypes);
+  static_assert(kLit.size() == (size_t)dm::ClipType::NumTypes);
 
   return juce::Colour(kLit[(size_t)std::clamp((int)t, 0, 7)]);
 }
@@ -433,7 +328,7 @@ namespace {
 // The two text rows are tall enough for seven-segment digits, which are as wide
 // as they are tall, to stay legible.
 constexpr int kRowHeights[kNumRows] = {
-    26, // Header
+    16, // Header
     38, // TuneKnob
     16, // TuneText
     15, // PitchModHeading
@@ -458,6 +353,7 @@ constexpr int kRowHeights[kNumRows] = {
     30, // AmDepth
     15, // OutputHeading
     30, // Velocity
+    30, // Keyboard
     30, // Aftertouch
     30, // Pan
     20, // MuteSolo
@@ -544,6 +440,7 @@ Section sectionOf(Row r) {
 
   case Row::OutputHeading:
   case Row::Velocity:
+  case Row::Keyboard:
   case Row::Aftertouch:
   case Row::Pan:
     return Section::Output;
@@ -630,10 +527,6 @@ int rowsAroundTheFader(SectionMask collapsed) {
 }
 } // namespace
 
-int middleContentHeight(SectionMask collapsed) {
-  return rowsAroundTheFader(collapsed) + kIdealFaderHeight;
-}
-
 Bands layoutBands(juce::Rectangle<int> area, SectionMask collapsed) {
   Bands out;
 
@@ -717,6 +610,7 @@ bool rowHasControl(Row r) {
   case Row::AmShape:
   case Row::AmDepth:
   case Row::Velocity:
+  case Row::Keyboard:
   case Row::Aftertouch:
   case Row::Pan:
   case Row::MuteSolo:
@@ -874,6 +768,8 @@ const char *rowLabel(Row r) {
     return "OUTPUT";
   case Row::Velocity:
     return "velocity";
+  case Row::Keyboard:
+    return "keyboard";
   case Row::Aftertouch:
     return "aftertouch";
   case Row::Pan:
@@ -898,6 +794,115 @@ const char *rowLabel(Row r) {
   case Row::NumRows:
   default:
     return nullptr;
+  }
+}
+
+juce::String rowHelp(Row r) {
+  // A heading folds when clicked, which nothing else on it says.
+  const juce::String fold = " Click the heading to fold the section away or "
+                            "open it again.";
+
+  switch (r) {
+  case Row::TuneKnob:
+    return "Where each partial sits, from its equal-tempered position to the "
+           "exact ratio of the harmonic series.";
+  case Row::TuneText:
+    return "How far each partial is from equal temperament, in cents.";
+  case Row::PitchModHeading:
+    return "Vibrato for each partial, with its own shape, rate and depth." +
+           fold;
+  case Row::PmShape:
+    return "The shape the vibrato traces. Click the drawing on a channel to "
+           "choose one.";
+  case Row::PmRate:
+    return "How fast the vibrato moves, from 0.01 to 30 Hz.";
+  case Row::PmDepth:
+    return "How far the vibrato moves the partial, up to 1200 cents.";
+  case Row::Drift:
+    return "A slow random wander in pitch, different for every partial, up to "
+           "25 cents.";
+  case Row::Glide:
+    return "How long each partial takes to reach a new note, so the partials "
+           "can arrive one at a time. L glides only legato, and T makes every "
+           "glide take the same time.";
+  case Row::EnvHeading:
+    return "How each partial rises and falls while the key is down." + fold;
+  case Row::Strike:
+    return "How much velocity changes the delay and attack below. Positive "
+           "makes a hard note start sooner and rise faster, and a soft one "
+           "wait and rise slowly.";
+  case Row::Delay:
+    return "How long the partial stays silent before its attack begins.";
+  case Row::Attack:
+    return "How long the partial takes to rise. Below 0.2 ms it sets where in "
+           "its cycle the partial starts instead.";
+  case Row::Decay:
+    return "How long the partial takes to fall from its peak to the sustain "
+           "level.";
+  case Row::Sustain:
+    return "The level the partial holds while the key is down.";
+  case Row::KeyOffHeading:
+    return "A second envelope that runs when the key is released." + fold;
+  case Row::Swell:
+    return "How long the partial takes to move to the key-off level once the "
+           "key is released.";
+  case Row::OffLevel:
+    return "The level the partial moves to when the key is released. Above "
+           "the sustain it swells, below it drops. Zero skips the stage.";
+  case Row::Release:
+    return "How long the partial takes to fade to silence after the key-off "
+           "stage.";
+  case Row::AmpModHeading:
+    return "Tremolo for each partial, with its own shape, rate and depth." +
+           fold;
+  case Row::AmShape:
+    return "The shape the tremolo traces. Click the drawing on a channel to "
+           "choose one.";
+  case Row::AmRate:
+    return "How fast the tremolo moves, from 0.01 to 30 Hz.";
+  case Row::AmDepth:
+    return "How far the tremolo lowers the level, up to 100%.";
+  case Row::OutputHeading:
+    return "How each partial answers the keys, where it sits and how loud it "
+           "is." +
+           fold;
+  case Row::Velocity:
+    return "How much key velocity scales the level. Positive makes soft notes "
+           "quieter, negative makes hard notes quieter. The dB switch beside "
+           "it spreads the change evenly in decibels.";
+  case Row::Keyboard:
+    return "How the level follows the key played. Up to 100% it tilts around "
+           "middle C, which never changes: positive turns down the keys below "
+           "it, negative the keys above it, up to 24 dB per octave. Past 100% "
+           "the slope stays at 24 and the turn moves away from middle C, an "
+           "octave for every 20%, until only the top or the bottom of the "
+           "keyboard is left.";
+  case Row::Aftertouch:
+    return "How much key pressure moves the level. Negative fades the partial "
+           "out as you press.";
+  case Row::Pan:
+    return "Where the partial sits between left and right. The level stays the "
+           "same as it moves.";
+  case Row::MuteSolo: {
+#if JUCE_MAC
+    const juce::String key = "Option";
+#else
+    const juce::String key = "Alt";
+#endif
+    return "Mute or solo each partial. Mute overrides solo. " + key +
+           "-click to mute or solo only one, and right-click to clear them "
+           "all.";
+  }
+  case Row::Fader:
+    return "Each partial's level, in decibels, with its meter inside the "
+           "track.";
+  case Row::FaderText:
+    return "The level each fader is set to, in decibels.";
+
+  case Row::Header:
+  case Row::NumRows:
+  default:
+    return {};
   }
 }
 
@@ -972,7 +977,6 @@ LinkCurve linkCurveFromState(const juce::String &id, int legacy) {
 
 namespace {
 /// Menu ids, in separate blocks so they cannot clash.
-constexpr int kLinkToggleId = 1;
 constexpr int kClearSelectionId = 2;
 constexpr int kScopeBaseId = 100;
 constexpr int kCurveBaseId = 200;
@@ -1053,36 +1057,7 @@ bool applyToolMenuChoice(int id, PointerTool &tool) {
   return true;
 }
 
-juce::PopupMenu buildLinkMenu(const LinkSettings &settings) {
-  juce::PopupMenu m;
-
-  m.addItem(kLinkToggleId, "LINK", true, settings.enabled);
-  m.addSeparator();
-
-  // The lists grey out with the switch rather than disappear, so the items do
-  // not move.
-  m.addSectionHeader("Scope");
-  for (int i = 0; i < (int)LinkScope::NumScopes; ++i)
-    m.addItem(kScopeBaseId + i, linkScopeName((LinkScope)i), settings.enabled,
-              i == (int)settings.scope);
-
-  m.addItem(kClearSelectionId, "Clear selection", settings.hasSelection);
-
-  m.addSeparator();
-  m.addSectionHeader("Curve");
-  for (int i = 0; i < (int)LinkCurve::NumCurves; ++i)
-    m.addItem(kCurveBaseId + i, linkCurveName((LinkCurve)i), settings.enabled,
-              i == (int)settings.curve);
-
-  return m;
-}
-
 bool applyLinkMenuChoice(int id, LinkSettings &settings) {
-  if (id == kLinkToggleId) {
-    settings.enabled = !settings.enabled;
-    return true;
-  }
-
   if (id >= kCurveBaseId && id < kCurveBaseId + (int)LinkCurve::NumCurves) {
     settings.curve = (LinkCurve)(id - kCurveBaseId);
     return true;
@@ -1175,6 +1150,8 @@ const char *roleLabel(Role r) {
     return "pan";
   case Role::Volume:
     return "level";
+  case Role::Keyboard:
+    return "keyboard amount";
 
   // Listed rather than defaulted, so a new role has to be given a name before
   // it will build.
@@ -1194,6 +1171,14 @@ Role roleForSuffix(const char *suffix) {
       return (Role)i;
 
   return Role::NumRoles;
+}
+
+int wheelPixels(const juce::MouseWheelDetails &wheel) {
+  constexpr float kViewportSingleStep = 16.0f;
+
+  // deltaY as the platform gives it, ignoring isReversed. The platform has
+  // already applied natural scrolling, so undoing it would scroll backwards.
+  return -juce::roundToInt(wheel.deltaY * 14.0f * kViewportSingleStep);
 }
 
 const char *roleSuffix(Role r) {
@@ -1236,6 +1221,8 @@ const char *roleSuffix(Role r) {
     return params::panSuffix;
   case Role::Volume:
     return params::volumeSuffix;
+  case Role::Keyboard:
+    return params::keySuffix;
 
   case Role::NumRoles:
   default:
@@ -1299,6 +1286,9 @@ bool roleForRow(Row r, Role &out) {
     return true;
   case Row::Velocity:
     out = Role::Velocity;
+    return true;
+  case Row::Keyboard:
+    out = Role::Keyboard;
     return true;
   case Row::Aftertouch:
     out = Role::Aftertouch;

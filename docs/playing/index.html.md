@@ -1,6 +1,6 @@
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-31
+Last changed: 2026-11-07
 
 # Playing Overtonium
 
@@ -65,9 +65,13 @@ GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overton
 
 The lower two of the four buttons at the left end of the top bar, a keyboard and a tuning fork, each open a bar between the top bar and the mixer. The bars hold the settings you change while playing, as opposed to the ones you set once. Both bars start closed, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window stays the same size. If the window is already at its minimum height, it grows by the height of the bar.
 
-**Playing** has the voice count with IN USE, which shows how many voices are sounding, release tails included. Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight [macros](https://benjamindehli.github.io/overtonium/playing/#macros) as knobs in their colours. Each is named after the row it controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. **Tuning** has the temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last are twelve displays, one for each note, showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way to reach the same settings, not a separate copy of them. If the window is too narrow for a whole bar, the bar wraps onto more rows like the top bar does, and takes the extra height from the mixer.
+**Playing** has the voice count with IN USE, which shows how many voices are sounding, release tails included. Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows what your hands are doing. SUSTAIN lights while the sustain pedal is down, with a bar along its foot for how far, and SOSTENUTO under it while the sostenuto pedal is. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight [macros](https://benjamindehli.github.io/overtonium/playing/#macros) as knobs in their colours. Each is named after the row it controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. **Tuning** has the temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last are twelve displays, one for each note, showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way to reach the same settings, not a separate copy of them. If the window is too narrow for a whole bar, the bar wraps onto more rows like the top bar does, and takes the extra height from the mixer.
 
-[Image: The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8.] [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
+The **sostenuto pedal**, controller 66 and the middle pedal on a grand piano, holds only the keys that are down when it goes down. Hold a chord, press the pedal and let go, and the chord keeps sounding while the notes you play over it stop as your fingers lift. Keys pressed after the pedal went down are not held, and a note held only by the sustain pedal is not caught. With both pedals down, lifting the sustain pedal leaves the caught notes sounding. With the resonator in Piano, the caught keys' strings stay free too. With MPE on it is read on the zone's master channel, like the sustain pedal.
+
+The **sustain pedal** can be half-pedalled. A continuous pedal sends how far down it is, and the instrument uses all of it. All the way down it holds notes as it always has. Part way down, a note it holds fades once its key comes up, faster the less the pedal is down, and at the top of its travel the note fades as quickly as its own release. Moving the pedal changes the fade from that moment, so you can keep a line connected without blurring it. An on/off pedal, which sends only up and down, works as it always did. With the resonator in Piano, the dampers rest on the strings as far as the pedal is up, so the strings ring for less time too.
+
+[Image: The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with its bar full and SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8.] [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
 
 ## The Settings menu
 
@@ -93,7 +97,7 @@ Settings you set once and then leave. The menu is where you set up the instrumen
 | Phase reset                        | on by default                                          | When a note begins from silence, starts each partial at the point its ATTACK sets: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. When off, a partial carries on from wherever its cycle was                                                                                                                                     |
 | Safety clip                        | on by default                                          | Whether the output stage at the end of the chain is on. Best left on when you push 32 faders up. Which of its eight machines it uses is chosen on the bar, under the meter                                                                                                                                                                                                      |
 | Limiter lookahead                  | off by default                                         | Whether the Limiter can look ahead at the incoming signal. On makes it smoother but adds two milliseconds of latency on every shape. Only the Limiter, Console, Cassette and Print use the lookahead, but the latency must not change with the patch. The only setting here that changes what the plugin reports to your host                                                   |
-| Zoom                               | 75, 100, 125 or 150%                                   | How big the window is on your screen. It sits at the bottom with the entry below it, because everything above these two is about the instrument and these are not                                                                                                                                                                                                               |
+| Zoom                               | 75, 100, 125, 150, 175 or 200%                         | How big the window is on your screen. It sits at the bottom with the entry below it, because everything above these two is about the instrument and these are not                                                                                                                                                                                                               |
 | Fit all 32 channels                |                                                        | Resets the window to the width that shows the whole mixer, and to the height your unfolded rows need. A window remembers the size you dragged it to, so a narrow window opens narrow in every later session. This entry resets it                                                                                                                                               |
 
 Almost none of these settings are saved in a [preset](https://benjamindehli.github.io/overtonium/presets/). This is a rule, not a list that might get out of date: how you play the instrument and what it is tuned to belong to the session, not to any one sound in it. For the same reason, presets do not save the zoom, the window size or which groups of rows you have folded away.
@@ -102,7 +106,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
+Eight hundred and eighty-four parameters reach the host: forty-five global ones, twenty-four on each of the 32 partials, twenty-three on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
 
 Every per-channel name includes its channel, so you can search a parameter list either way. Type `H7` to find that partial, or type `Tune` to find that row across the whole mixer. A screen reader reads the same names, which is why they are words, not numbers.
 
@@ -114,7 +118,7 @@ Every per-channel name includes its channel, so you can search a parameter list 
 | The noise channel's brightness  | `Noise Colour`         |
 | How long the echo's repeats are | `Echo Time`            |
 
-The noise channel has twenty-two instead of twenty-three because it has no tuning, pitch modulation, drift or glide, and has COLOUR and the four knobs of its string instead.
+The noise channel has twenty-three instead of twenty-four because it has no tuning, pitch modulation, drift or glide, and has COLOUR and the four knobs of its string instead.
 
 Everything in Settings is in the list too, even though no preset changes it. The temperament, the polyphony and the bend range can all be automated, so a host can change the temperament partway through a piece.
 
@@ -124,9 +128,9 @@ LINK is not a parameter, because it is a mouse tool, not part of the sound. A LI
 
 ### Every parameter
 
-All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 884 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, forty-four of them.
+**Global**, forty-five of them.
 
 | What the host calls it       | Id                | Range                                                                                                                              | Default    |
 | ---------------------------- | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -170,12 +174,13 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune`            | `adaptiveRetune`  | 0.0 ms to 1.00 s                                                                                                                   | 30.0 ms    |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on                                                                                                                          | On         |
 | `Adaptive No Drift`          | `adaptiveHome`    | Off or on                                                                                                                          | Off        |
-| `Resonator Mode`             | `resonatorMode`   | Off, Piano, Open, Octave, Series                                                                                                   | Off        |
+| `Resonator Mode`             | `resonatorMode`   | Off, Piano, Open, Octave, Series, Fifths, Chord                                                                                    | Off        |
 | `Resonator Mix`              | `resonatorMix`    | 0 % to 100 %                                                                                                                       | 50 %       |
 | `Resonator Decay`            | `resonatorDecay`  | 200 ms to 10.00 s                                                                                                                  | 4.00 s     |
 | `Resonator Damp`             | `resonatorDamp`   | 0 % to 100 %                                                                                                                       | 40 %       |
+| `Velocity Curve`             | `velocityCurve`   | Classic, dB                                                                                                                        | dB         |
 
-**On every partial**, twenty-three controls, each one on all 32 partials.
+**On every partial**, twenty-four controls, each one on all 32 partials.
 
 | What the host calls it                      | Id                                 | Range                                                                                  | Default                                            |
 | ------------------------------------------- | ---------------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------- |
@@ -196,50 +201,52 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `H1 Amp Mod Rate to H32 Amp Mod Rate`       | `h01_amRate to h32_amRate`         | 0.01 Hz to 30.0 Hz                                                                     | 4.00 Hz                                            |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth`     | `h01_amDepth to h32_amDepth`       | 0 % to 100 %                                                                           | 0 %                                                |
 | `H1 Amp Mod Shape to H32 Amp Mod Shape`     | `h01_amShape to h32_amShape`       | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random              | Sine                                               |
-| `H1 Velocity to H32 Velocity`               | `h01_vel to h32_vel`               | -100 % to +100 %                                                                       | +70 %                                              |
+| `H1 Velocity to H32 Velocity`               | `h01_vel to h32_vel`               | -100 % to +100 %                                                                       | 0 %                                                |
 | `H1 Aftertouch to H32 Aftertouch`           | `h01_aftertouch to h32_aftertouch` | -100 % to +100 %                                                                       | 0 %                                                |
 | `H1 Mute to H32 Mute`                       | `h01_mute to h32_mute`             | Off or on                                                                              | Off                                                |
 | `H1 Solo to H32 Solo`                       | `h01_solo to h32_solo`             | Off or on                                                                              | Off                                                |
 | `H1 Pan to H32 Pan`                         | `h01_pan to h32_pan`               | L100 to R100                                                                           | Centre                                             |
 | `H1 Level to H32 Level`                     | `h01_volume to h32_volume`         | -inf dB to 0.0 dB                                                                      | Differs by channel, 0.0 dB on H1 to -inf dB on H32 |
+| `H1 Keyboard to H32 Keyboard`               | `h01_keyboard to h32_keyboard`     | 24 dB/oct above C-1 to 24 dB/oct below C9                                              | 0 dB/oct                                           |
 
-**On the noise channel**, twenty-two of them.
+**On the noise channel**, twenty-three of them.
 
-| What the host calls it  | Id                  | Range                                                                     | Default |
-| ----------------------- | ------------------- | ------------------------------------------------------------------------- | ------- |
-| `Noise Colour`          | `noise_colour`      | 0 % to 100 %                                                              | 50 %    |
-| `Noise Strike Velocity` | `noise_strike`      | -100 % to +100 %                                                          | 0 %     |
-| `Noise Delay`           | `noise_delay`       | 0.0 ms to 5.00 s                                                          | 0.0 ms  |
-| `Noise Attack`          | `noise_attack`      | 0.2 ms to 5.00 s                                                          | 5.0 ms  |
-| `Noise Decay`           | `noise_decay`       | 1.0 ms to 20.00 s                                                         | 600 ms  |
-| `Noise Sustain`         | `noise_sustain`     | 0 % to 100 %                                                              | 100 %   |
-| `Noise Key-off Swell`   | `noise_swell`       | 0.0 ms to 5.00 s                                                          | 5.0 ms  |
-| `Noise Key-off Level`   | `noise_offLevel`    | 0 % to 100 %                                                              | 0 %     |
-| `Noise Release`         | `noise_release`     | 1.0 ms to 20.00 s                                                         | 400 ms  |
-| `Noise Amp Mod Rate`    | `noise_amRate`      | 0.01 Hz to 30.0 Hz                                                        | 4.00 Hz |
-| `Noise Amp Mod Depth`   | `noise_amDepth`     | 0 % to 100 %                                                              | 0 %     |
-| `Noise Amp Mod Shape`   | `noise_amShape`     | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine    |
-| `Noise Velocity`        | `noise_vel`         | -100 % to +100 %                                                          | +70 %   |
-| `Noise Aftertouch`      | `noise_aftertouch`  | -100 % to +100 %                                                          | 0 %     |
-| `Noise Mute`            | `noise_mute`        | Off or on                                                                 | Off     |
-| `Noise Solo`            | `noise_solo`        | Off or on                                                                 | Off     |
-| `Noise Pan`             | `noise_pan`         | L100 to R100                                                              | Centre  |
-| `Noise Level`           | `noise_volume`      | -inf dB to 0.0 dB                                                         | -inf dB |
-| `Noise String`          | `noise_string`      | 0 % to 100 %                                                              | 0 %     |
-| `Noise String Decay`    | `noise_stringDecay` | 50.0 ms to 10.00 s                                                        | 1.50 s  |
-| `Noise String Damp`     | `noise_stringDamp`  | 0 % to 100 %                                                              | 40 %    |
-| `Noise String Point`    | `noise_stringPoint` | 0 % to 100 %                                                              | 25 %    |
+| What the host calls it  | Id                  | Range                                                                     | Default  |
+| ----------------------- | ------------------- | ------------------------------------------------------------------------- | -------- |
+| `Noise Colour`          | `noise_colour`      | 0 % to 100 %                                                              | 50 %     |
+| `Noise Strike Velocity` | `noise_strike`      | -100 % to +100 %                                                          | 0 %      |
+| `Noise Delay`           | `noise_delay`       | 0.0 ms to 5.00 s                                                          | 0.0 ms   |
+| `Noise Attack`          | `noise_attack`      | 0.2 ms to 5.00 s                                                          | 5.0 ms   |
+| `Noise Decay`           | `noise_decay`       | 1.0 ms to 20.00 s                                                         | 600 ms   |
+| `Noise Sustain`         | `noise_sustain`     | 0 % to 100 %                                                              | 100 %    |
+| `Noise Key-off Swell`   | `noise_swell`       | 0.0 ms to 5.00 s                                                          | 5.0 ms   |
+| `Noise Key-off Level`   | `noise_offLevel`    | 0 % to 100 %                                                              | 0 %      |
+| `Noise Release`         | `noise_release`     | 1.0 ms to 20.00 s                                                         | 400 ms   |
+| `Noise Amp Mod Rate`    | `noise_amRate`      | 0.01 Hz to 30.0 Hz                                                        | 4.00 Hz  |
+| `Noise Amp Mod Depth`   | `noise_amDepth`     | 0 % to 100 %                                                              | 0 %      |
+| `Noise Amp Mod Shape`   | `noise_amShape`     | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine     |
+| `Noise Velocity`        | `noise_vel`         | -100 % to +100 %                                                          | 0 %      |
+| `Noise Aftertouch`      | `noise_aftertouch`  | -100 % to +100 %                                                          | 0 %      |
+| `Noise Mute`            | `noise_mute`        | Off or on                                                                 | Off      |
+| `Noise Solo`            | `noise_solo`        | Off or on                                                                 | Off      |
+| `Noise Pan`             | `noise_pan`         | L100 to R100                                                              | Centre   |
+| `Noise Level`           | `noise_volume`      | -inf dB to 0.0 dB                                                         | -inf dB  |
+| `Noise String`          | `noise_string`      | 0 % to 100 %                                                              | 0 %      |
+| `Noise String Decay`    | `noise_stringDecay` | 50.0 ms to 10.00 s                                                        | 1.50 s   |
+| `Noise String Damp`     | `noise_stringDamp`  | 0 % to 100 %                                                              | 40 %     |
+| `Noise String Point`    | `noise_stringPoint` | 0 % to 100 %                                                              | 25 %     |
+| `Noise Keyboard`        | `noise_keyboard`    | 24 dB/oct above C-1 to 24 dB/oct below C9                                 | 0 dB/oct |
 
 **On every macro**, six controls, each one on all eight macros.
 
-| What the host calls it             | Id                               | Range                                                                                                                                                                                                  | Default                                                |
-| ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------ |
-| `Macro 1 to Macro 8`               | `macro1_amount to macro8_amount` | -100.0 % to +100.0 %                                                                                                                                                                                   | 0.0 %                                                  |
-| `Macro 1 Row to Macro 8 Row`       | `macro1_row to macro8_row`       | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None                                                   |
-| `Macro 1 Scope to Macro 8 Scope`   | `macro1_scope to macro8_scope`   | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh, Selected                           | All                                                    |
-| `Macro 1 Curve to Macro 8 Curve`   | `macro1_curve to macro8_curve`   | Uniform, Taper                                                                                                                                                                                         | Uniform                                                |
-| `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32                                                                                                                                                                                                | 1                                                      |
-| `Macro 1 Colour to Macro 8 Colour` | `macro1_colour to macro8_colour` | None, Red, Orange, Yellow, Green, Cyan, Blue, Violet, Magenta                                                                                                                                          | Differs by macro, Red on Macro 1 to Magenta on Macro 8 |
+| What the host calls it             | Id                               | Range                                                                                                                                                                                                            | Default                                                |
+| ---------------------------------- | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `Macro 1 to Macro 8`               | `macro1_amount to macro8_amount` | -100.0 % to +100.0 %                                                                                                                                                                                             | 0.0 %                                                  |
+| `Macro 1 Row to Macro 8 Row`       | `macro1_row to macro8_row`       | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level, Keyboard | None                                                   |
+| `Macro 1 Scope to Macro 8 Scope`   | `macro1_scope to macro8_scope`   | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh, Selected                                     | All                                                    |
+| `Macro 1 Curve to Macro 8 Curve`   | `macro1_curve to macro8_curve`   | Uniform, Taper                                                                                                                                                                                                   | Uniform                                                |
+| `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32                                                                                                                                                                                                          | 1                                                      |
+| `Macro 1 Colour to Macro 8 Colour` | `macro1_colour to macro8_colour` | None, Red, Orange, Yellow, Green, Cyan, Blue, Violet, Magenta                                                                                                                                                    | Differs by macro, Red on Macro 1 to Magenta on Macro 8 |
 
 ## Macros
 
@@ -267,9 +274,9 @@ A full sweep reaches the ends of the range, so if the patch value is already nea
 
 **Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see which control is listening without opening the menu again. Only one control can wait at a time. Right-click the same control afterwards and the menu shows which controller moves it, with options to remove the binding or bind a different one. In the mixer these items are below the LINK settings in the right-click menu. On the top bar, the Playing and Tuning bars and the noise channel, they have a menu of their own, because none of these is part of the series LINK gangs.
 
-Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 850 parameters, and it works the same way in every host.
+Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 884 parameters, and it works the same way in every host.
 
-**Eleven controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
+**Eighteen controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. 120 to 127 are the channel mode messages, which stop notes, reset controllers and switch modes. Some hosts send 121 when the transport stops. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
 
 **It works the same with MPE on**, which takes extra handling. With MPE on, nearly every message goes to the part of the instrument that reads your keyboard's layout, so bindings are checked before that, not after. Otherwise MIDI Learn would not work on the controllers the instrument is most often played from.
 

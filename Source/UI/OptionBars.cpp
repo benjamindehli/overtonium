@@ -30,6 +30,9 @@ constexpr int kGroupPad = 6;
 constexpr int kControlGap = 6;
 constexpr int kControlHeight = 24;
 
+/// Between the two pedal lamps, stacked in one column.
+constexpr int kPedalGap = 4;
+
 /// How far a screen that fills its group stands in from the group's edge.
 constexpr int kReadoutInset = 5;
 
@@ -387,8 +390,19 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   sustain.setWantsKeyboardFocus(false);
   sustain.setButtonText("SUSTAIN");
   sustain.setTitle("Sustain pedal");
-  sustain.setTooltip("Lit while a sustain pedal is down. A key it holds still "
-                     "counts as held, for Legato and for Adaptive.");
+  sustain.setTooltip(
+      "Lit while a sustain pedal is down, with a bar for how far. Part way "
+      "down, the notes it holds fade, faster the less it is down. A key it "
+      "holds still counts as held, for Legato and for Adaptive.");
+
+  sostenuto.setInterceptsMouseClicks(false, false);
+  sostenuto.setWantsKeyboardFocus(false);
+  sostenuto.setButtonText("SOSTENUTO");
+  sostenuto.setTitle("Sostenuto pedal");
+  sostenuto.setTooltip(
+      "Lit while a sostenuto pedal is down. It holds only the keys that were "
+      "down when it went down, and the resonator's strings for them.");
+  addChildComponent(sostenuto);
 
   addGroup({{&voices, juce::jmax(40, natural(voices)), "VOICES"},
             {&inUse, juce::jmax(40, natural(inUse)), "IN USE"},
@@ -406,7 +420,9 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   wheelNeedle.setTitle("Mod wheel");
   pressureNeedle.setTitle("Pressure");
 
-  addGroup({{&sustain, 70, {}},
+  // The two pedals one above the other in one column, as tall as the group,
+  // which leaves the bar on one row. See resized.
+  addGroup({{&sustain, 80, {}, true},
             {&bendNeedle, 50, "PITCH"},
             {&wheelNeedle, 50, "WHEEL"},
             {&pressureNeedle, 50, "PRESSURE"}});
@@ -492,6 +508,14 @@ juce::PopupMenu PlayingBar::macroMenu(int macro, bool made,
 
 void PlayingBar::resized() {
   OptionBar::resized();
+
+  // SUSTAIN was given the group's height, and shares it with SOSTENUTO below.
+  const auto both = sustain.getBounds();
+  const auto each = (both.getHeight() - kPedalGap) / 2;
+  sustain.setBounds(both.withHeight(each));
+  sostenuto.setBounds(both.withTrimmedTop(both.getHeight() - each));
+  sostenuto.setVisible(sustain.isVisible());
+
   pushNeedles();
 }
 
@@ -517,6 +541,8 @@ void PlayingBar::showActivity(const PlayingActivity &activity) {
   }
 
   sustain.setToggleState(activity.sustain, juce::dontSendNotification);
+  sustain.setLevel(activity.sustainDepth);
+  sostenuto.setToggleState(activity.sostenuto, juce::dontSendNotification);
 
   shown = activity;
   pushNeedles();
@@ -782,7 +808,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
     : OptionBar("TUNING"), apvts(state) {
   temperament.setTooltip("How the twelve keys of the octave are tuned");
   root.setTooltip(
-      "The key the temperament is built on, and the resonator's Series");
+      "The key the temperament is built on, and the resonator's Series and "
+      "Fifths");
   root.showSharpSign(true);
   reference.setTooltip("The pitch A is tuned to");
   retune.slider.setTooltip("How long Adaptive takes to slide a held note to "

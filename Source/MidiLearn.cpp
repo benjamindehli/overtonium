@@ -13,11 +13,22 @@ const char *MidiLearn::reservedFor(int controller) noexcept {
     return "the mod wheel";
   case 64:
     return "the sustain pedal";
+  case 66:
+    return "the sostenuto pedal";
   case 74:
     return "the slide axis";
   case 120:
   case 123:
     return "stopping notes";
+  case 121:
+    return "resetting the controllers";
+  case 122:
+    return "local control";
+  case 124:
+  case 125:
+  case 126:
+  case 127:
+    return "the omni and mono modes";
   case 6:
   case 38:
   case 98:
@@ -62,6 +73,17 @@ void MidiLearn::bind(int controller,
   bound[(size_t)controller].store(parameter, std::memory_order_release);
 }
 
+void MidiLearn::take(int controller,
+                     juce::RangedAudioParameter *parameter) noexcept {
+  if (parameter != nullptr)
+    for (int cc = 0; cc < kNumControllers; ++cc)
+      if (cc != controller &&
+          bound[(size_t)cc].load(std::memory_order_acquire) == parameter)
+        bound[(size_t)cc].store(nullptr, std::memory_order_release);
+
+  bound[(size_t)controller].store(parameter, std::memory_order_release);
+}
+
 void MidiLearn::clear() noexcept {
   for (auto &slot : bound)
     slot.store(nullptr, std::memory_order_release);
@@ -78,7 +100,7 @@ bool MidiLearn::handle(int controller, int value) noexcept {
     return false;
 
   if (auto *waiting = arming.exchange(nullptr, std::memory_order_acq_rel)) {
-    bound[(size_t)controller].store(waiting, std::memory_order_release);
+    take(controller, waiting);
 
     // The binding message does not move the knob, so it does not jump to
     // wherever the controller happened to be.

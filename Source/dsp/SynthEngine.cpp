@@ -6,7 +6,7 @@
 
 namespace ovt {
 
-void SynthEngine::prepare(double newSampleRate) noexcept {
+void SynthEngine::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
   renderRate = sampleRate;
 
@@ -53,17 +53,38 @@ void SynthEngine::reset() noexcept {
   reverb.reset();
 
   heldBySustain.fill(false);
+  caughtBySostenuto.fill(false);
+  heldBySostenuto.fill(false);
   sustainDown = false;
+  sostenutoDown = false;
+  sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
+  forgetChord();
   ageCounter = 0;
   lastNoteFrequency = 0.0;
   adaptiveVersion.fill(0);
   adaptiveSnapshots.publish(AdaptiveSnapshot{});
   clock = 0;
   motorTurns = 0.0;
+
+  // From the start of their streams and their turns, so two renders of the
+  // same thing after a reset match.
+  sharedRandom.reseed(kSharedSeed);
+  hissRandom.reseed(kHissSeed);
+
+  for (auto &m : pitchModulators)
+    m.reset();
+
+  for (auto &m : ampModulators)
+    m.reset();
+
   hissLowGain = hissHighGain = hissFirst = hissLowState = 0.0f;
   pressedAt.fill(0);
   pressedWithOthers.fill(false);
   forgetLine();
+  legatoDepth = 0;
   smoothedMasterGain = -1.0f;
 
   // Past 1 so the first host sample of the next block draws a fresh frame
@@ -266,7 +287,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     if (latest == nullptr || v.getAge() > latest->getAge())
       latest = &v;
 
-    if (!v.isReleasing() && !heldBySustain[i] &&
+    if (!v.isReleasing() && !heldByPedal(i) &&
         (latestHeld == nullptr || v.getAge() > latestHeld->getAge()))
       latestHeld = &v;
   }
@@ -287,6 +308,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     glides = true;
   }
 
+  // Whether this key belongs to the chord the resonator's Chord mode holds,
+  // decided before anything below steals a voice the chord counts on.
+  const bool joins = joinChord();
+
   // ---- legato ---------------------------------------------------------------
   //
   // One voice, and a key going down while another is still held moves the note
@@ -297,10 +322,6 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
     if (legatoDepth < (int)legatoHeld.size())
       legatoHeld[(size_t)legatoDepth++] = note;
-
-    legatoTemperament = p.global.temperament;
-    legatoRoot = p.global.tuningRoot;
-    legatoReferenceHz = p.global.referenceHz;
 
     // Whatever is still sounding and has not been let go carries the phrase.
     for (auto &v : voices) {
@@ -357,7 +378,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
     for (size_t i = 0; i < voices.size(); ++i) {
       const auto &v = voices[i];
 
-      if (!v.isActive() || v.isReleasing() || heldBySustain[i])
+      if (!v.isActive() || v.isReleasing() || heldByPedal(i))
         continue;
 
       if (top < 0 || v.getNote() > voices[(size_t)top].getNote()) {
@@ -429,11 +450,13 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       }
     }
 
-    // A key still down, or held by the pedal, is retriggered where it stands,
+    // A key still down, or held by a pedal, is retriggered where it stands,
     // so the envelope continues from its level and a pedalled note is taken
-    // back off the pedal.
+    // back off the pedal. One the sostenuto pedal caught stays caught, as a
+    // piano's damper stays up for a key played again under it.
     if (held != nullptr) {
       heldBySustain[heldIndex] = false;
+      heldBySostenuto[heldIndex] = false;
       pressedAt[heldIndex] = now;
       pressedWithOthers[heldIndex] = withOthers;
       held->noteOn(channel, note, velocity, p,
@@ -442,6 +465,9 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
       if (glides)
         held->startGlide(from, glide);
+
+      if (joins)
+        addToChord(heldIndex, note);
 
       held->setAge(++ageCounter);
       lastNoteFrequency = held->getFrequency();
@@ -467,7 +493,11 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   }
 
   const auto index = (size_t)std::distance(voices.data(), target);
-  heldBySustain[index] = false;
+  clearPedals(index);
+
+  inChord[index] = false;
+  if (joins)
+    addToChord(index, note);
 
   // A fresh note, so not a line yet, and if it was the line's voice the line
   // has gone with it.
@@ -958,10 +988,69 @@ double SynthEngine::restingFrequency(int note,
          std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
 }
 
+bool SynthEngine::joinChord() noexcept {
+  // A key joins the chord while any of the chord's own keys is still down,
+  // and starts a new one when it is struck together with others, within the
+  // chord window, after the old chord's keys have all come up. A key struck
+  // on its own is a line over the chord, and leaves it as it was. A key the
+  // pedal holds is up.
+  const auto window = (uint64_t)(kChordWindowSeconds * sampleRate);
+  bool chordDown = false, struckTogether = false;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    if (!v.isActive() || v.isReleasing() || heldByPedal(i))
+      continue;
+
+    chordDown |= inChord[i];
+    struckTogether |= clock - pressedAt[i] < window;
+  }
+
+  if (chordDown)
+    return true;
+
+  if (!struckTogether)
+    return false;
+
+  forgetChord();
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    if (v.isActive() && !v.isReleasing() && !heldByPedal(i) &&
+        clock - pressedAt[i] < window)
+      addToChord(i, v.getNote());
+  }
+
+  return true;
+}
+
+void SynthEngine::addToChord(size_t voice, int note) noexcept {
+  inChord[voice] = true;
+
+  const auto s = SympatheticStrings::stringOf(note);
+  if (s >= 0 && s < SympatheticStrings::kStrings)
+    chordStrings[(size_t)s] = true;
+}
+
+void SynthEngine::followChord() noexcept {
+  // Where each of the chord's keys sounds while it is held, before any bend,
+  // so its string follows Adaptive. Once let go, the string stays where the
+  // key last was.
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto &v = voices[i];
+    const auto s = SympatheticStrings::stringOf(v.getNote());
+    if (inChord[i] && v.isActive() && !v.isReleasing() && s >= 0 &&
+        s < SympatheticStrings::kStrings && chordStrings[(size_t)s])
+      chordHz[(size_t)s] = v.getFrequency();
+  }
+}
+
 SympatheticStrings::Plan
 SynthEngine::planStrings(const SynthParams &p) const noexcept {
   SympatheticStrings::Plan plan;
   constexpr int kStrings = SympatheticStrings::kStrings;
+
+  // As stiff as STRETCH makes the partials, so their overtones meet.
+  plan.stiffness = stiffnessFor((double)p.global.stretchCents);
 
   const auto set = [&plan](int key, double hz, bool free) {
     const auto s = SympatheticStrings::stringOf(key);
@@ -975,25 +1064,54 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
 
   switch (p.resonator.mode) {
   case ResonatorMode::Piano:
-  case ResonatorMode::Open: {
-    // Open is Piano with the sustain pedal always down.
-    const bool pedal = p.pedalDown || p.resonator.mode == ResonatorMode::Open;
+  case ResonatorMode::Open:
+  case ResonatorMode::Chord: {
+    // Open is Piano with the sustain pedal always down. Part way down, the
+    // dampers rest lightly on the strings whose keys are up. Chord is Piano
+    // with the last chord's strings held free, as a held key's are.
+    const bool open = p.resonator.mode == ResonatorMode::Open;
+    const bool chord = p.resonator.mode == ResonatorMode::Chord;
+    const bool pedal = p.pedalDown || open;
+    const float depth = open ? 1.0f : std::clamp(p.pedalDepth, 0.0f, 1.0f);
 
     // A held key's string is where that key is sounding, before any bend, as a
     // piano's strings do not follow the wheel. The rest wait where a key struck
-    // into silence would sound.
+    // into silence would sound. A note the sustain pedal holds has its key up,
+    // so its damper follows the pedal. One the sostenuto pedal holds is free.
     std::array<double, kStrings> held{};
-    for (const auto &v : voices) {
+    std::array<float, kStrings> damperLift{};
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
       const auto s = SympatheticStrings::stringOf(v.getNote());
-      if (v.isActive() && !v.isReleasing() && s >= 0 && s < kStrings)
+      if (v.isActive() && !v.isReleasing() && s >= 0 && s < kStrings) {
         held[(size_t)s] = v.getFrequency();
+        damperLift[(size_t)s] = std::max(
+            damperLift[(size_t)s], heldBySustain[i] && !open
+                                       ? std::clamp(depthFor(v), 0.0f, 1.0f)
+                                       : 1.0f);
+      }
     }
+
+    // The chord's strings, where their keys last sounded. A key of it that is
+    // down again sounds where it is now, as any held key does.
+    if (chord)
+      for (size_t s = 0; s < (size_t)kStrings; ++s)
+        if (chordStrings[s]) {
+          if (!(held[s] > 0.0))
+            held[s] =
+                chordHz[s] > 0.0
+                    ? chordHz[s]
+                    : restingFrequency(SympatheticStrings::keyOf((int)s), p);
+          damperLift[s] = 1.0f;
+        }
 
     for (int s = 0; s < kStrings; ++s) {
       const auto key = SympatheticStrings::keyOf(s);
       const bool isHeld = held[(size_t)s] > 0.0;
+      const float lift = isHeld ? damperLift[(size_t)s] : pedal ? depth : 0.0f;
       set(key, isHeld ? held[(size_t)s] : restingFrequency(key, p),
-          isHeld || pedal);
+          lift > 0.0f);
+      plan.rest[(size_t)s] = lift > 0.0f ? 1.0f - lift : 0.0f;
       plan.pedalled[(size_t)s] = !isHeld && pedal;
     }
     break;
@@ -1016,12 +1134,126 @@ SynthEngine::planStrings(const SynthParams &p) const noexcept {
     break;
   }
 
+  case ResonatorMode::Fifths: {
+    // The root from its second octave and the pure fifth above it, in four
+    // octaves, so the fifths and octaves of the drone never beat.
+    const auto rootKey = 36 + ((p.global.tuningRoot % 12) + 12) % 12;
+    const auto fundamental = restingFrequency(rootKey, p);
+
+    for (int octave = 0; octave < kFifthsOctaves; ++octave) {
+      const auto hz = fundamental * (double)(1 << octave);
+      set(rootKey + 12 * octave, hz, true);
+      set(rootKey + 12 * octave + 7, hz * 1.5, true);
+    }
+    break;
+  }
+
   case ResonatorMode::Off:
   case ResonatorMode::NumModes:
     break;
   }
 
   return plan;
+}
+
+void SynthEngine::panStrings(SympatheticStrings::Plan &plan,
+                             const SynthParams &p) const noexcept {
+  constexpr int kStrings = SympatheticStrings::kStrings;
+
+  // Nothing panned, every string in the middle, which is where they are
+  // already, and nothing to work out.
+  bool panned = std::abs(p.noise.pan) > 0.0f;
+  for (const auto &o : p.osc)
+    panned |= std::abs(o.pan) > 0.0f;
+
+  if (!panned)
+    return;
+
+  // Everything in semitones on the MIDI scale, so a string's key is a partial's
+  // position less its mode's, rounded. Each string in use, and how far above
+  // its first each of its modes is, stiffness and all.
+  std::array<double, kStrings> semitone{};
+  bool any = false;
+  for (size_t s = 0; s < (size_t)kStrings; ++s)
+    if (plan.hz[s] > 0.0) {
+      semitone[s] = 69.0 + 12.0 * std::log2(plan.hz[s] / 440.0);
+      any = true;
+    }
+
+  if (!any)
+    return;
+
+  std::array<double, kPanModes + 1> rank{};
+  for (int k = 1; k <= kPanModes; ++k)
+    rank[(size_t)k] =
+        12.0 * std::log2((double)k *
+                         std::sqrt(std::max(
+                             1.0e-6, 1.0 + plan.stiffness * (double)(k * k))));
+
+  // How much of each channel reaches the strings, which are fed the two sides
+  // together, and from where.
+  std::array<float, kNumHarmonics> mono{}, side{};
+  for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+    side[i] = std::clamp(p.osc[i].pan, -1.0f, 1.0f);
+    mono[i] = 0.5f * (std::sqrt(0.5f * (1.0f - side[i])) +
+                      std::sqrt(0.5f * (1.0f + side[i])));
+  }
+  const auto noiseSide = std::clamp(p.noise.pan, -1.0f, 1.0f);
+  const auto noiseMono = 0.5f * (std::sqrt(0.5f * (1.0f - noiseSide)) +
+                                 std::sqrt(0.5f * (1.0f + noiseSide)));
+
+  std::array<double, kStrings> weight{}, toward{};
+  constexpr double kSemitonesWide = kPanWidthCents / 100.0;
+  constexpr int kLowest = SympatheticStrings::kLowestKey;
+
+  for (const auto &v : voices) {
+    if (!v.isActive())
+      continue;
+
+    const auto &peaks = v.getPartialPeaks();
+    const auto &octaves = v.getPartialOctaves();
+
+    for (size_t i = 0; i < (size_t)kNumHarmonics; ++i) {
+      const double level = (double)(peaks[i] * mono[i]);
+      if (level < 1.0e-5)
+        continue;
+
+      const double power = level * level;
+      const double at = 69.0 + 12.0 * (octaves[i] - std::log2(440.0));
+
+      // The key of each string this partial could be the k-th mode of, from
+      // its own pitch down, until the strings run out.
+      for (int k = 1; k <= kPanModes; ++k) {
+        const auto fundamental = at - rank[(size_t)k];
+        if (fundamental < (double)kLowest - 0.5)
+          break;
+
+        const auto s = (int)(fundamental + 0.5) - kLowest;
+        if (s >= kStrings || plan.hz[(size_t)s] <= 0.0)
+          continue;
+
+        const auto off = (fundamental - semitone[(size_t)s]) / kSemitonesWide;
+        const auto feeds = power / (1.0 + off * off);
+        weight[(size_t)s] += feeds;
+        toward[(size_t)s] += feeds * (double)side[i];
+      }
+    }
+
+    // The noise feeds every string a little, from wherever it is panned.
+    const double noise = (double)(v.getNoisePeak() * noiseMono);
+    if (noise >= 1.0e-5)
+      for (size_t s = 0; s < (size_t)kStrings; ++s)
+        if (plan.hz[s] > 0.0) {
+          weight[s] += noise * noise;
+          toward[s] += noise * noise * (double)noiseSide;
+        }
+  }
+
+  for (size_t s = 0; s < (size_t)kStrings; ++s)
+    if (weight[s] > 1.0e-12) {
+      plan.pan[s] = (float)(toward[s] / weight[s]);
+      plan.driven[s] = true;
+    }
 }
 
 double SynthEngine::frequencyOfNote(int note) const noexcept {
@@ -1041,9 +1273,11 @@ void SynthEngine::noteOffPerNote(int channel, int note, float lift) noexcept {
 }
 
 void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
-  if (legato && polyphony <= 1) {
-    legatoRelease(note);
+  // Whatever the mode, so a key pressed in mono legato and let go after
+  // switching out of it does not come back as held when legato is on again.
+  legatoRelease(note);
 
+  if (legato && polyphony <= 1) {
     // Another key is still down, so the phrase moves to it rather than
     // stopping. Falling back to the most recent is what makes a trill work.
     if (legatoDepth > 0) {
@@ -1068,10 +1302,16 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
     auto &v = voices[i];
 
     if (matches(v, channel, note) && !v.isReleasing()) {
-      if (sustainDown) {
+      // The sostenuto pedal first, so lifting the sustain pedal does not let
+      // go of a note it caught.
+      if (sostenutoDown && caughtBySostenuto[i]) {
+        heldBySostenuto[i] = true;
+        heldLift[i] = lift;
+      } else if (sustainDown) {
         heldBySustain[i] = true;
         heldLift[i] = lift;
       } else {
+        heldBySustain[i] = false;
         letGo(i, lift);
       }
     }
@@ -1083,10 +1323,12 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
-void SynthEngine::setSustainPedal(bool down) noexcept {
-  sustainDown = down;
+void SynthEngine::setSustainDepth(float depth) noexcept {
+  depth = std::clamp(depth, 0.0f, 1.0f);
+  sustainDepth[0] = depth;
+  sustainDown = depth > 0.0f;
 
-  if (down)
+  if (sustainDown)
     return;
 
   for (size_t i = 0; i < voices.size(); ++i) {
@@ -1098,6 +1340,87 @@ void SynthEngine::setSustainPedal(bool down) noexcept {
   }
 
   if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
+}
+
+void SynthEngine::setSostenutoPedal(bool down,
+                                    uint32_t sustainedChannels) noexcept {
+  if (down == sostenutoDown)
+    return;
+
+  sostenutoDown = down;
+
+  if (down) {
+    // The keys that are down now. A note only the sustain pedal holds has no
+    // key down, so it is not caught, as on a piano.
+    for (size_t i = 0; i < voices.size(); ++i) {
+      const auto &v = voices[i];
+      caughtBySostenuto[i] =
+          v.isActive() && !v.isReleasing() && !heldBySustain[i];
+    }
+
+    return;
+  }
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    if (heldBySostenuto[i]) {
+      // Its key is up. The sustain pedal takes it over if that is down,
+      // since its damper would stay up for it too.
+      const auto channel = voices[i].getChannel();
+      const bool zoneSustained =
+          channel > 0 && channel < 32 &&
+          (sustainedChannels & (1u << (unsigned)channel)) != 0;
+
+      if (sustainDown || zoneSustained)
+        heldBySustain[i] = true;
+      else {
+        letGo(i, heldLift[i]);
+        heldLift[i] = 1.0f;
+      }
+    }
+
+    caughtBySostenuto[i] = false;
+    heldBySostenuto[i] = false;
+  }
+
+  if (adaptiveOn)
+    settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
+}
+
+void SynthEngine::setZoneSustainDepth(uint32_t channels, float depth) noexcept {
+  depth = std::clamp(depth, 0.0f, 1.0f);
+
+  for (int channel = 1; channel <= 16; ++channel)
+    if ((channels & (1u << (unsigned)channel)) != 0)
+      sustainDepth[(size_t)channel] = depth;
+}
+
+void SynthEngine::holdByPedal(int channel, int note, float lift) noexcept {
+  for (size_t i = 0; i < voices.size(); ++i)
+    // A note the sostenuto pedal caught is its to hold, and does not fade.
+    if (matches(voices[i], channel, note) && !voices[i].isReleasing() &&
+        !(sostenutoDown && caughtBySostenuto[i])) {
+      heldBySustain[i] = true;
+      heldLift[i] = lift;
+    }
+}
+
+void SynthEngine::releaseHeldBySustain(uint32_t channels) noexcept {
+  bool released = false;
+
+  for (size_t i = 0; i < voices.size(); ++i) {
+    const auto channel = voices[i].getChannel();
+
+    if (heldBySustain[i] && channel > 0 && channel < 32 &&
+        (channels & (1u << (unsigned)channel)) != 0) {
+      letGo(i, heldLift[i]);
+      heldBySustain[i] = false;
+      heldLift[i] = 1.0f;
+      released = true;
+    }
+  }
+
+  if (released && adaptiveOn)
     settleAdaptive(-1, legatoRoot, legatoReferenceHz, nullptr);
 }
 
@@ -1130,10 +1453,19 @@ void SynthEngine::allNotesOff() noexcept {
 
   for (size_t i = 0; i < voices.size(); ++i) {
     voices[i].noteOff();
-    heldBySustain[i] = false;
+    clearPedals(i);
   }
 
+  // Every key counts as up, so the next note starts a new legato phrase.
+  legatoDepth = 0;
+
   sustainDown = false;
+  sostenutoDown = false;
+  sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
+  forgetChord();
 }
 
 void SynthEngine::allSoundOff() noexcept {
@@ -1142,9 +1474,18 @@ void SynthEngine::allSoundOff() noexcept {
     v.reset();
 
   sympathetic.reset();
+  legatoDepth = 0;
 
   heldBySustain.fill(false);
+  caughtBySostenuto.fill(false);
+  heldBySostenuto.fill(false);
   sustainDown = false;
+  sostenutoDown = false;
+  sustainDepth.fill(0.0f);
+  panClock = 1 << 30;
+  lastPan.fill(0.0f);
+  lastDriven.fill(false);
+  forgetChord();
 }
 
 namespace {
@@ -1272,6 +1613,12 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     if (!v.isActive())
       continue;
 
+    // A note the pedal holds fades as far as the pedal is up. One a key or the
+    // sostenuto pedal holds does not.
+    v.setPedalFade(heldBySustain[index] && !heldBySostenuto[index]
+                       ? pedalFadeRate(depthFor(v))
+                       : 0.0f);
+
     v.render(left, right, numFrames, p, shared);
     rendered[index] = true;
 
@@ -1283,6 +1630,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
     const auto &pitches = v.getPartialPitches();
     const auto &velocities = v.getPartialVelocities();
     const auto &pressures = v.getPartialPressures();
+    const auto &keyboards = v.getPartialKeyboards();
 
     for (size_t i = 0; i < peaks.size(); ++i) {
       // A voice that reaches here is sounding, so it reports this partial even
@@ -1301,6 +1649,7 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.pitches[i] = pitches[i];
       into.velocities[i] = velocities[i];
       into.pressures[i] = pressures[i];
+      into.keyboards[i] = keyboards[i];
     }
 
     if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak ||
@@ -1313,14 +1662,11 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.noiseTremolo = v.getNoiseTremolo();
       into.noiseVelocity = v.getNoiseVelocity();
       into.noisePressure = v.getNoisePressure();
+      into.noiseKeyboard = v.getNoiseKeyboard();
     }
   }
 
-  if (p.global.character == Character::Fm ||
-      p.global.character == Character::Pd ||
-      p.global.character == Character::Sid ||
-      p.global.character == Character::Vco ||
-      p.global.character == Character::Combo)
+  if (hasSynthHiss(p.global.character))
     renderHiss(left, right, numFrames, p, rendered);
 }
 
@@ -1405,7 +1751,8 @@ void SynthEngine::renderHiss(
       hissFirst += split * (white - hissFirst);
       hissLowState += split * (hissFirst - hissLowState);
 
-      // One noise for both channels, since both synthesizers are mono.
+      // One noise for both channels, since the synthesizers it stands for are
+      // mono.
       const float s = low * hissLowState + high * (white - hissLowState);
 
       left[n] += s;
@@ -1428,6 +1775,7 @@ void SynthEngine::publish(const Activity &a) noexcept {
     partialPitches[i].store(a.pitches[i], std::memory_order_relaxed);
     partialVelocities[i].store(a.velocities[i], std::memory_order_relaxed);
     partialPressures[i].store(a.pressures[i], std::memory_order_relaxed);
+    partialKeyboards[i].store(a.keyboards[i], std::memory_order_relaxed);
   }
 
   noiseLevel.store(a.noisePeak, std::memory_order_relaxed);
@@ -1435,6 +1783,7 @@ void SynthEngine::publish(const Activity &a) noexcept {
   noiseTremolo.store(a.noiseTremolo, std::memory_order_relaxed);
   noiseVelocity.store(a.noiseVelocity, std::memory_order_relaxed);
   noisePressure.store(a.noisePressure, std::memory_order_relaxed);
+  noiseKeyboard.store(a.noiseKeyboard, std::memory_order_relaxed);
 }
 
 void SynthEngine::renderVoices(float *left, float *right, int numSamples,
@@ -1517,13 +1866,31 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   glide = GlideSettings::of(p);
   renderVoices(left, right, numSamples, p);
   clock += (uint64_t)numSamples;
+  followChord();
 
   // ---- the resonator --------------------------------------------------------
   // On the summed channels and before the bus drive, so the strings ring
   // inside the instrument and the character drives them too. Off, and faded
   // out, the stage is skipped.
-  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy())
-    sympathetic.process(left, right, numSamples, p.resonator, planStrings(p));
+  if (p.resonator.mode != ResonatorMode::Off || sympathetic.isBusy()) {
+    auto plan = planStrings(p);
+
+    // The sides, worked out every kPanSeconds rather than every block, so
+    // they cost the same whatever block size the host uses. The strings glide
+    // to a new side more slowly than that.
+    panClock += numSamples;
+    if (panClock >= (int)(kPanSeconds * sampleRate)) {
+      panClock = 0;
+      panStrings(plan, p);
+      lastPan = plan.pan;
+      lastDriven = plan.driven;
+    } else {
+      plan.pan = lastPan;
+      plan.driven = lastDriven;
+    }
+
+    sympathetic.process(left, right, numSamples, p.resonator, plan);
+  }
 
   // ---- the bus the series is summed onto -----------------------------------
   // Before the effects, since this is the summing amplifier. See BusDrive.
@@ -1572,7 +1939,7 @@ void SynthEngine::render(float *left, float *right, int numSamples,
   }
 
   // Always, because the stage delays whether or not it shapes, so its latency
-  // does not depend on this switch. See OutputStage::kLookaheadSeconds.
+  // does not depend on this switch. See dm::OutputStage::kLookaheadSeconds.
   outputStage.process(left, right, numSamples, p.global.clipType,
                       p.global.safetyClip, p.global.lookahead);
 

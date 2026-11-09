@@ -1,4 +1,5 @@
 #include "MacroPanel.h"
+#include "SettingsMenus.h"
 
 #include "LearnMenu.h"
 #include "LookAndFeel.h"
@@ -167,11 +168,7 @@ void MacroPanel::buildStrip(int macro) {
 }
 
 int MacroPanel::chosen(const juce::String &parameterId) const {
-  if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-          apvts.getParameter(parameterId)))
-    return (int)std::lround(p->convertFrom0to1(p->getValue()));
-
-  return 0;
+  return settings::choiceIndex(apvts, parameterId);
 }
 
 void MacroPanel::write(const juce::String &parameterId, int value) {
@@ -197,17 +194,6 @@ int MacroPanel::firstFree() const {
       return m;
 
   return -1;
-}
-
-int MacroPanel::madeCount(const juce::AudioProcessorValueTreeState &state) {
-  int made = 0;
-
-  for (int m = 0; m < params::kNumMacros; ++m)
-    if (auto *p = dynamic_cast<juce::RangedAudioParameter *>(
-            state.getParameter(params::macroRowId(m))))
-      made += (int)std::lround(p->convertFrom0to1(p->getValue())) != 0 ? 1 : 0;
-
-  return made;
 }
 
 void MacroPanel::choose(int macro, const juce::String &parameterId,

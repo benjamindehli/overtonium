@@ -16,6 +16,14 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run for the push before it, which
+# would otherwise spend up to 45 minutes per platform on code that has been
+# replaced. Pushes to main and the weekly run are left to finish, so each one
+# keeps a result of its own.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   # Steinberg's VST3 SDK, for the conformance validator. Pinned so the check
   # cannot change underneath a commit that did not touch it.
@@ -51,37 +59,27 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      # The hosted runners reach apt through an Azure mirror that intermittently
-      # stops answering. Apt's own default is to wait on it for a very long
-      # time and then fall back, which turns a mirror having a bad afternoon
-      # into a job that sits for hours instead of failing. Short timeouts and a
-      # few retries make it either work or give up quickly enough to re-run.
+      # xvfb is for pluginval rather than the build. It opens the editor, and
+      # the runner has no display for one to open on. gdb prints where a crash
+      # in it happened.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 10
-        run: |
-          sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
-          Acquire::Retries "3";
-          Acquire::http::Timeout "20";
-          Acquire::https::Timeout "20";
-          CONF
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb gdb
 
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
 
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
-
-          # xvfb is for pluginval rather than the build. It opens the editor,
-          # and the runner has no display for one to open on.
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev xvfb gdb
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # Warnings are errors, which is now the default in CMakeLists and asked
       # for here anyway. The flag is what this job needs rather than what the
@@ -92,6 +90,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
           -DOVERTONIUM_WARNINGS_AS_ERRORS=ON
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
           ${{ matrix.extra }}
 
       # The job count is given rather than left to the build tool. Without a
@@ -106,6 +106,31 @@ jobs:
       # Neither suite opens an editor, so both run on a machine with no display.
       - name: Test
         run: ctest --test-dir build --build-config Release --output-on-failure
+
+      # The clips on the site are rendered here and committed. A change to the
+      # audio path changes what they should hold, and this is what notices when
+      # they were not rendered again. Here and nowhere else, because another
+      # compiler, or another version of this one, rounds some samples the
+      # other way without anything being wrong. See audio_clips.py.
+      - name: The clips on the site are what the plugin plays
+        id: clips
+        if: runner.os == 'Linux'
+        run: |
+          python3 .github/scripts/audio_clips.py --self-test
+          build/overtonium_render_docs_audio_artefacts/Release/overtonium_render_docs_audio \
+            "$RUNNER_TEMP/clips"
+          python3 .github/scripts/audio_clips.py docs/audio "$RUNNER_TEMP/clips" \
+            --changed-to "$RUNNER_TEMP/clips-changed"
+
+      # The clips that changed, FLAC and Ogg, ready to be unpacked into
+      # docs/audio and committed.
+      - name: Keep the clips that changed
+        if: failure() && steps.clips.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: clips-changed
+          path: ${{ runner.temp }}/clips-changed
+          if-no-files-found: ignore
 
       # pluginval is a host that loads the plugin and misuses it on purpose:
       # silly block sizes, parameters set from the wrong thread, state saved
@@ -123,60 +148,7 @@ jobs:
       # argument with the component registrar that is not worth having here.
       - name: Fetch pluginval
         shell: bash
-        env:
-          PLUGINVAL_VERSION: v1.0.4
-        run: |
-          base="https://github.com/Tracktion/pluginval/releases/download"
-
-          # Each archive's SHA-256, taken from the v1.0.4 release. Moving to
-          # another version means taking all three again.
-          case "$RUNNER_OS" in
-            macOS)
-              asset=pluginval_macOS.zip
-              expected=3c4c533bda0c5059eea3ddaea752d757ee2025041f0f47e6bcb0e87f6082b29f ;;
-            Windows)
-              asset=pluginval_Windows.zip
-              expected=c08e61ce3b96db41636f8ec7e76f4c7e2c13ebdac7fa1b5a1f52b4f32ec715ab ;;
-            Linux)
-              asset=pluginval_Linux.zip
-              expected=c01c49d8063965c4c2dea8324468336768f5c9139e0b1caebde14c2400b55352 ;;
-          esac
-
-          # --fail so a wrong tag or a renamed asset fails here. Without it
-          # curl writes the 404 page into the zip and the first complaint
-          # comes from unzip, about a file that looks like it downloaded.
-          curl -sSL --fail --retry 3 -o pluginval.zip \
-            "$base/$PLUGINVAL_VERSION/$asset"
-
-          # A release asset can be replaced after the fact, and this one is run
-          # against the plugin, so it has to be the file that was checked.
-          # shasum is the one every macOS has, and sha256sum the one the other
-          # two have.
-          if [ "$RUNNER_OS" = "macOS" ]; then
-            actual=$(shasum -a 256 pluginval.zip | cut -d ' ' -f 1)
-          else
-            actual=$(sha256sum pluginval.zip | cut -d ' ' -f 1)
-          fi
-
-          if [ "$actual" != "$expected" ]; then
-            echo "::error::$asset has SHA-256 $actual, expected $expected"
-            exit 1
-          fi
-
-          # The bash on the Windows runners is the one Git ships and it has no
-          # unzip, the same reason the release workflow archives with pwsh.
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            powershell -Command "Expand-Archive -Force pluginval.zip ."
-          else
-            unzip -q -o pluginval.zip
-            # The archive does not reliably carry the executable bit through.
-            chmod +x pluginval 2>/dev/null || true
-            chmod +x pluginval.app/Contents/MacOS/pluginval 2>/dev/null || true
-          fi
-
-          # Printed so that a layout that differs from the one expected below
-          # reads as a wrong path rather than a mysteriously missing command.
-          ls -l
+        run: bash .github/scripts/fetch_pluginval.sh
 
       # The seed is pinned on a push and left to chance on the weekly run.
       #
@@ -223,10 +195,6 @@ jobs:
           case "$RUNNER_OS" in
             macOS)   run=(./pluginval.app/Contents/MacOS/pluginval) ;;
             Windows) run=(./pluginval.exe) ;;
-            # No display on the runner, so pluginval gets a virtual one. -a
-            # picks a free server number rather than colliding with a stale
-            # lock file from an earlier step.
-            Linux)   run=(xvfb-run -a ./pluginval) ;;
           esac
 
           # A crash here says only "exit code 139", which names neither the
@@ -237,14 +205,43 @@ jobs:
           # $_exitcode is gdb's own variable holding what the program returned,
           # so the step still fails for the reason the program failed rather
           # than reporting gdb's own success.
+          #
+          # A crash after SUCCESS is let through with a warning, on Linux only.
+          # Three times a run here passed every test and then died in
+          # pluginval's own shutdown, with glibc reporting heap corruption from
+          # thread-local storage, the run loop and XCloseDisplay in turn, and
+          # each time a re-run was green. The plugin was then run through
+          # pluginval ten times built with the address and undefined
+          # behaviour sanitizers, which stop at the first bad write rather
+          # than at the free that notices it, and nothing was reported. So
+          # that crash is pluginval and Xlib shutting down, and the weekly
+          # sanitized-pluginval job below is what keeps checking that our own
+          # code is not the cause. A failed test, or a crash before SUCCESS,
+          # still fails the step.
           if [ "$RUNNER_OS" = "Linux" ]; then
+            set +e
             xvfb-run -a gdb --batch --return-child-result \
               -ex "handle SIGPIPE nostop noprint pass" \
               -ex run \
               -ex "echo \n==== the crash, every thread ====\n" \
               -ex "thread apply all bt" \
               --args ./pluginval --strictness-level 8 --random-seed "$seed" \
-                --validate "$vst3"
+                --validate "$vst3" 2>&1 | tee pluginval.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            # pluginval prints SUCCESS on a line of its own once every test
+            # has passed. Its failures read "!!! Test", "*** FAILED", "FAILURE"
+            # or "tests failed". Its warnings also start with "!!!", so that
+            # alone is not taken as a failure.
+            if [ "$status" -ne 0 ] && grep -qx "SUCCESS" pluginval.log &&
+              ! grep -qE '^!!! Test |\*\*\* FAILED|^FAILURE|tests failed' \
+                pluginval.log; then
+              echo "::warning::pluginval passed every test and then exited with $status while shutting down. See the stack above. The weekly sanitized pluginval run checks that this is not the plugin."
+              exit 0
+            fi
+
+            exit "$status"
           else
             "${run[@]}" --strictness-level 8 --random-seed "$seed" \
               --validate "$vst3"
@@ -262,13 +259,23 @@ jobs:
       #
       # The revision is pinned, so the check cannot change underneath a commit
       # that did not touch it. Bump the one line when there is reason to.
+      #
+      # The cache is keyed on the runner image as well, so a binary built on
+      # one Ubuntu release is not run on the next, where the libraries it was
+      # linked against may differ. ImageOS is set by the runner rather than by
+      # this workflow, so it is not in the env context and is read here.
+      - name: Name the runner image
+        if: runner.os == 'Linux'
+        id: image
+        run: echo "os=${ImageOS:-unknown}" >> "$GITHUB_OUTPUT"
+
       - name: Cache the VST3 validator
         if: runner.os == 'Linux'
         id: validator-cache
         uses: actions/cache@v6
         with:
           path: vst3-validator
-          key: vst3-validator-${{ env.VST3_SDK_REV }}-${{ runner.os }}
+          key: vst3-validator-${{ env.VST3_SDK_REV }}-${{ steps.image.outputs.os }}
 
       - name: Build the VST3 validator
         if: runner.os == 'Linux' && steps.validator-cache.outputs.cache-hit != 'true'
@@ -403,21 +410,19 @@ jobs:
 
       - name: Install Linux dependencies
         timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if sudo apt-get update; then
-              break
-            fi
+        uses: ./.github/actions/linux-deps
 
-            echo "apt-get update failed on attempt $attempt, retrying"
-            sleep 10
-          done
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
 
-          sudo apt-get install --no-install-recommends -y \
-            libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
-            libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
-            libxcomposite-dev libgl-dev libcurl4-openssl-dev \
-            libxi-dev libegl-dev
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
 
       # The tests only. The plugin targets are not built here: nothing runs
       # them, and a sanitized VST3 is not something anyone should load.
@@ -437,6 +442,8 @@ jobs:
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
           -DOVERTONIUM_SANITIZE=ON
           -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
 
       - name: Build
         run: >
@@ -466,6 +473,131 @@ jobs:
 
           echo "clean"
 
+  sanitized-pluginval:
+    name: pluginval, sanitized
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    # The plugin built with the address and undefined behaviour sanitizers,
+    # loaded by pluginval. The sanitizers job runs our own suites, which drive
+    # the processor directly. This one has a host misuse it, editor and all,
+    # and a sanitized build stops at the first bad write instead of at the free
+    # that later notices it.
+    #
+    # It is the check that lets the build job pass a crash in pluginval's own
+    # shutdown. That crash is reported by glibc long after the write that
+    # caused it, so it cannot say whose write it was. This job can.
+    #
+    # Weekly and by hand only. The sanitized plugin and JUCE take most of the
+    # hour to build, and a failure here is information rather than a blocked
+    # merge.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: xvfb
+
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
+
+      # The flags go to the whole build rather than through OVERTONIUM_SANITIZE,
+      # which covers the two test programs. JUCE compiles into the plugin, so
+      # this instruments it too, and a bad write inside the framework on our
+      # behalf is caught as well.
+      #
+      # juceaide, the tool JUCE builds and runs to make the binary data, picks
+      # the flags up as well. Leak checks are off while it runs, so a leak in
+      # JUCE's own tool cannot fail the build. They are on for pluginval below.
+      - name: Configure
+        env:
+          CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+          LDFLAGS: -fsanitize=address,undefined
+          ASAN_OPTIONS: detect_leaks=0
+        run: >
+          cmake -B build-san-vst3
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
+
+      - name: Build
+        env:
+          ASAN_OPTIONS: detect_leaks=0
+        run: cmake --build build-san-vst3 --parallel 2 --target Overtonium_VST3
+
+      - name: Fetch pluginval
+        run: bash .github/scripts/fetch_pluginval.sh
+
+      # Twice, with the seed the build job pins and with one nobody chose.
+      #
+      # pluginval itself is not instrumented, so the sanitizer runtime is
+      # preloaded into it alone. The plugin will not load without it. Given to
+      # xvfb-run as well, it would report the leaks in Xvfb and xauth and stop
+      # before pluginval starts.
+      - name: Validate the sanitized VST3
+        run: |
+          vst3=build-san-vst3/Overtonium_artefacts/RelWithDebInfo/VST3/Overtonium.vst3
+          asan=$(gcc -print-file-name=libasan.so)
+
+          # The exit status of each pass is pluginval's, not tee's, so a
+          # failed test or a plugin that will not load fails the step. A
+          # crash after SUCCESS passes with a warning, as in the build job,
+          # and the next step still fails on anything the sanitizers saw.
+          failed=0
+
+          for seed in 0x63cc70f 0; do
+            echo "random seed: $seed"
+
+            set +e
+            xvfb-run -a env LD_PRELOAD="$asan" \
+              ASAN_OPTIONS=detect_leaks=1:detect_stack_use_after_return=1 \
+              UBSAN_OPTIONS=print_stacktrace=1 \
+              ./pluginval --strictness-level 8 --random-seed "$seed" \
+                --validate "$vst3" 2>&1 | tee pass.log
+            status=${PIPESTATUS[0]}
+            set -e
+
+            cat pass.log >> pluginval-sanitized.log
+
+            if [ "$status" -ne 0 ]; then
+              if grep -qx "SUCCESS" pass.log &&
+                ! grep -qE '^!!! Test |\*\*\* FAILED|^FAILURE|tests failed' \
+                  pass.log; then
+                echo "::warning::pluginval passed every test with seed $seed and then exited with $status while shutting down."
+              else
+                echo "::error::pluginval failed with seed $seed (exit $status)"
+                failed=1
+              fi
+            fi
+          done
+
+          exit "$failed"
+
+      # The log as well as the exit status, since UBSan reports and carries on.
+      - name: Fail on anything the sanitizers reported
+        run: |
+          if grep -nE "runtime error:|ERROR: AddressSanitizer|ERROR: LeakSanitizer|SUMMARY: (Address|Undefined)" pluginval-sanitized.log; then
+            echo "::error::the sanitizers reported the lines above"
+            exit 1
+          fi
+
+          echo "clean"
+
   dsp-core:
     name: DSP core, no build system
     runs-on: ubuntu-latest
@@ -473,14 +605,24 @@ jobs:
 
     # The README claims the DSP core has no JUCE dependency and compiles from a
     # bare compiler. That is worth holding to, so it is checked rather than
-    # asserted: no CMake, no JUCE, no third-party headers.
+    # asserted: no CMake, no JUCE, no third-party headers. The library it uses
+    # is plain C++17 too, and is compiled here with it.
     steps:
       - uses: actions/checkout@v7
 
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
+
       - name: Compile and run
+        env:
+          CORE: ${{ steps.core.outputs.path }}
         run: |
           c++ -std=c++17 -O2 -Wall -Wextra -Werror \
-            -I Source Tests/dsp_test.cpp Source/dsp/*.cpp -o dsp_test
+            -I Source -I "$CORE/include" \
+            Tests/dsp_test.cpp Source/dsp/*.cpp "$CORE"/src/dsp/*.cpp -o dsp_test
           ./dsp_test
 
       # The other half of compiling somewhere else, and the half no compiler
@@ -518,98 +660,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Every block parses, and the version agrees with CMakeLists
-        run: |
-          python3 - <<'PY'
-          import json
-          import re
-          import sys
-          from pathlib import Path
-
-          project = re.search(
-              r"^project\(Overtonium VERSION ([0-9.]+)",
-              Path("CMakeLists.txt").read_text(encoding="utf-8"), re.M).group(1)
-
-          failed = []
-          versions = []
-          nodes = {}
-
-          # CITATION.cff is the other place a version is written down, and the
-          # one nothing was watching: it sat three releases behind before
-          # anybody looked. Read as text rather than parsed, so this needs no
-          # YAML library on the runner.
-          citation = Path("CITATION.cff").read_text(encoding="utf-8")
-          stated = re.search(r"^version: *(\S+)", citation, re.M)
-
-          if stated is None:
-              print("::error::CITATION.cff states no version")
-              failed.append("CITATION.cff")
-          else:
-              print(f"CMakeLists says {project}, CITATION.cff says {stated.group(1)}")
-
-              if stated.group(1) != project:
-                  print(f"::error::CITATION.cff claims {stated.group(1)}, "
-                        f"CMakeLists says {project}. Bump both together.")
-                  failed.append("CITATION.cff")
-
-          for path in sorted(Path("docs").rglob("*.html")):
-              html = path.read_text(encoding="utf-8")
-
-              for i, block in enumerate(re.finditer(
-                      r'<script type="application/ld\+json">(.*?)</script>',
-                      html, re.S)):
-                  try:
-                      data = json.loads(block.group(1))
-                  except ValueError as e:
-                      failed.append(f"{path} block {i} is not valid JSON: {e}")
-                      continue
-
-                  if not isinstance(data, dict):
-                      continue
-
-                  if "softwareVersion" in data:
-                      versions.append((path, data["softwareVersion"]))
-
-                  if "@id" in data:
-                      nodes.setdefault(data["@id"], []).append((path, data))
-
-          for problem in failed:
-              print(f"::error::{problem}")
-
-          if not versions:
-              print("::error::no block declares softwareVersion")
-              failed.append("missing version")
-
-          for path, version in versions:
-              print(f"CMakeLists says {project}, {path} says {version}")
-
-              if version != project:
-                  print(f"::error::{path} claims {version}, CMakeLists says "
-                        f"{project}. Bump both together.")
-                  failed.append(str(path))
-
-          # Blocks sharing an @id describe one thing, so anything reading them
-          # together gets whatever they disagree about. Two pages here already
-          # claimed a different version and release date for the same product,
-          # which is how this half earned its place.
-          for node, claims in sorted(nodes.items()):
-              fields = {k for _, block in claims for k in block}
-
-              for field in sorted(fields):
-                  seen = {}
-
-                  for path, block in claims:
-                      if field in block:
-                          seen.setdefault(json.dumps(block[field], sort_keys=True),
-                                          []).append(str(path))
-
-                  if len(seen) > 1:
-                      print(f"::error::{node} disagrees about {field}: " +
-                            "; ".join(f"{value} in {' and '.join(where)}"
-                                      for value, where in sorted(seen.items())))
-                      failed.append(node)
-
-          sys.exit(1 if failed else 0)
-          PY
+        run: python3 .github/scripts/structured_data.py
 
   counts:
     name: Counts in the docs
@@ -647,157 +698,7 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: The docs count what the source counts
-        run: |
-          python3 - <<'PY'
-          import re
-          import sys
-          from pathlib import Path
-
-          table = re.search(r"const char \*const kNames\[\] = \{(.*?)\n\};",
-                            Path("Source/Presets.cpp").read_text(), re.S)
-
-          if table is None:
-              print("::error::cannot find kNames in Source/Presets.cpp")
-              sys.exit(1)
-
-          presets = len(re.findall(r'^    "[^"]+",$', table.group(1), re.M))
-          clips = len(list(Path("docs/audio").glob("*.flac")))
-
-          print(f"kNames holds {presets} presets, docs/audio holds {clips} clips")
-
-          sums = re.search(r"const int expected =\s*(.*?);",
-                           Path("Tests/plugin_runtime_test.cpp").read_text(), re.S)
-
-          if sums is None:
-              print("::error::cannot find the expected parameter count in "
-                    "Tests/plugin_runtime_test.cpp")
-              sys.exit(1)
-
-          constants = {}
-
-          for header in Path("Source").rglob("*.h"):
-              for name, value in re.findall(
-                      r"inline constexpr int (\w+) = (\d+);", header.read_text()):
-                  constants[name] = value
-
-          def constant(m):
-              if m.group(1) not in constants:
-                  print(f"::error::cannot find {m.group(1)} in Source")
-                  sys.exit(1)
-              return constants[m.group(1)]
-
-          arithmetic = re.sub(r"(?:\w+::)*(k\w+)", constant, sums.group(1))
-
-          if not re.fullmatch(r"[\d\s+*()]+", arithmetic):
-              print(f"::error::cannot read the parameter count from "
-                    f"\"{sums.group(1)}\"")
-              sys.exit(1)
-
-          # Joined onto one line first: clang-format wraps a long sum, and a
-          # newline in the middle of one is a syntax error to eval.
-          parameters = eval(" ".join(arithmetic.split()))
-
-          print(f"the runtime test expects {parameters} parameters")
-
-          ones = ["zero", "one", "two", "three", "four", "five", "six", "seven",
-                  "eight", "nine", "ten", "eleven", "twelve", "thirteen",
-                  "fourteen", "fifteen", "sixteen", "seventeen", "eighteen",
-                  "nineteen"]
-          tens = ["", "", "twenty", "thirty", "forty", "fifty", "sixty",
-                  "seventy", "eighty", "ninety"]
-
-          def spelt(n):
-              if n < 20:
-                  return ones[n]
-              ten, one = divmod(n, 10)
-              return tens[ten] + (f"-{ones[one]}" if one else "")
-
-          numbers = {spelt(n) for n in range(1, 100)}
-          numbers |= {str(n) for n in range(1, 100)}
-
-          # What each count is written in front of. Broad on purpose where the
-          # noun is unambiguous, since a word that is not a number is ignored
-          # and a wide pattern therefore cannot invent a failure. Narrow where
-          # it is not: "clips" means the preset clips in one sentence and every
-          # audio file on the site in another, and both are right.
-          checks = [
-              (r"([\w-]+)\s+factory patches", presets),
-              (r"([\w-]+)\s+factory presets", presets),
-              (r"([\w-]+)\s+presets", presets),
-              (r"([\w-]+)\s+that ship", presets),
-              (r"([\w-]+)\s+clips meant to be browsed", presets),
-              (r"across all ([\w-]+) clips", clips),
-          ]
-
-          files = sorted(Path(".").glob("*.md"))
-          files += sorted(p for p in Path("docs").rglob("*.html")
-                          if "releases" not in p.parts)
-          # llms-full.txt is left out for the reason the releases page is: it
-          # carries that page's text, every count in it true of its release.
-          # The rest of it is the other pages, which are checked above.
-          files += sorted(p for p in Path("docs").glob("*.txt")
-                          if p.name != "llms-full.txt")
-
-          failed = []
-
-          for path in files:
-              text = path.read_text(encoding="utf-8")
-
-              # Tags out first, so a count and its noun that have a link
-              # between them still read as neighbours. "the thirty-one
-              # <a href="presets/">factory presets</a>" was two releases stale
-              # on the front page and on the controls page, and this check
-              # walked past it twice, because \s+ cannot cross an anchor.
-              #
-              # Each tag becomes the newlines it held, or a space if none, so
-              # the line an error names is the line in the file.
-              text = re.sub(r"<[^>]+>", lambda m: "\n" * m.group(0).count("\n") or " ", text)
-
-              for pattern, expected in checks:
-                  want = spelt(expected)
-
-                  for m in re.finditer(pattern, text):
-                      said = m.group(1).lower()
-
-                      if said not in numbers or said in (want, str(expected)):
-                          continue
-
-                      line = text[:m.start()].count("\n") + 1
-                      print(f"::error file={path},line={line}::"
-                            f"{path}:{line} says \"{m.group(0)}\", and there "
-                            f"are {expected} ({want})")
-                      failed.append(str(path))
-
-          def spelt_hundreds(n):
-              hundreds, rest = divmod(n, 100)
-              return f"{ones[hundreds]} hundred" + (f" and {spelt(rest)}" if rest else "")
-
-          said_parameters = [
-              (r"\b(\d{3,4})\s+(?:host\s+)?parameters\b", str(parameters)),
-              (r"\b([a-z]+ hundred(?: and [a-z-]+)?)\s+(?:host\s+)?parameters\b",
-               spelt_hundreds(parameters)),
-          ]
-
-          for path in files:
-              text = re.sub(r"<[^>]+>", lambda m: "\n" * m.group(0).count("\n") or " ",
-                            path.read_text(encoding="utf-8"))
-
-              for pattern, want in said_parameters:
-                  for m in re.finditer(pattern, text, re.I):
-                      if m.group(1).lower() == want:
-                          continue
-
-                      line = text[:m.start()].count("\n") + 1
-                      print(f"::error file={path},line={line}::"
-                            f"{path}:{line} says \"{m.group(0)}\", and there "
-                            f"are {parameters} ({want})")
-                      failed.append(str(path))
-
-          if failed:
-              sys.exit(1)
-
-          print(f"every counted noun agrees, across {len(files)} files")
-          PY
+        run: python3 .github/scripts/doc_counts.py
 
       # The other half of the same idea. Every <img> carries a width and a
       # height so the browser can reserve the space before the bytes arrive,

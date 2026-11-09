@@ -1,10 +1,10 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-31
+Last changed: 2026-11-04
 
 # Overtonium controls
 
-Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-three controls. That is seven hundred and thirty-six of them before the bar is counted, so much of the design is about not having to move them one at a time.
+Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-four controls. That is seven hundred and sixty-eight of them before the bar is counted, so much of the design is about not having to move them one at a time.
 
 This page covers the mixer. The bar across the top, from the oscillator character to the output stage, is covered on [Effects](https://benjamindehli.github.io/overtonium/effects/). Playing the instrument from a keyboard, a host or a controller is covered on [Playing](https://benjamindehli.github.io/overtonium/playing/).
 
@@ -13,6 +13,8 @@ This page covers the mixer. The bar across the top, from the oscillator characte
 [Image: A close view of the first six channels, showing the row captions in the gutter with the pointer tool button above them, and the interval colour of each channel.]
 
 Six channels and the caption gutter. Each row is named once on the left instead of on every strip.
+
+Hold the pointer over a row's name in the gutter to see what the row does. The table below says the same at more length.
 
 | Control                         | Range                                                                    | What it does                                                                                                                                                                                                                                                                                                                     |
 | ------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -23,10 +25,11 @@ Six channels and the caption gutter. Each row is named once on the left instead 
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial                                                                                                                                                                                                                                 |
 | KEY OFF swell, level, release   | 0 to 5 s, 0 to 100%, 1 ms to 20 s                                        | A second envelope that runs when the key is released                                                                                                                                                                                                                                                                             |
 | AMP MOD shape, rate, depth      | Seven shapes, 0.01 to 30 Hz, 0 to 100%                                   | Per-partial tremolo                                                                                                                                                                                                                                                                                                              |
-| VELOCITY                        | -100 to +100%                                                            | How much key velocity scales this partial. Negative inverts it                                                                                                                                                                                                                                                                   |
+| VELOCITY                        | -100 to +100%                                                            | How much key velocity scales this partial. Negative inverts it. The dB switch beside the caption picks the curve                                                                                                                                                                                                                 |
+| KEYBOARD                        | -200 to +200%                                                            | How the level follows the key played. Up to 100% it tilts around middle C, and past 100% the turn moves away from middle C                                                                                                                                                                                                       |
 | AFTERTOUCH                      | -100 to +100%                                                            | How much key pressure moves this partial. Negative fades it out                                                                                                                                                                                                                                                                  |
 | PAN                             | hard left to hard right                                                  | Equal power, so the level stays the same as the partial moves across the stereo field                                                                                                                                                                                                                                            |
-| M and S                         |                                                                          | Mute overrides solo. Right-click either one to clear every mute or every solo at once                                                                                                                                                                                                                                            |
+| M and S                         |                                                                          | Mute overrides solo. Option-click or Alt-click either one to mute or solo only that channel. Right-click either one for the same, or to clear every mute or every solo at once                                                                                                                                                   |
 | LEVEL                           | -inf to 0 dB                                                             | Fader scaled in decibels, with the meter inside its track                                                                                                                                                                                                                                                                        |
 
 ## What the modulators trace
@@ -46,9 +49,9 @@ Both per-partial modulators have a shape as well as a rate and a depth. You pick
 
 The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard as a click.
 
-LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once.
+LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo.
 
-**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) and Tape Pluck ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
+**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/), Tape Pluck and Soft Trio ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
 Each channel keeps its own rate and shape either way. Sharing gives one modulator per channel, not one for the whole instrument, so a patch built on thirty-two rates that never line up still sounds the same with the switch on. The switch is part of the patch, so a preset saves it. Both switches are off unless a patch turns them on.
 
@@ -60,9 +63,25 @@ Because velocity is set per partial, a soft note can have a different timbre, no
 
 Both controls go either side of zero. A positive amount makes harder or heavier playing louder. A negative amount inverts that, so the partial is loudest when you play softly. The two halves mirror each other exactly, so -50% at a given velocity matches +50% at the opposite velocity. The negative half is useful for crossfading. Give one set of partials a positive amount and another set a negative one, and the two timbres swap places across the velocity range instead of one just fading in.
 
+**The dB switch** beside the VELOCITY caption picks how velocity becomes level, for every channel at once. Lit, each step of velocity takes the same number of decibels off. At 100% a medium note is 20 dB down and the softest note 40 dB down, and at 50% each of those is half as much. Dark is the Classic curve, which takes velocity off as a fraction of the level. Even at 100% it leaves a medium note only 6 dB down, and most of what it does happens on the softest notes, so it only starts to sound like much near the top of the knob.
+
+Patches made before the switch existed keep Classic, so a saved project and a saved preset sound as they did. The factory presets use dB. Clicking the switch converts every channel's amount with it, so a medium note keeps its level and only the soft and loud ends move. Classic at 100% becomes about 30% on dB. Both the switch and the conversion are a single step to undo.
+
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity. A strip with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
 
 By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings.
+
+## Following the keyboard, per partial
+
+KEYBOARD turns a partial down depending on which key is played, so a patch can be voiced across the keyboard the way an organ builder voices a stop: a fundamental that is weaker in the bass, bell partials only on the top keys, or the noise only in one range. It only ever turns a key down, so a partial is never louder than its fader. At zero, the default, it does nothing.
+
+Up to 100% either way it tilts around middle C, which it never changes. A positive amount turns down the keys below middle C and a negative one the keys above it. At 100% the slope is 24 dB per octave. The knob is shaped so the gentle slopes get most of its travel: 50% is 6 dB per octave and 25% is 1.5.
+
+**Past 100% the slope stays at 24 dB per octave and the turn moves** away from middle C, an octave for every 20%. A positive amount moves it up, so only the treble is left, and at 200% it is at C9, near the top of the MIDI range. A negative amount moves it down, and at -200% it is at C-1, the bottom. Turning the knob further from zero always turns more of the keyboard down, so a macro, LINK or automation moving it does more of the same all the way. A moved turn always comes with the steepest slope, which makes a near split, with a partial fading out over a few keys.
+
+The readout under the knob gives the slope and the key the fade starts from, such as "6.0 dB/oct below C4" or "24 dB/oct above F#1". Middle C is C4.
+
+It reads the key number, not the pitch, so pitch bend, TUNE, the temperament and drift leave the level alone. When a glide carries a note to a new key, the level follows the note as it slides. It also scales what AFTERTOUCH adds, so pressure cannot bring a partial back on keys the row has faded it out of. TRACK in the bar does a different job: it dulls the top of every partial alike, by frequency. KEYBOARD is set per channel and can go either way.
 
 ## The two-part envelope
 
@@ -132,7 +151,9 @@ LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulati
 
 **Hovering over a strip** shows the partial it belongs to: the harmonic number, the interval that harmonic makes with the fundamental, how many semitones above the played note its tempered position is, and how far the exact ratio is from that in cents. It is that channel's row in [the table of the series](https://benjamindehli.github.io/overtonium/tuning/), shown in the mixer. The mute and solo buttons show which harmonic they would silence.
 
-**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click clears every mute or every solo at once instead.
+**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click offers to mute or solo only that channel, or to clear every mute or every solo at once, instead.
+
+**Option-click or Alt-click** on M or S mutes or solos only that channel, and turns the switch off on every other channel, the noise channel included. Doing it again on the channel that is already alone turns it off, so the same click goes in and out of hearing one partial. Either way it is a single step to undo.
 
 ## Reading the mixer
 
@@ -144,15 +165,15 @@ Each channel shows two figures: the cents set by its tuning knob and the level o
 
 Each of the rules that divide a strip into groups has a lamp. It shows what the group below it is doing to this partial at that moment.
 
-| Rule      | Shows                                                                                                                                                           |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PITCH MOD | a needle on a track, flat to the left and sharp to the right, showing where modulation, drift and any glide still in progress have put the partial              |
-| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                                                   |
-| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                                               |
-| AMP MOD   | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth                                               |
-| OUTPUT    | two lamps side by side, one for each row below it: the left shows how much of the partial velocity has left, the right shows what pressure on the key is adding |
+| Rule      | Shows                                                                                                                                                                                                                                      |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| PITCH MOD | a needle on a track, flat to the left and sharp to the right, showing where modulation, drift and any glide still in progress have put the partial                                                                                         |
+| ENVELOPE  | how far up its envelope the partial is, while the key is down                                                                                                                                                                              |
+| KEY OFF   | the same, once the key is up and the key-off stage has taken over                                                                                                                                                                          |
+| AMP MOD   | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth                                                                                                                          |
+| OUTPUT    | one long lamp in three parts, one for each row below it: the left shows how much of the partial velocity has left, the middle how much the keyboard row has left on the key being played, and the right what pressure on the key is adding |
 
-The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has two lamps, one for each row below it, and each has the shape of the knob above it. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
+The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has one long lamp in three parts, one for each row below it and in the same order. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. KEYBOARD reads the same way, for the key being played, and follows a glide across. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
 
 ### Meters
 
@@ -172,7 +193,7 @@ Clicking a section heading in the caption gutter folds that group of rows away o
 
 ## The noise channel
 
-A noise channel marked NZ sits on the right, after the series. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
+A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
 
 COLOUR tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is fully flat, not just less filtered. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
 

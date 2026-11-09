@@ -8,9 +8,13 @@ There are three layers, and the boundary between the first two is the important 
 
 **A DSP core with no JUCE in it.** Everything under `Source/dsp/` compiles from a bare compiler with no framework and no third-party headers. A CI job checks this. It builds the core with `c++ -std=c++17 -Wall -Wextra -Werror` and runs its tests, so an accidental `#include <juce_core/...>` fails the build. This means the part that does the arithmetic can be tested without a plugin host, a display or a build system.
 
-**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 850 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the forty-one factory patches.
+**A JUCE layer** that owns parameters, MIDI, state and the editor. `PluginProcessor` handles notes and rendering, `PluginParameters` declares the 884 parameters and flattens them into a plain snapshot the audio thread can read, and `Presets` holds the forty-four factory patches.
 
 **A UI layer** under `Source/UI/`, which draws the mixer and knows nothing about how sound is made.
+
+The output stage is not in this repository. The eight machines at the end of the signal chain, with Console and Cassette among them, and the small filters the effects share, are in [dehli-musikk-plugin-core](https://github.com/benjamindehli/dehli-musikk-plugin-core), the library the Dehli Musikk plugins share. It is plain C++17 with no dependencies, so the DSP core still compiles from a bare compiler with it. CMakeLists.txt pins it by commit and checks the archive's hash, as it does JUCE.
+
+The look is shared the same way. The look and feel, the knobs, the lamp buttons, the segment readouts, the meters, the paint cache, the grain and the palette are in the library's `dm_gui` JUCE module, which each plugin compiles with its own JUCE settings. `Source/UI/Theme.h` brings them into `ovt::ui` under the names the editor uses.
 
 ## Threading
 
@@ -32,7 +36,6 @@ packaging/
   windows/            Inno Setup script for the installer .exe
 Resources/
   logo.png            the overtonium wordmark, compiled into the binary
-  dehli-musikk.svg    the maker's logo, vector since it is drawn small
   icon.png            the standalone build's program icon, 1024 square
 Source/
   dsp/            JUCE-free DSP core, unit tested standalone
@@ -47,11 +50,15 @@ Source/
     Envelope.h      per-partial delay, ADSR and the two-stage key-off
     Velocity.h      what key velocity does to the fader, the attack and the
                     delay
+    Keyboard.h      what the KEYBOARD row does to a partial's level across
+                    the keyboard
     Params.h        plain-data parameter snapshot
     Exact.h         exact equality, for comparisons meant to be exact
     Voice.*         32 partials, one note
     Halfband.h      the half-band filter the drive oversamples through
+    DelayLine.h     the interpolated read the echoes, the room and the wobble share
     BusDrive.*      the drive each character puts on the summed mix
+    Echo.h          the settings and tail length the three echoes share
     TapeEcho.*      the master echo as a tape loop
     BucketEcho.*    the same as a bucket-brigade delay
     DigitalEcho.*   the same as a ping-pong digital delay
@@ -62,25 +69,23 @@ Source/
                     resonator's 88
     SympatheticStrings.*  the resonator: 88 sympathetic strings, before the bus drive
     Wobble.*        a warped-record wobble on the whole instrument
-    OutputStage.*   the eight machines at the end of the signal chain
-    Cassette.*      the cassette machine's Dolby, record side, tape and transport
-    Console.*       the console machine's transformer, compressor and tape stage
     SynthEngine.*   voice pool, allocation, stealing, effects, master stage
     AdaptiveSnapshot.h  Adaptive's result for the held chord, and the
                     triple buffer that hands it to the editor
-  PluginParameters.*  APVTS layout, 850 parameters, and the audio-thread snapshot
+  PluginParameters.*  APVTS layout, 884 parameters, and the audio-thread snapshot
   Presets.*           factory presets
   MidiLearn.*         which controller moves which control
   PluginProcessor.*   MIDI handling, sample-accurate rendering, state
   PluginEditor.*      window, zoom, LINK, gutter
   UpdateCheck.*       the opt-in check for a new version, in the background,
                       and the settings file its answer is kept in
-  UI/                 theme, look and feel, channel and noise strips, top bar,
-                      the Playing and Tuning bars, the Settings lists both
-                      share, macro panel
+  UI/                 Overtonium's colours, rows and layout, channel and noise
+                      strips, top bar, the Playing and Tuning bars, the
+                      Settings lists both share, macro panel
     Notice.*          the in-window dialog the update question and a new
                       release are shown in
-    PaintCache.h      the last two looks of a control, kept as pictures
+    StripColumn.*     what the channel strips and the noise strip share: rows,
+                      scroll, folding, hover, the drawn fader and solo dimming
 Tests/
   dsp_test.cpp            standalone DSP tests and CPU benchmark
   plugin_runtime_test.cpp headless plugin integration tests
@@ -133,4 +138,4 @@ The factory presets are generated C++ rather than data files, converted from pat
 
 ## Formats
 
-`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which format it is running in, with one deliberate exception. `getNumPrograms` reports the forty-one factory presets to the Audio Unit alone, because Logic reads its preset menu from there. A program count above one would make the VST3 wrapper publish an automatable parameter that rewrites every other parameter when it moves.
+`juce_add_plugin` builds VST3 and standalone everywhere, an Audio Unit on macOS and LV2 on Linux. Most of the plugin does not know which format it is running in, with one deliberate exception. `getNumPrograms` reports the forty-four factory presets to the Audio Unit alone, because Logic reads its preset menu from there. A program count above one would make the VST3 wrapper publish an automatable parameter that rewrites every other parameter when it moves.

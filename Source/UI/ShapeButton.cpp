@@ -1,6 +1,9 @@
 #include "ShapeButton.h"
+#include "SettingsMenus.h"
 
 #include <cstring>
+#include <iterator>
+#include <vector>
 
 #include "LookAndFeel.h"
 #include "Theme.h"
@@ -19,6 +22,9 @@ constexpr float kRandomPoints[] = {-0.6f, 0.35f, -0.15f, 0.8f, -0.45f};
 /// Menu ids well past any shape's index, so they cannot clash.
 constexpr int kEveryChannel = 1000;
 constexpr int kInPhase = 1001;
+
+/// The first id of the "Set every channel to" submenu, one per shape after it.
+constexpr int kEveryChannelTo = 2000;
 } // namespace
 
 void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
@@ -125,17 +131,12 @@ ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
 
   if (auto *param = apvts.getParameter(id))
     attachment = std::make_unique<juce::ParameterAttachment>(
-        *param, [this](float) { repaint(); }, apvts.undoManager);
+        *param, [this](float) { repaint(); });
 }
 
 int ShapeButton::selectedIndex() const {
-  auto *param = apvts.getParameter(id);
-  if (param == nullptr)
-    return 0;
-
-  return juce::jlimit(
-      0, (int)offered.size() - 1,
-      juce::roundToInt(param->convertFrom0to1(param->getValue())));
+  return juce::jlimit(0, (int)offered.size() - 1,
+                      settings::choiceIndex(apvts, id));
 }
 
 LfoShape ShapeButton::selectedShape() const {
@@ -176,9 +177,18 @@ juce::PopupMenu ShapeButton::buildMenu() const {
   for (int i = 0; i < names.size(); ++i)
     m.addItem(i + 1, names[i], true, i == current);
 
-  // LINK cannot reach this control, so the menu sets every channel instead.
+  // LINK cannot reach this control, so the menu sets every channel instead,
+  // either to this channel's shape or to any shape without choosing it here
+  // first.
   m.addSeparator();
   m.addItem(kEveryChannel, "Set every channel to this");
+
+  juce::PopupMenu every;
+
+  for (int i = 0; i < names.size(); ++i)
+    every.addItem(kEveryChannelTo + i, names[i]);
+
+  m.addSubMenu("Set every channel to", every);
 
   // Whether this modulator is one circuit the whole keyboard hears or one per
   // note.
@@ -202,14 +212,8 @@ bool ShapeButton::inPhase() const {
 }
 
 void ShapeButton::setInPhase(bool shouldShare) {
-  auto *param = apvts.getParameter(inPhaseId());
-
-  if (param == nullptr)
-    return;
-
-  param->beginChangeGesture();
-  param->setValueNotifyingHost(shouldShare ? 1.0f : 0.0f);
-  param->endChangeGesture();
+  params::setAsOneStep(apvts.getParameter(inPhaseId()),
+                       shouldShare ? 1.0f : 0.0f);
 }
 
 void ShapeButton::mouseEnter(const juce::MouseEvent &) {
@@ -223,22 +227,21 @@ void ShapeButton::mouseExit(const juce::MouseEvent &) {
 }
 
 void ShapeButton::applyToEveryChannel(int index) {
-  const auto set = [this, index](const juce::String &target) {
-    auto *param = apvts.getParameter(target);
-
-    // The noise channel has no pitch modulator, so it is skipped.
-    if (param == nullptr)
-      return;
-
-    param->beginChangeGesture();
-    param->setValueNotifyingHost(param->convertTo0to1((float)index));
-    param->endChangeGesture();
-  };
+  std::vector<juce::RangedAudioParameter *> every;
 
   for (int i = 0; i < kNumHarmonics; ++i)
-    set(params::oscParamId(sharedSuffix, i));
+    every.push_back(apvts.getParameter(params::oscParamId(sharedSuffix, i)));
 
-  set(params::noiseParamId(sharedSuffix));
+  // The noise channel has no pitch modulator, so it is left out there.
+  every.push_back(apvts.getParameter(params::noiseParamId(sharedSuffix)));
+
+  std::vector<params::Move> moves;
+
+  for (auto *param : every)
+    if (param != nullptr)
+      moves.emplace_back(param, param->convertTo0to1((float)index));
+
+  params::moveAsOneStep(moves);
 }
 
 void ShapeButton::mouseDown(const juce::MouseEvent &e) {
@@ -255,20 +258,24 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   m.showMenuAsync(juce::PopupMenu::Options()
                       .withTargetComponent(this)
                       .withStandardItemHeight(22),
-                  [this](int result) {
-                    if (result <= 0)
-                      return;
+                  [this](int result) { chooseFromMenu(result); });
+}
 
-                    if (result == kEveryChannel)
-                      return applyToEveryChannel(selectedIndex());
+void ShapeButton::chooseFromMenu(int result) {
+  if (result <= 0)
+    return;
 
-                    if (result == kInPhase)
-                      return setInPhase(!inPhase());
+  if (result == kEveryChannel)
+    return applyToEveryChannel(selectedIndex());
 
-                    if (attachment != nullptr)
-                      attachment->setValueAsCompleteGesture(
-                          (float)(result - 1));
-                  });
+  if (result == kInPhase)
+    return setInPhase(!inPhase());
+
+  if (result >= kEveryChannelTo && result < kEveryChannelTo + names.size())
+    return applyToEveryChannel(result - kEveryChannelTo);
+
+  if (attachment != nullptr)
+    attachment->setValueAsCompleteGesture((float)(result - 1));
 }
 
 } // namespace ovt::ui

@@ -75,8 +75,9 @@ namespace {
 ///
 /// Each caller builds a PropertiesFile, uses it and lets it go. A
 /// PropertiesFile is a juce::Timer, and holding one in a static deadlocks the
-/// host when the binary unloads. A plugin must not keep anything in a static
-/// that owns a thread or needs the event system to be destroyed.
+/// host when the binary unloads. A plugin keeps nothing in a static, since
+/// the host destroys statics when it unloads the binary, not when the last
+/// instance goes.
 juce::PropertiesFile::Options settingsOptions() {
   juce::PropertiesFile::Options o;
   o.applicationName = "Overtonium";
@@ -197,8 +198,8 @@ void UpdateCheck::run() {
   }
 
   // Taken under the lock, since the message thread may replace it while this
-  // runs. Nothing joins this thread on the way out, so the listener may be
-  // called after whoever set it has gone.
+  // runs. The window that set it can close before this thread is joined, so
+  // the listener may be called after the window has gone, and has to check.
   std::function<void()> callback;
 
   {

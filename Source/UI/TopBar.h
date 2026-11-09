@@ -15,51 +15,6 @@
 #include "Theme.h"
 
 namespace ovt::ui {
-
-/// The stereo output meter: two horizontal segmented bars with a peak hold.
-/// It only repaints when a lamp changes.
-class StereoOutputMeter : public juce::Component {
-public:
-  StereoOutputMeter() { setInterceptsMouseClicks(false, false); }
-
-  /// The strip along the bottom that carries the decibel marks rather than
-  /// any lamps.
-  static constexpr int kScaleHeight = 4;
-
-  /// Where the two bars are, above the scale. The master fader lies over this.
-  juce::Rectangle<int> barBounds() const {
-    return getLocalBounds().withTrimmedBottom(kScaleHeight);
-  }
-
-  /// @param l,r  linear peaks from the audio thread.
-  void push(float l, float r);
-
-  void paint(juce::Graphics &) override;
-
-private:
-  /// How many lamps fit across the meter.
-  int segments() const;
-
-  struct Bar {
-    float displayed = 0.0f;
-    float peak = 0.0f;
-    int hold = 0;
-
-    /// Lamps alight, and the one holding the peak, or -1 when there is none.
-    /// Kept rather than derived so they hold still at a boundary.
-    int lit = 0;
-    int peakLamp = -1;
-
-    /// @returns true when a lamp changed and a repaint is needed.
-    bool advance(float level, int count);
-  };
-
-  void paintBar(juce::Graphics &, juce::Rectangle<float>, const Bar &,
-                int count) const;
-
-  Bar left, right;
-};
-
 /// The bar along the top of the window: presets, the series knobs, the
 /// character, the resonator, the echo, the reverb, the output meter and the
 /// buttons that open the menus, the macro panel and the option bars.
@@ -89,8 +44,8 @@ public:
   /// Lights PLAYING and TUNING while their bars are open.
   void setBarsOpen(bool playing, bool tuning);
 
-  /// Lights MACROS while its panel is up, and says how many are made.
-  void setMacrosOn(bool);
+  /// Says how many macros are made. The lamp lights whenever any are, whether
+  /// or not the panel is up.
   void setMacroCount(int);
 
   void mouseDown(const juce::MouseEvent &) override;
@@ -278,6 +233,16 @@ private:
 
   /// And for the resonator.
   void chooseResonator(int id);
+
+  /// Shows a machine with an on switch and a type on its button: the short
+  /// name lit in the machine's colour, or OFF.
+  static void showMachine(juce::Button &, const juce::String &label,
+                          bool running, const juce::String &name,
+                          const juce::String &shortName, juce::Colour colour);
+
+  /// Opens a menu below a button on the bar and hands back what was picked.
+  void showMenuUnder(juce::Button &, juce::PopupMenu,
+                     std::function<void(int)> chosen);
 
 public:
 private:

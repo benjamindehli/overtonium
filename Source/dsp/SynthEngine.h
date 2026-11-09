@@ -11,7 +11,6 @@
 #include "BucketEcho.h"
 #include "BusDrive.h"
 #include "DigitalEcho.h"
-#include "OutputStage.h"
 #include "PlateReverb.h"
 #include "Reverb.h"
 #include "SpringReverb.h"
@@ -19,6 +18,7 @@
 #include "TapeEcho.h"
 #include "Voice.h"
 #include "Wobble.h"
+#include "dm/dsp/OutputStage.h"
 
 namespace ovt {
 
@@ -48,7 +48,7 @@ public:
   static constexpr int kMaxPolyphony = 16;
   static constexpr int kPoolSize = kMaxPolyphony + 8;
 
-  void prepare(double sampleRate) noexcept;
+  void prepare(double sampleRate);
   void reset() noexcept;
 
   /// The held chord as Adaptive last settled it, for the Tuning bar. Copies it
@@ -90,7 +90,59 @@ public:
   /// release velocity as a gain. See liftFromVelocity.
   void noteOn(int note, float velocity, const SynthParams &p) noexcept;
   void noteOff(int note, float lift = 1.0f) noexcept;
-  void setSustainPedal(bool down) noexcept;
+  void setSustainPedal(bool down) noexcept {
+    setSustainDepth(down ? 1.0f : 0.0f);
+  }
+
+  /// How far down the sustain pedal is, nought to one, for half-pedalling.
+  /// Anything above nought holds a note whose key comes up, and below one it
+  /// fades at a share of its release rate, faster the less the pedal is down.
+  /// Nought lets go of everything it held.
+  void setSustainDepth(float depth) noexcept;
+
+  /// Under MPE, where the parser holds the sustain pedal one zone at a time:
+  /// how far down a zone's pedal is, for these channels, one bit per MIDI
+  /// channel, and which notes it is holding, as the parser marks them.
+  void setZoneSustainDepth(uint32_t channels, float depth) noexcept;
+  void holdByPedal(int channel, int note, float lift) noexcept;
+
+  /// How far down a sustain pedal sending this CC 64 value is. Nought up to
+  /// kPedalUpTo and one from kPedalDownFrom, evenly between. An on/off pedal
+  /// sends 0 and 127, which are up and down exactly as before half-pedalling,
+  /// and a continuous one has an eighth of its travel at each end to rest a
+  /// little off 0 or fall a little short of 127.
+  static constexpr int kPedalUpTo = 16;
+  static constexpr int kPedalDownFrom = 112;
+  static float sustainDepthFor(int value) noexcept {
+    return std::clamp((float)(value - kPedalUpTo) /
+                          (float)(kPedalDownFrom - kPedalUpTo),
+                      0.0f, 1.0f);
+  }
+
+  /// How fast a note the pedal holds fades at a depth, as a share of its
+  /// release rate. Squared, so the pedal's top half keeps a note long and
+  /// the fade only nears the release at the bottom of its travel.
+  static float pedalFadeRate(float depth) noexcept {
+    const auto up = 1.0f - std::clamp(depth, 0.0f, 1.0f);
+    return up * up;
+  }
+
+  /// The middle pedal of a piano. Going down, it catches the keys that are down
+  /// at that moment, not the ones only the sustain pedal is holding, and holds
+  /// those notes once their keys come up, until it comes up itself. Keys
+  /// pressed after it went down are not caught.
+  ///
+  /// When it comes up, a note it was holding passes to the sustain pedal if
+  /// that is down. Under MPE the parser keeps the sustain pedal, one for each
+  /// zone, so `sustainedChannels` says which channels' zones have theirs down,
+  /// one bit per MIDI channel, and releaseHeldBySustain lets go of them later.
+  void setSostenutoPedal(bool down, uint32_t sustainedChannels = 0) noexcept;
+
+  /// Lets go of the notes on these channels that the sustain pedal took over
+  /// from the sostenuto pedal, as their zone's sustain pedal comes up under
+  /// MPE. One bit per MIDI channel.
+  void releaseHeldBySustain(uint32_t channels) noexcept;
+  bool isSostenutoDown() const noexcept { return sostenutoDown; }
 
   /// Routes polyphonic aftertouch to whichever voices are holding that note.
   void setPolyPressure(int note, float pressure) noexcept;
@@ -149,6 +201,28 @@ public:
   /// dampers are up. Public for the tests.
   SympatheticStrings::Plan planStrings(const SynthParams &) const noexcept;
 
+  /// Which side each string should ring back on, after what is driving it.
+  /// Every partial sounding is matched against the string modes it could be
+  /// feeding, and each string takes the side of what feeds it, weighted by
+  /// how much each feeds it and how near it lands. Public for the tests.
+  void panStrings(SympatheticStrings::Plan &,
+                  const SynthParams &) const noexcept;
+
+  /// How close in cents a partial has to come to a string's mode to count
+  /// as feeding it at half weight. Wider than a mode is at a long DECAY, so
+  /// drift and vibrato do not make the side flicker.
+  static constexpr double kPanWidthCents = 5.0;
+
+  /// The string modes a partial is matched against, from the fundamental up.
+  static constexpr int kPanModes = 32;
+
+  /// How often the strings' sides are worked out again.
+  static constexpr double kPanSeconds = 0.02;
+
+  /// How many octaves of root and fifth the resonator's Fifths mode rings,
+  /// from the root's second octave up.
+  static constexpr int kFifthsOctaves = 4;
+
   /// Loudest instance of each partial across the sounding voices, 0..1. The
   /// loudest rather than the sum, so a chord does not pin the display.
   float getPartialLevel(int index0) const noexcept {
@@ -206,6 +280,16 @@ public:
 
   float getNoisePressure() const noexcept {
     return noisePressure.load(std::memory_order_relaxed);
+  }
+
+  /// What the KEYBOARD row leaves of this partial on the key being shown. See
+  /// Voice::getPartialKeyboards.
+  float getPartialKeyboard(int index0) const noexcept {
+    return partialKeyboards[(size_t)index0].load(std::memory_order_relaxed);
+  }
+
+  float getNoiseKeyboard() const noexcept {
+    return noiseKeyboard.load(std::memory_order_relaxed);
   }
 
   /// Peak of the finished output per channel, after master gain and the
@@ -268,6 +352,7 @@ private:
     std::array<float, kNumHarmonics> pitches{};
     std::array<float, kNumHarmonics> velocities{};
     std::array<float, kNumHarmonics> pressures{};
+    std::array<float, kNumHarmonics> keyboards{};
 
     /// Whether any voice has reported this partial yet in this pass. A partial
     /// can sound at a peak of zero, so a peak above zero cannot stand in for
@@ -285,6 +370,7 @@ private:
     float noiseTremolo = 0.0f;
     float noiseVelocity = 0.0f;
     float noisePressure = 0.0f;
+    float noiseKeyboard = 0.0f;
   };
 
   /// Sums every sounding voice into the buffers and takes the meter peaks.
@@ -295,7 +381,8 @@ private:
   void sumChunk(float *left, float *right, int numFrames, const SynthParams &p,
                 Activity &into, const SharedModulation &shared) noexcept;
 
-  /// The noise under FM's and PD's notes, one source for the whole
+  /// The noise under the synthesizer characters' notes (FM, PD, 6581, VCO and
+  /// Combo), one source for the whole
   /// instrument and sized from every voice rendered in this chunk at once.
   /// Part of it follows the sum of the notes' powers, and a fixed share
   /// follows only the loudest note, so the hiss does not build up as keys are
@@ -327,6 +414,24 @@ private:
 
   std::array<Voice, kPoolSize> voices{};
   std::array<bool, kPoolSize> heldBySustain{};
+
+  /// Caught by the sostenuto pedal when it went down, and of those, the ones
+  /// whose keys have since come up, so only the pedal is holding them.
+  std::array<bool, kPoolSize> caughtBySostenuto{};
+  std::array<bool, kPoolSize> heldBySostenuto{};
+
+  /// Held by either pedal rather than by a key. Such a note does not count as
+  /// a key that is down, for a glide or the top line.
+  bool heldByPedal(size_t i) const noexcept {
+    return heldBySustain[i] || heldBySostenuto[i];
+  }
+
+  /// Forgets what the pedals hold on one voice, as it is taken for a new note.
+  void clearPedals(size_t i) noexcept {
+    heldBySustain[i] = false;
+    caughtBySostenuto[i] = false;
+    heldBySostenuto[i] = false;
+  }
 
   // ---- the top line ---------------------------------------------------------
   //
@@ -371,6 +476,8 @@ private:
   /// large enough that a usual host buffer takes one pass.
   static constexpr int kModChunk = 2048;
   static constexpr int kModBoundaries = kModChunk / Voice::kControlBlock + 1;
+  static_assert(Voice::kMaxPowerBlocks >= kModBoundaries,
+                "a voice keeps a power for every block of the longest chunk");
 
   /// One channel's worth after another, the noise channel last, which is why
   /// there are 33 of them and not 32.
@@ -384,7 +491,8 @@ private:
 
   /// One stream for the shared modulators. Only the random shapes draw from
   /// it.
-  Xorshift sharedRandom{0x51ed270fu};
+  static constexpr std::uint32_t kSharedSeed = 0x51ed270fu;
+  Xorshift sharedRandom{kSharedSeed};
 
   /// Where the tonewheel organ's motor is in its turn. One for the whole
   /// instrument, because one motor drives every wheel. See SharedModulation.
@@ -392,7 +500,8 @@ private:
 
   /// The synthesizers' noise: its own stream, the gain each band reached at
   /// the end of the last block, and the low band's two filter stages.
-  Xorshift hissRandom{0x7f4a7c15u};
+  static constexpr std::uint32_t kHissSeed = 0x7f4a7c15u;
+  Xorshift hissRandom{kHissSeed};
   float hissLowGain = 0.0f;
   float hissHighGain = 0.0f;
   float hissFirst = 0.0f;
@@ -485,18 +594,59 @@ private:
   double lastNoteFrequency = 0.0;
   uint64_t ageCounter = 0;
   bool sustainDown = false;
+  bool sostenutoDown = false;
 
-  /// Negative == "snap to target on the next block".
+  /// Samples since the strings' sides were last worked out, and what they
+  /// came to, handed on until the next time. See kPanSeconds.
+  int panClock = 1 << 30;
+  std::array<float, SympatheticStrings::kStrings> lastPan{};
+  std::array<bool, SympatheticStrings::kStrings> lastDriven{};
+
+  /// The chord the resonator's Chord mode holds: which voices' keys belong to
+  /// it, and for each string in it, where its key last sounded, nought until
+  /// a block has seen it. Kept in every mode, so switching to Chord rings the
+  /// last chord played. See rememberChord.
+  std::array<bool, kPoolSize> inChord{};
+  std::array<bool, SympatheticStrings::kStrings> chordStrings{};
+  std::array<double, SympatheticStrings::kStrings> chordHz{};
+
+  /// Whether a key going down now joins the chord, and if it starts a new
+  /// one, puts the keys struck with it in. Called before a voice is chosen.
+  bool joinChord() noexcept;
+
+  /// Puts a voice's key in the chord.
+  void addToChord(size_t voice, int note) noexcept;
+
+  /// Follows the chord's held keys where Adaptive moves them. Once a block.
+  void followChord() noexcept;
+
+  /// Forgets the chord.
+  void forgetChord() noexcept {
+    inChord.fill(false);
+    chordStrings.fill(false);
+    chordHz.fill(0.0);
+  }
+
+  /// How far down the sustain pedal is for each MIDI channel's notes: nought
+  /// for an ordinary keyboard's, which belong to no channel, and one to
+  /// sixteen for MPE notes, set from their zone's pedal.
+  std::array<float, 17> sustainDepth{};
+  float depthFor(const Voice &v) const noexcept {
+    return sustainDepth[(size_t)std::clamp(v.getChannel(), 0, 16)];
+  }
+
   std::array<std::atomic<float>, kNumHarmonics> partialLevels{};
   std::array<std::atomic<float>, kNumHarmonics> partialEnvelopes{};
   std::array<std::atomic<float>, kNumHarmonics> partialTremolos{};
   std::array<std::atomic<float>, kNumHarmonics> partialPitches{};
   std::array<std::atomic<float>, kNumHarmonics> partialVelocities{};
   std::array<std::atomic<float>, kNumHarmonics> partialPressures{};
+  std::array<std::atomic<float>, kNumHarmonics> partialKeyboards{};
   std::atomic<float> noiseLevel{0.0f};
   std::atomic<float> noiseEnvelope{0.0f};
   std::atomic<float> noiseTremolo{0.0f};
   std::atomic<float> noiseVelocity{0.0f};
+  std::atomic<float> noiseKeyboard{0.0f};
   std::atomic<float> noisePressure{0.0f};
   std::atomic<float> outputLevelL{0.0f};
   std::atomic<float> outputLevelR{0.0f};
@@ -512,7 +662,7 @@ private:
   BusDrive busDrive;
 
   /// What the mix runs into on its way out. See OutputStage.
-  OutputStage outputStage;
+  dm::OutputStage outputStage;
   TapeEcho echo;
   BucketEcho bucket;
   DigitalEcho digital;

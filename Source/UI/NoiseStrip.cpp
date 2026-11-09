@@ -2,6 +2,7 @@
 #include "LearnMenu.h"
 
 #include <cmath>
+#include <iterator>
 
 #include "../PluginParameters.h"
 #include "LookAndFeel.h"
@@ -31,17 +32,20 @@ const juce::Colour kNoiseColour{0xff9aa4b0};
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
-    : apvts(state), hover(hoverTarget), popupHost(popupParent),
+    : StripColumn(hoverTarget), apvts(state), popupHost(popupParent),
       colour(kNoiseColour),
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames()),
-      muteButton(state, "M"), soloButton(state, "S"), meter(kNoiseColour),
-      envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour), velocityLamp(kNoiseColour),
-      pressureLamp(kNoiseColour) {
-  for (auto *lamp :
-       {&envLamp, &keyOffLamp, &tremoloLamp, &velocityLamp, &pressureLamp})
+      muteButton(state, "M", params::noiseParamId(params::muteSuffix),
+                 params::muteSuffix),
+      soloButton(state, "S", params::noiseParamId(params::soloSuffix),
+                 params::soloSuffix),
+      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
+      tremoloLamp(kNoiseColour), outputLamp(kNoiseColour) {
+  addAndMakeVisible(outputLamp);
+
+  for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
     addAndMakeVisible(*lamp);
 
   addMouseListener(this, true);
@@ -75,6 +79,10 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
   setUpKnob(velocity, params::velSuffix, colour,
             "How much key velocity scales the noise. Negative inverts it.");
+  setUpKnob(keyboard, params::keySuffix, colour,
+            "How the noise follows the key played. Up to 100% it tilts around "
+            "middle C, up to 24 dB per octave. Past 100% the turn moves away "
+            "from middle C, an octave for every 20%.");
   setUpKnob(aftertouch, params::atSuffix, colour,
             "How much key pressure moves the noise. Negative fades it out.");
 
@@ -98,8 +106,13 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
             "ones.",
             "Noise string point");
 
+  // Over the knobs, as resized keeps it.
+  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
+  addAndMakeVisible(headerCap);
+
   strike.getProperties().set("bipolar", true);
   velocity.getProperties().set("bipolar", true);
+  keyboard.getProperties().set("bipolar", true);
   aftertouch.getProperties().set("bipolar", true);
   pan.getProperties().set("bipolar", true);
 
@@ -121,8 +134,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   // The lamp colours. See GlowButton.
   muteButton.setColour(juce::TextButton::textColourOnId, colours::muteOn);
   soloButton.setColour(juce::TextButton::textColourOnId, colours::soloOn);
-  muteButton.setTooltip("Mute the noise channel");
-  soloButton.setTooltip("Solo the noise channel");
+  muteButton.setTooltip("Mute the noise channel. " + muteButton.onlyThisHint());
+  soloButton.setTooltip("Solo the noise channel. " + soloButton.onlyThisHint());
   muteButton.setTitle("Noise mute");
   soloButton.setTitle("Noise solo");
   // One moulding around the pair, each half lighting on its own.
@@ -152,8 +165,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   volume.onValueChange = [this] { updateLevelReadout(); };
   updateLevelReadout();
 
-  setTooltip("Noise channel. Same envelope, tremolo, velocity and aftertouch "
-             "as a partial, and a string it can strike, tuned to the note.");
+  setTooltip("Noise channel. Same envelope, tremolo, velocity, keyboard and "
+             "aftertouch as a partial, and a string it can strike, tuned to "
+             "the note.");
 }
 
 void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
@@ -174,9 +188,6 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   s.setDescription(tooltip);
   addAndMakeVisible(s);
 
-  headerCap.onPaint = [this](juce::Graphics &g) { paintHeaderBand(g); };
-  addAndMakeVisible(headerCap);
-
   const auto id = params::noiseParamId(suffix);
   sliderAttachments.push_back(std::make_unique<SliderAttachment>(apvts, id, s));
   learn::tag(s, id);
@@ -184,58 +195,6 @@ void NoiseStrip::setUpKnob(juce::Slider &s, const char *suffix,
   if (auto *p = apvts.getParameter(id))
     s.setDoubleClickReturnValue(
         true, (double)p->convertFrom0to1(p->getDefaultValue()));
-}
-
-void NoiseStrip::setCollapsedSections(SectionMask mask) {
-  if (mask == collapsed)
-    return;
-
-  collapsed = mask;
-
-  if (rowIsCollapsed(highlighted, collapsed))
-    highlighted = kNoRow;
-
-  resized();
-  repaint();
-}
-
-void NoiseStrip::setScroll(int s) {
-  if (s == scroll)
-    return;
-
-  scroll = s;
-  resized();
-  repaint();
-}
-
-void NoiseStrip::setSilencedByOthers(bool shouldDim) {
-  if (silenced == shouldDim)
-    return;
-
-  silenced = shouldDim;
-
-  // Greys the controls rather than washing the whole strip, so the mute and
-  // solo stay readable.
-  std::function<void(juce::Component &)> drain = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      // Not the mute and solo pair.
-      if (dynamic_cast<MuteSoloButton *>(child) != nullptr)
-        continue;
-
-      // Sliders and the waveform displays, which carry colour of their own.
-      if (dynamic_cast<juce::Slider *>(child) != nullptr ||
-          dynamic_cast<ShapeButton *>(child) != nullptr) {
-        child->getProperties().set("unlit", silenced);
-        child->repaint();
-      }
-
-      drain(*child);
-    }
-  };
-
-  drain(*this);
-
-  repaint();
 }
 
 void NoiseStrip::setDrawGlow(bool on) {
@@ -247,19 +206,6 @@ void NoiseStrip::setDrawGlow(bool on) {
   volume.getProperties().set("linkGlow", on ? 1.0 : 0.0);
   volume.getProperties().set("glowAccent", on);
   volume.repaint();
-}
-
-void NoiseStrip::drawFaderAt(int y) {
-  const auto track = volume.getBounds();
-
-  if (track.getHeight() <= 1)
-    return;
-
-  const auto fromTop = juce::jlimit(
-      0.0, 1.0, (double)(y - track.getY()) / (double)track.getHeight());
-
-  volume.setValue(volume.proportionOfLengthToValue(1.0 - fromTop),
-                  juce::sendNotificationSync);
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
@@ -295,84 +241,8 @@ void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
     onSectionToggled(section);
 }
 
-void NoiseStrip::clearHover() {
-  // Held until the pointer moves again, since the exit a menu sends still
-  // carries a position inside this strip.
-  hoverSuppressed = true;
-
-  hover.hoverChanged(-1, kNoRow);
-
-  if (hovered) {
-    hovered = false;
-    repaint();
-  }
-}
-
 // Only a real move or entry ends a suppression. See clearHover.
-void NoiseStrip::mouseEnter(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-}
-
-void NoiseStrip::mouseMove(const juce::MouseEvent &e) {
-  hoverSuppressed = false;
-  reportHover(e);
-
-  // The pointing hand over a rule that folds, as on the gutter's headings.
-  if (e.originalComponent == this) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    setMouseCursor(headingSectionAt(rows, e.getPosition()) !=
-                           Section::NumSections
-                       ? juce::MouseCursor::PointingHandCursor
-                       : juce::MouseCursor::ParentCursor);
-  }
-}
 void NoiseStrip::mouseExit(const juce::MouseEvent &e) { reportHover(e); }
-
-void NoiseStrip::reportHover(const juce::MouseEvent &e) {
-  const auto p = e.getEventRelativeTo(this).getPosition();
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-  const auto inside = getLocalBounds().contains(p) && !hoverSuppressed;
-
-  // -1 says the pointer is off the harmonic series, so no LINK preview.
-  const auto row = inside ? ChannelStrip::rowUnder(rows, p) : kNoRow;
-  hover.hoverChanged(-1, ownRow(row) ? kNoRow : row);
-
-  if (inside != hovered) {
-    hovered = inside;
-    repaint();
-  }
-}
-
-void NoiseStrip::paintOverChildren(juce::Graphics &g) {
-  // A heading's wash goes over the children, since the activity lamps fill
-  // their rows with an opaque backdrop.
-  if (rowShowsHighlight(highlighted) && isHeadingRow(highlighted) &&
-      !ownRow(highlighted)) {
-    const auto rows = layoutRows(
-        getLocalBounds().reduced(kStripPadX, kStripPadY), collapsed, scroll);
-
-    paintRowHighlight(g, rows[rowIndex(highlighted)]);
-  }
-
-  if (hovered)
-    paintColumnHighlight(g, getLocalBounds());
-}
-
-void NoiseStrip::setHighlightedRow(Row row) {
-  if (row == highlighted)
-    return;
-
-  const auto rows = layoutRows(getLocalBounds().reduced(kStripPadX, kStripPadY),
-                               collapsed, scroll);
-
-  repaintRowHighlight(*this, rows, highlighted);
-  highlighted = row;
-  repaintRowHighlight(*this, rows, highlighted);
-}
 
 void NoiseStrip::paint(juce::Graphics &g) {
   auto bounds = getLocalBounds();
@@ -402,20 +272,16 @@ void NoiseStrip::paint(juce::Graphics &g) {
 }
 
 void NoiseStrip::updateLevelReadout() {
-  const auto v = (float)volume.getValue();
-
-  // See ChannelStrip::updateLevelReadout.
-  if (params::isSilentGain(v))
-    return levelReadout.setReading("-inF", true);
-
-  const auto db = params::levelDecibels(v);
-
-  levelReadout.setReading(
-      (db >= 0.0f ? "" : "-") + juce::String(std::abs(db), 1), true);
+  // Dark while another channel's solo silences this one, as a channel's is.
+  levelReadout.setReading(levelReading((float)volume.getValue()), !silenced);
 }
 
+void NoiseStrip::silenceChanged() { updateLevelReadout(); }
+
+bool NoiseStrip::isOwnRow(Row r) const { return ownRow(r); }
+
 void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
-                             float pressure,
+                             float keyGain, float pressure,
                              juce::Array<juce::Rectangle<int>> &into) {
   const auto refresh = [&into](juce::Component &lamp, bool moved) {
     if (moved)
@@ -430,8 +296,10 @@ void NoiseStrip::setActivity(float envelope, float tremolo, float velGain,
   refresh(tremoloLamp, tremoloLamp.push(level > 0.0f ? tremolo : 0.0f));
 
   // One for each row, as on a numbered channel. See ChannelStrip::setActivity.
-  refresh(velocityLamp, velocityLamp.push(level > 0.0f ? velGain : 0.0f));
-  refresh(pressureLamp, pressureLamp.push(level > 0.0f ? pressure : 0.0f));
+  const auto on = level > 0.0f;
+
+  refresh(outputLamp, outputLamp.push({on ? velGain : 0.0f, on ? keyGain : 0.0f,
+                                       on ? pressure : 0.0f}));
 }
 
 void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
@@ -443,22 +311,47 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   const auto rows =
       layoutRows(bounds.reduced(kStripPadX, kStripPadY), collapsed, scroll);
 
-  auto header = rows[rowIndex(Row::Header)];
+  const auto header = rows[rowIndex(Row::Header)];
 
-  g.setColour(colour);
-  g.fillRect(header.removeFromTop(3).reduced(1, 0));
+  // A noise trace where a numbered channel has its number, as tall and as wide
+  // as a two-digit number in the same font and in the same place, so it lines
+  // up with the numbers across the strips.
+  juce::GlyphArrangement digits;
+  digits.addFittedText(makeFont(14.0f, true), "88", (float)header.getX(),
+                       (float)header.getY(), (float)header.getWidth(),
+                       (float)header.getHeight(), juce::Justification::centred,
+                       1);
+  // The outline's bounds rather than the glyphs', which are the font's full
+  // line height. Inset by half the stroke, so the line stays within the ink.
+  juce::Path outline;
+  digits.createPath(outline);
 
-  header.removeFromTop(1);
+  constexpr float stroke = 1.6f;
+  const auto area = outline.getBounds().reduced(0.0f, stroke * 0.5f);
+
+  // A fixed sequence, so the trace stays the same on every repaint.
+  static constexpr float kTrace[] = {0.1f,  -0.5f, 0.75f,  -0.2f, 0.4f,
+                                     -1.0f, 0.9f,  -0.35f, 0.2f,  -0.7f,
+                                     1.0f,  -0.4f, 0.55f,  -0.1f};
+  constexpr int steps = (int)std::size(kTrace) - 1;
+
+  juce::Path trace;
+
+  for (int i = 0; i <= steps; ++i) {
+    const juce::Point<float> p(
+        area.getX() + area.getWidth() * (float)i / (float)steps,
+        area.getCentreY() - kTrace[i] * area.getHeight() * 0.5f);
+
+    if (i == 0)
+      trace.startNewSubPath(p);
+    else
+      trace.lineTo(p);
+  }
 
   // Accent when hovered, the same as a numbered channel. See ChannelStrip.
   g.setColour(hovered ? colours::accent : colours::text);
-  g.setFont(makeFont(11.0f, true));
-  g.drawText("NZ", header.removeFromTop(14), juce::Justification::centred,
-             false);
-
-  g.setColour(colour.withAlpha(0.85f));
-  g.setFont(makeFont(9.0f));
-  g.drawText("noise", header, juce::Justification::centred, false);
+  g.strokePath(trace, juce::PathStrokeType(stroke, juce::PathStrokeType::curved,
+                                           juce::PathStrokeType::rounded));
 }
 
 void NoiseStrip::resized() {
@@ -493,6 +386,7 @@ void NoiseStrip::resized() {
   placeRow(amShape, Row::AmShape, 0);
   placeRow(amDepth, Row::AmDepth, 1);
   placeRow(velocity, Row::Velocity, 1);
+  placeRow(keyboard, Row::Keyboard, 1);
   placeRow(aftertouch, Row::Aftertouch, 1);
   placeRow(pan, Row::Pan, 1);
 
@@ -537,38 +431,20 @@ void NoiseStrip::resized() {
   meter.setBounds(faderRow.reduced(2, 1));
 
   {
-    const auto base = colours::channel;
-    const auto top = base.brighter(0.10f);
-    const auto bottom = base.darker(0.06f);
-
-    const auto at = [&](int y) {
-      return top.interpolatedWith(
-          bottom, juce::jlimit(0.0f, 1.0f,
-                               (float)y / (float)juce::jmax(1, getHeight())));
-    };
-
-    meter.setBackdrop(at(meter.getY()), at(meter.getBottom()));
+    meter.setBackdrop(backdropAt(meter.getY()), backdropAt(meter.getBottom()));
 
     const auto place = [&](ActivityLamp &lamp, Row row) {
       const auto r = rows[rowIndex(row)];
       lamp.setBounds(r);
-      lamp.setBackdrop(at(r.getCentreY()));
+      lamp.setBackdrop(backdropAt(r.getCentreY()));
     };
 
     place(envLamp, Row::EnvHeading);
     place(keyOffLamp, Row::KeyOffHeading);
     place(tremoloLamp, Row::AmpModHeading);
-    // Two on the one rule, as on a numbered channel. See ChannelStrip.
-    {
-      auto row = rows[rowIndex(Row::OutputHeading)];
-      const auto half = row.removeFromLeft(row.getWidth() / 2);
-
-      velocityLamp.setBounds(half);
-      velocityLamp.setBackdrop(at(half.getCentreY()));
-
-      pressureLamp.setBounds(row);
-      pressureLamp.setBackdrop(at(row.getCentreY()));
-    }
+    // One slot for the three rows under it, as on a numbered channel.
+    outputLamp.setBounds(rows[rowIndex(Row::OutputHeading)]);
+    outputLamp.setBackdrop(backdropAt(outputLamp.getBounds().getCentreY()));
   }
   volume.setBounds(faderRow.reduced(2, 1));
   levelReadout.setBounds(rows[rowIndex(Row::FaderText)]);

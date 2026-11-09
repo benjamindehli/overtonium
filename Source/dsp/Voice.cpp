@@ -1,7 +1,5 @@
 #include "Voice.h"
 
-#include <type_traits>
-
 #include <algorithm>
 
 #include "Character.h"
@@ -73,7 +71,7 @@ void Voice::setRenderRate(double newSampleRate) noexcept {
       1.0f - (float)std::exp(-6.283185307179586 * kNoiseTiltHz / sampleRate);
 }
 
-void Voice::prepare(double newSampleRate, uint32_t seed) noexcept {
+void Voice::prepare(double newSampleRate, uint32_t seed) {
   // Sized for the host's rate, the fastest the voice is ever run at, before
   // the render rate is set. See KarplusString::setRate.
   noise.string.prepare(newSampleRate);
@@ -120,6 +118,7 @@ void Voice::reset() noexcept {
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
   noisePressure = 0.0f;
+  noiseKeyboard = 0.0f;
 
   active = false;
   released = false;
@@ -195,7 +194,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
 
     // Each strip's own velocity sensitivity, latched so a velocity change
     // cannot alter a note already sounding. See Velocity.h.
-    pt.velGain = velocityGain(op.velAmount, vel);
+    pt.velGain = velocityGain(op.velAmount, vel, p.global.velocityCurve);
 
     // How soon the partial starts and how quickly it gets there, from the same
     // velocity.
@@ -256,7 +255,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
   {
     const auto &np = p.noise;
 
-    noise.velGain = velocityGain(np.velAmount, vel);
+    noise.velGain = velocityGain(np.velAmount, vel, p.global.velocityCurve);
 
     noise.delayScale = strikeDelayScale(np.strikeAmount, vel);
     noise.attackScale = strikeAttackScale(np.strikeAmount, vel);
@@ -367,6 +366,13 @@ void Voice::noteOff(float lift) noexcept {
   noise.env.noteOff(lift);
 }
 
+void Voice::setPedalFade(float rate) noexcept {
+  for (auto &pt : partials)
+    pt.env.setPedalFade(rate);
+
+  noise.env.setPedalFade(rate);
+}
+
 void Voice::fade(float seconds) noexcept {
   if (!active)
     return;
@@ -455,13 +461,7 @@ void Voice::render(float *left, float *right, int numSamples,
   const double wanderScale =
       kVcoWanderCents * std::sqrt(3.0 * (2.0 - wanderPole) / wanderPole);
 
-  // The characters whose noise the engine adds from every note's power at
-  // once. See SynthEngine::renderHiss.
-  const bool hiss = p.global.character == Character::Fm ||
-                    p.global.character == Character::Pd ||
-                    p.global.character == Character::Sid ||
-                    p.global.character == Character::Vco ||
-                    p.global.character == Character::Combo;
+  const bool hiss = hasSynthHiss(p.global.character);
   const auto &sine = SineTable::instance();
 
   // One pole per control block rather than per sample, like every other
@@ -519,11 +519,13 @@ void Voice::render(float *left, float *right, int numSamples,
   partialPitches.fill(0.0f);
   partialVelocities.fill(0.0f);
   partialPressures.fill(0.0f);
+  partialKeyboards.fill(0.0f);
   noisePeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
   noisePressure = 0.0f;
+  noiseKeyboard = 0.0f;
 
   const float pressureTarget =
       std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
@@ -536,6 +538,10 @@ void Voice::render(float *left, float *right, int numSamples,
   // Which control block of this call we are on, for reading the modulators
   // every voice shares. The engine filled them for exactly these blocks.
   int block = 0;
+
+  // The note's own pitch as octaves above 1 Hz, which each partial's place is
+  // added to for the resonator. See getPartialOctaves.
+  const double baseOctave = std::log2(std::max(1.0e-3, baseFreq));
 
   for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
@@ -563,6 +569,10 @@ void Voice::render(float *left, float *right, int numSamples,
 
       pt.env.configure(op.delay * pt.delayScale, pt.onsetSeconds, op.decay,
                        op.sustain, op.swell, op.offLevel, op.release);
+
+      // The half-pedal's fade, moved once for the block and ridden on the gain
+      // ramp below. It can end the note.
+      const float pedal = pt.env.advancePedal(len);
 
       if (!pt.env.isActive())
         continue;
@@ -597,6 +607,7 @@ void Voice::render(float *left, float *right, int numSamples,
           (pmCents + driftCents + (double)unit.cents[(size_t)i]) * 0.01 +
           (double)(p.global.bendSemitones + noteBendSemitones) + pt.glideSemis +
           retuneSemis;
+      partialOctaves[(size_t)i] = baseOctave + semis / 12.0;
 
       // Where the key itself is, bent and gliding but without this partial's
       // place in the series or its own wander. The combo organ filters each
@@ -610,6 +621,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // is exact too. The remaining glide for the needle is taken before this
       // block's step so it matches the pitch the block plays at.
       const double glideCents = (pt.glideSemis + retuneSemis) * 100.0;
+
+      // The key the KEYBOARD row reads, which a glide carries smoothly from
+      // the last note's key to this one. The key number rather than the
+      // pitch, so bend, TUNE, the temperament and drift leave the level alone.
+      // Read before this block's step, with the pitch.
+      const float keyGain =
+          pt.keyboard.at(op.keyAmount, (double)midiNote + pt.glideSemis);
 
       if (!exactly(pt.glideSemis, 0.0)) {
         const double remaining = std::abs(pt.glideSemis) - pt.glideStep;
@@ -743,10 +761,13 @@ void Voice::render(float *left, float *right, int numSamples,
       // Aftertouch adds to the fader instead of scaling it, so a strip at zero
       // can be brought in by pressure alone, and a negative amount is floored
       // at silence by the clamp. Velocity only scales the fader's own part.
+      // The keyboard scales the lot, so pressure cannot bring a partial back
+      // on keys the row has faded it out of.
       const float level =
           std::clamp(op.volume * pt.velGain +
                          std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
-                     0.0f, 1.0f);
+                     0.0f, 1.0f) *
+          keyGain;
       // The lamp and the unit's level error join the fader, the tracking and
       // the Nyquist fade here, so they ride the same per-sample ramp.
       const float base = op.audible ? level * nyq * track[(size_t)i] * bulb *
@@ -754,22 +775,26 @@ void Voice::render(float *left, float *right, int numSamples,
                                     : 0.0f;
       const float gEnd = base * amEnd;
 
+      // What is heard, with the half-pedal's fade, which the meters below
+      // already have in the envelope's level.
+      const float gHeard = gEnd * pedal;
+
       if (!pt.gainPrimed) {
-        pt.lastGain = base * amStart;
+        pt.lastGain = base * amStart * pedal;
         pt.gainPrimed = true;
       }
 
       // Ramping from the previous block's gain to this one covers tremolo,
-      // volume moves, mute/solo and the Nyquist fade with a single
-      // interpolation.
+      // volume moves, mute/solo, the Nyquist fade and the half-pedal with a
+      // single interpolation.
       float g = pt.lastGain;
-      const float gInc = (gEnd - g) / (float)len;
+      const float gInc = (gHeard - g) / (float)len;
 
       // Stepped whatever the depth says, so turning the knob up mid-note joins
       // the motion already under way. The amplitude was stepped above.
       pt.pitchLfo.advance(rng, pmPhaseInc * (double)len, op.pmShape);
 
-      pt.lastGain = gEnd;
+      pt.lastGain = gHeard;
 
       if (wheel || hiss) {
         const double amplitude = (double)(pt.env.getLevel() * gEnd);
@@ -803,8 +828,9 @@ void Voice::render(float *left, float *right, int numSamples,
       partialVelocities[(size_t)i] = pt.velGain;
       partialPressures[(size_t)i] =
           std::abs(std::clamp(op.atAmount, -1.0f, 1.0f) * pressure);
+      partialKeyboards[(size_t)i] = keyGain;
 
-      if ((g <= 1.0e-7f && gEnd <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
+      if ((g <= 1.0e-7f && gHeard <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
         // or decayed to a sustain of nothing. Keep the envelope and phase
         // moving so it picks up in the right place, but skip the oscillator.
@@ -1007,21 +1033,31 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float amEnd = tremoloGain(
       shared.amp != nullptr ? shared.amp[at + 1] : ownEnd, np.amDepth);
 
+  // The noise has no pitch of its own, so it takes its key from the first
+  // partial's, glide and all, as the resonator does.
+  const float keyGain = noise.keyboard.at(
+      np.keyAmount, (double)midiNote + partials[0].glideSemis);
+
   const float level =
       std::clamp(np.volume * noise.velGain +
                      std::clamp(np.atAmount, -1.0f, 1.0f) * pressure,
-                 0.0f, 1.0f);
+                 0.0f, 1.0f) *
+      keyGain;
   const float gEnd = (np.audible ? level : 0.0f) * amEnd;
 
+  // The half-pedal's fade, as for the partials.
+  const float pedal = noise.env.advancePedal(len);
+  const float gHeard = gEnd * pedal;
+
   if (!noise.gainPrimed) {
-    noise.lastGain = (np.audible ? level : 0.0f) * amStart;
+    noise.lastGain = (np.audible ? level : 0.0f) * amStart * pedal;
     noise.gainPrimed = true;
   }
 
   float g = noise.lastGain;
-  const float gInc = (gEnd - g) / (float)len;
+  const float gInc = (gHeard - g) / (float)len;
 
-  noise.lastGain = gEnd;
+  noise.lastGain = gHeard;
 
   noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);
 
@@ -1034,9 +1070,10 @@ void Voice::renderNoise(float *left, float *right, int len,
     noiseTremolo = 1.0f - amEnd;
     noiseVelocity = noise.velGain;
     noisePressure = std::abs(std::clamp(np.atAmount, -1.0f, 1.0f) * pressure);
+    noiseKeyboard = keyGain;
   }
 
-  if (g <= 1.0e-7f && gEnd <= 1.0e-7f) {
+  if (g <= 1.0e-7f && gHeard <= 1.0e-7f) {
     for (int n = 0; n < len; ++n)
       noise.env.tick();
 

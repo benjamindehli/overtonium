@@ -12,9 +12,11 @@
 #include <chrono>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <map>
+#include <memory>
 #include <random>
 #include <set>
 #include <string>
@@ -31,13 +33,14 @@
 #include "UI/LookAndFeel.h"
 #include "UI/MacroPanel.h"
 #include "UI/NoiseStrip.h"
+#include "UI/Notice.h"
 #include "UI/SettingsMenus.h"
 #include "UI/ShapeButton.h"
 #include "UI/Theme.h"
 #include "UI/TopBar.h"
 #include "UpdateCheck.h"
+#include "dm/dsp/OutputStage.h"
 #include "dsp/Exact.h"
-#include "dsp/OutputStage.h"
 #include "dsp/TapeEcho.h"
 
 namespace {
@@ -54,6 +57,10 @@ void check(bool ok, const std::string &what) {
 }
 
 void section(const char *name) { std::printf("\n== %s ==\n", name); }
+
+// Every processor in this file is made on the heap, as a host makes one. It is
+// about 300 KB, and the main thread on Windows has 1 MB of stack, so two or
+// three on the stack at once overflow it there and nowhere else.
 
 struct Stats {
   float peak = 0.0f;
@@ -84,10 +91,47 @@ Stats renderBlocks(OvertoniumProcessor &p, int blocks, int blockSize,
 
 /// A factory preset by name, since the menu is alphabetical and gains entries,
 /// so a position does not stay the same sound.
+///
+/// A name that is not a preset stops the run. Carrying on would test whatever
+/// preset came first under the name of the one that was renamed.
 int presetIndex(const juce::String &name) {
   const auto at = ovt::presets::names().indexOf(name);
-  jassert(at >= 0);
-  return juce::jmax(0, at);
+
+  if (at < 0) {
+    std::printf("  FAIL  there is no factory preset called \"%s\"\n",
+                name.toRawUTF8());
+    std::exit(1);
+  }
+
+  return at;
+}
+
+/// The plugin's window, made as a host makes it.
+std::unique_ptr<OvertoniumEditor> openEditor(OvertoniumProcessor &p) {
+  return std::unique_ptr<OvertoniumEditor>(
+      dynamic_cast<OvertoniumEditor *>(p.createEditor()));
+}
+
+/// Every component of one kind under `root`, in the order they were added,
+/// each before the ones inside it.
+template <typename T> std::vector<T *> descendantsOf(juce::Component &root) {
+  std::vector<T *> found;
+
+  for (auto *child : root.getChildren()) {
+    if (auto *match = dynamic_cast<T *>(child))
+      found.push_back(match);
+
+    for (auto *inside : descendantsOf<T>(*child))
+      found.push_back(inside);
+  }
+
+  return found;
+}
+
+/// The first of them, or nullptr.
+template <typename T> T *firstOf(juce::Component &root) {
+  const auto all = descendantsOf<T>(root);
+  return all.empty() ? nullptr : all.front();
 }
 
 juce::MidiBuffer noteOnAt(int note, float velocity, int sample) {
@@ -623,6 +667,530 @@ void testLegatoSwitch(OvertoniumProcessor &p) {
   legato->setValueNotifyingHost(0.0f);
 }
 
+/// The KEYBOARD row as the host and the panel see it: 33 parameters on the
+/// end, a readout naming the slope and the centre, older files reading as
+/// zero, and a macro that can drive it.
+void testKeyboardRowParameters(OvertoniumProcessor &p) {
+  section("The keyboard row");
+
+  using namespace ovt::params;
+
+  const auto amountOf = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr ? param->convertFrom0to1(param->getValue()) : 99.0f;
+  };
+
+  const auto setAmount = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  std::vector<juce::String> ids;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    ids.push_back(oscParamId(keySuffix, i));
+  ids.push_back(noiseParamId(keySuffix));
+
+  // On the end of the list, so automation already written keeps its place.
+  const auto &all = p.getParameters();
+  int onTheEnd = 0;
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    const auto at = all.size() - (int)ids.size() + (int)i;
+    auto *ranged = dynamic_cast<juce::RangedAudioParameter *>(all[at]);
+
+    if (ranged != nullptr && ranged->paramID == ids[i] &&
+        std::abs(ranged->convertFrom0to1(ranged->getDefaultValue())) <
+            1.0e-6f &&
+        std::abs(ranged->getNormalisableRange().start + 2.0f) < 1.0e-6f &&
+        std::abs(ranged->getNormalisableRange().end - 2.0f) < 1.0e-6f)
+      ++onTheEnd;
+  }
+
+  check(onTheEnd == 33, "33 keyboard parameters on the end of the list, each "
+                        "from -200% to 200% and starting at zero (" +
+                            std::to_string(onTheEnd) + ")");
+
+  check(all[all.size() - 33]->getName(64) == "H1 Keyboard" &&
+            all[all.size() - 1]->getName(64) == "Noise Keyboard",
+        "named after their channels, as the host lists them");
+
+  // The readout.
+  const std::pair<float, const char *> readings[] = {
+      {0.0f, "0 dB/oct"},
+      {0.25f, "1.5 dB/oct below C4"},
+      {0.5f, "6.0 dB/oct below C4"},
+      {-1.0f, "24 dB/oct above C4"},
+      {1.2f, "24 dB/oct below C5"},
+      {-1.5f, "24 dB/oct above F#1"},
+      {2.0f, "24 dB/oct below C9"},
+      {-2.0f, "24 dB/oct above C-1"}};
+
+  juce::String wrong;
+  for (const auto &[amount, text] : readings)
+    if (keyboardText(amount, 0) != text)
+      wrong << amount << " reads " << keyboardText(amount, 0) << ". ";
+
+  check(wrong.isEmpty(), "the readout names the slope and the key it starts "
+                         "from (" +
+                             wrong.toStdString() + ")");
+
+  int roundTrips = 0;
+  for (const auto &[amount, text] : readings)
+    roundTrips += std::abs(keyboardValue(text) - amount) < 1.0e-3f ? 1 : 0;
+
+  check(roundTrips == (int)std::size(readings) &&
+            std::abs(keyboardValue("-150 %") + 1.5f) < 1.0e-6f,
+        "and a typed value reads back to the same amount, as a reading or a "
+        "percentage (" +
+            std::to_string(roundTrips) + ")");
+
+  // A session and a preset file from before the row existed are level across
+  // the keys, whatever the instance had. A session gets there by the default,
+  // and a preset file, which leaves what it does not name alone, by
+  // params::valueInOlderFiles.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  check(std::abs(amountOf(ids[0])) < 1.0e-6f &&
+            std::abs(amountOf(ids[32])) < 1.0e-6f,
+        "the factory presets leave the row at zero");
+
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  const auto stripKeyboard = [&ids](juce::XmlElement &xml) {
+    std::vector<juce::XmlElement *> gone;
+
+    for (auto *child : xml.getChildIterator())
+      for (const auto &id : ids)
+        if (child->getStringAttribute("id") == id)
+          gone.push_back(child);
+
+    for (auto *child : gone)
+      xml.removeChildElement(child, true);
+
+    return (int)gone.size();
+  };
+
+  auto xml = juce::AudioProcessor::getXmlFromBinary(saved.getData(),
+                                                    (int)saved.getSize());
+  const auto removed = xml != nullptr ? stripKeyboard(*xml) : 0;
+
+  check(removed == 33, "an old session can be made from a new one");
+
+  juce::MemoryBlock older;
+  if (xml != nullptr)
+    juce::AudioProcessor::copyXmlToBinary(*xml, older);
+
+  for (const auto &id : ids)
+    setAmount(id, 1.3f);
+
+  p.setStateInformation(older.getData(), (int)older.getSize());
+
+  int levelled = 0;
+  for (const auto &id : ids)
+    levelled += std::abs(amountOf(id)) < 1.0e-6f ? 1 : 0;
+
+  check(levelled == 33, "a session from before the row loads with it at zero, "
+                        "though the instance had it set (" +
+                            std::to_string(levelled) + ")");
+
+  for (const auto &id : ids)
+    setAmount(id, -0.4f);
+
+  if (auto file = ovt::presets::capture(p.apvts, "Then")) {
+    auto oldFile = std::make_unique<juce::XmlElement>(*file);
+    stripKeyboard(*oldFile);
+
+    for (const auto &id : ids)
+      setAmount(id, 1.3f);
+
+    ovt::presets::restore(p.apvts, *oldFile);
+
+    int fromFile = 0;
+    for (const auto &id : ids)
+      fromFile += std::abs(amountOf(id)) < 1.0e-6f ? 1 : 0;
+
+    check(fromFile == 33, "so does a preset file from before it (" +
+                              std::to_string(fromFile) + ")");
+
+    ovt::presets::restore(p.apvts, *file);
+
+    check(std::abs(amountOf(ids[4]) + 0.4f) < 1.0e-4f &&
+              std::abs(amountOf(ids[32]) + 0.4f) < 1.0e-4f,
+          "and one that names the row loads what it names");
+  } else {
+    check(false, "a preset can be captured");
+  }
+
+  // A macro can drive it, as the last row in its list.
+  check(juce::String(macroRowName(kNumMacroRows)) == "Keyboard" &&
+            juce::String(kMacroRows[kNumMacroRows - 1]) == keySuffix,
+        "Keyboard is the last row a macro can drive, so saved macros keep "
+        "theirs");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setAmount(macroRowId(1), (float)kNumMacroRows);
+  setAmount(macroAmountId(1), 0.25f);
+
+  ovt::SynthParams played;
+  p.parameters().snapshot(played, 0.0f);
+
+  check(std::abs(played.osc[3].keyAmount - 1.0f) < 1.0e-3f,
+        "and a macro at 25% moves it a quarter of its travel, to 100% (" +
+            std::to_string(played.osc[3].keyAmount) + ")");
+
+  setAmount(macroAmountId(1), 0.0f);
+  setAmount(macroRowId(1), 0.0f);
+}
+
+/// The velocity curve switch: dB for anything new and for the factory
+/// presets, Classic for a saved session or preset file made before it, and a
+/// click that converts every channel's amount so a medium note keeps its level.
+void testVelocityCurveSwitch(OvertoniumProcessor &p) {
+  section("The velocity curve");
+
+  using namespace ovt::params;
+  using ovt::VelocityCurve;
+
+  auto &undo = p.undo();
+  auto *curve = p.apvts.getParameter(velocityCurveId);
+
+  check(curve != nullptr, "the velocity curve is a parameter");
+  if (curve == nullptr)
+    return;
+
+  const auto isDecibels = [curve] { return curve->getValue() > 0.5f; };
+  const auto setDecibels = [curve](bool on) {
+    curve->setValueNotifyingHost(on ? 1.0f : 0.0f);
+  };
+
+  const auto amountOf = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr ? param->convertFrom0to1(param->getValue()) : 0.0f;
+  };
+
+  const auto setAmount = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  check(curve->getDefaultValue() > 0.5f, "dB is the default");
+
+  auto *velocity = p.apvts.getParameter(oscParamId(velSuffix, 3));
+  auto *noiseVelocity = p.apvts.getParameter(noiseParamId(velSuffix));
+
+  check(velocity != nullptr && noiseVelocity != nullptr &&
+            std::abs(velocity->convertFrom0to1(velocity->getDefaultValue())) <
+                1.0e-6f &&
+            std::abs(noiseVelocity->convertFrom0to1(
+                noiseVelocity->getDefaultValue())) < 1.0e-6f,
+        "and the VELOCITY row starts at zero on a channel and on noise");
+
+  // Every factory preset is voiced on dB, from any curve before it.
+  int onDecibels = 0;
+
+  for (int i = 0; i < ovt::presets::names().size(); ++i) {
+    setDecibels(false);
+    ovt::presets::apply(p.apvts, i);
+    onDecibels += isDecibels() ? 1 : 0;
+  }
+
+  check(onDecibels == ovt::presets::names().size(),
+        "every factory preset loads on dB (" + std::to_string(onDecibels) +
+            " of " + std::to_string(ovt::presets::names().size()) + ")");
+
+  // A session saved before the switch existed does not name it.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  setDecibels(true);
+
+  juce::MemoryBlock saved;
+  p.getStateInformation(saved);
+
+  const auto withoutCurve = [](const juce::MemoryBlock &block) {
+    auto xml = juce::AudioProcessor::getXmlFromBinary(block.getData(),
+                                                      (int)block.getSize());
+    juce::MemoryBlock out;
+
+    if (xml == nullptr)
+      return out;
+
+    for (auto *child : xml->getChildIterator())
+      if (child->getStringAttribute("id") == velocityCurveId) {
+        xml->removeChildElement(child, true);
+        break;
+      }
+
+    juce::AudioProcessor::copyXmlToBinary(*xml, out);
+    return out;
+  };
+
+  const auto older = withoutCurve(saved);
+
+  check(older.getSize() > 0, "an old session can be made from a new one");
+
+  setDecibels(true);
+  p.setStateInformation(older.getData(), (int)older.getSize());
+
+  check(!isDecibels(),
+        "a session from before the switch loads on Classic, though the "
+        "instance was on dB");
+
+  setDecibels(false);
+  p.setStateInformation(saved.getData(), (int)saved.getSize());
+
+  check(isDecibels(), "and a session that names dB loads on dB");
+
+  // The same for a preset file.
+  auto file = ovt::presets::capture(p.apvts, "Then");
+
+  check(file != nullptr, "a preset can be captured");
+  if (file == nullptr)
+    return;
+
+  auto oldFile = std::make_unique<juce::XmlElement>(*file);
+
+  for (auto *child : oldFile->getChildIterator())
+    if (child->getStringAttribute("id") == velocityCurveId) {
+      oldFile->removeChildElement(child, true);
+      break;
+    }
+
+  setDecibels(true);
+  ovt::presets::restore(p.apvts, *oldFile);
+
+  check(!isDecibels(), "a preset file from before the switch loads on Classic");
+
+  setDecibels(false);
+  ovt::presets::restore(p.apvts, *file);
+
+  check(isDecibels(), "and one that names dB loads on dB");
+
+  // The switch converts. A spread of amounts on Classic, the noise channel's
+  // and a negative one among them, and one channel left at zero.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  std::vector<juce::String> ids;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    ids.push_back(oscParamId(velSuffix, i));
+  ids.push_back(noiseParamId(velSuffix));
+
+  std::vector<float> before;
+
+  for (size_t i = 0; i < ids.size(); ++i) {
+    const auto amount =
+        i == 5 ? 0.0f : (i == 7 ? -0.6f : (float)(i % 11) / 10.0f);
+    setAmount(ids[i], amount);
+    before.push_back(amountOf(ids[i]));
+  }
+
+  setDecibels(false);
+  undo.clearUndoHistory();
+
+  switchVelocityCurve(p.apvts);
+
+  int converted = 0;
+
+  for (size_t i = 0; i < ids.size(); ++i)
+    converted +=
+        std::abs(amountOf(ids[i]) - ovt::decibelsAmountFor(before[i])) < 1.0e-3f
+            ? 1
+            : 0;
+
+  check(isDecibels(), "the switch turns dB on");
+
+  check(converted == (int)ids.size(),
+        "and converts all 33 amounts so a medium note keeps its level (" +
+            std::to_string(converted) + ")");
+
+  check(std::abs(amountOf(ids[5])) < 1.0e-6f && amountOf(ids[7]) < 0.0f,
+        "a channel at zero stays at zero and a negative amount stays negative");
+
+  check(undo.undo() && !isDecibels() && !undo.canUndo(),
+        "one undo puts the curve back");
+
+  int restored = 0;
+  for (size_t i = 0; i < ids.size(); ++i)
+    restored += std::abs(amountOf(ids[i]) - before[i]) < 1.0e-3f ? 1 : 0;
+
+  check(restored == (int)ids.size(),
+        "and every amount with it (" + std::to_string(restored) + ")");
+
+  // And back again, from dB to Classic.
+  switchVelocityCurve(p.apvts);
+  switchVelocityCurve(p.apvts);
+
+  int roundTrip = 0;
+  for (size_t i = 0; i < ids.size(); ++i)
+    roundTrip += std::abs(amountOf(ids[i]) - before[i]) < 2.0e-3f ? 1 : 0;
+
+  check(!isDecibels() && roundTrip == (int)ids.size(),
+        "switching to dB and back gives the amounts it started with (" +
+            std::to_string(roundTrip) + ")");
+
+  // The gutter's switch shows the parameter.
+  {
+    RowGutter gutter;
+    gutter.setBounds(0, 0, ovt::ui::kGutterWidth,
+                     ovt::ui::preferredStripHeight());
+
+    auto *button =
+        dynamic_cast<juce::Button *>(gutter.findChildWithID(velocityCurveId));
+
+    const auto rows = ovt::ui::layoutRows(
+        gutter.getLocalBounds().reduced(0, ovt::ui::kStripPadY));
+
+    check(button != nullptr && button->isVisible() &&
+              rows[(size_t)ovt::ui::Row::Velocity].contains(
+                  button->getBounds().getCentre()),
+          "the gutter has the dB switch in the velocity row");
+
+    if (button != nullptr) {
+      gutter.setVelocityCurve(true);
+      const auto lit = button->getToggleState();
+      gutter.setVelocityCurve(false);
+
+      check(lit && !button->getToggleState(),
+            "and it lights for dB and goes dark for Classic");
+    }
+  }
+
+  // Through the processor: one partial at full amount, struck at a medium
+  // velocity on each curve. Kept below the clipper so levels compare.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    setAmount(oscParamId(volumeSuffix, i), i == 0 ? 1.0f : 0.0f);
+
+  setAmount(oscParamId(velSuffix, 0), 1.0f);
+
+  auto *master = p.apvts.getParameter(masterGainId);
+  master->setValueNotifyingHost(master->convertTo0to1(-24.0f));
+  p.apvts.getParameter(safetyClipId)->setValueNotifyingHost(0.0f);
+  p.prepareToPlay(48000.0, 512);
+
+  // Measured once the note has settled. The same key struck again carries on
+  // in its voice and ramps from the level it had, so the first blocks show
+  // the note before.
+  const auto peakOn = [&](bool decibels) {
+    setDecibels(decibels);
+    p.reset();
+    renderBlocks(p, 4, 512);
+    renderBlocks(p, 10, 512, noteOnAt(57, 0.5f, 0));
+    return renderBlocks(p, 10, 512).peak;
+  };
+
+  const auto classicPeak = peakOn(false);
+  const auto decibelsPeak = peakOn(true);
+
+  // A note-on of one half arrives as 64 of 127.
+  const auto v = 64.0f / 127.0f;
+  const auto wanted = ovt::velocityGain(1.0f, v, VelocityCurve::Decibels) /
+                      ovt::velocityGain(1.0f, v, VelocityCurve::Classic);
+  const auto ratio = decibelsPeak / juce::jmax(1.0e-9f, classicPeak);
+
+  std::printf("  a medium note at 100%%: Classic peak %.4f, dB peak %.4f, "
+              "ratio %.3f, expected %.3f\n",
+              classicPeak, decibelsPeak, ratio, wanted);
+
+  check(classicPeak > 0.0f && std::abs(ratio - wanted) < 0.02f * wanted,
+        "the curve the switch names is the one the processor plays");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+}
+
+/// The help on the row names. Every caption the gutter draws has its own line,
+/// the tooltip finds it from the same layout the captions are drawn with, and
+/// a folded row has none.
+void testRowNameHelp() {
+  section("Help on the row names");
+
+  using namespace ovt::ui;
+
+  RowGutter gutter;
+  gutter.setBounds(0, 0, kGutterWidth, preferredStripHeight());
+
+  // Where each caption is drawn, as paint lays it out.
+  const auto captionAt = [&gutter](Row row, SectionMask folded) {
+    const auto rows =
+        layoutRows(gutter.getLocalBounds().reduced(0, kStripPadY), folded);
+    auto area = rows[(size_t)row];
+
+    if (row == Row::Fader)
+      area = area.removeFromTop(16);
+
+    return area.getCentre();
+  };
+
+  int captions = 0, helped = 0, found = 0;
+  std::set<std::string> lines;
+
+  for (int i = 0; i < kNumRows; ++i) {
+    const auto row = (Row)i;
+
+    if (rowLabel(row) == nullptr) {
+      check(rowHelp(row).isEmpty(), "a row with no caption has no help (row " +
+                                        std::to_string(i) + ")");
+      continue;
+    }
+
+    ++captions;
+    const auto help = rowHelp(row);
+
+    if (help.isNotEmpty())
+      ++helped;
+
+    lines.insert(help.toStdString());
+
+    if (gutter.tooltipAt(captionAt(row, 0)) == help)
+      ++found;
+  }
+
+  check(helped == captions, "every caption has a line of help (" +
+                                std::to_string(helped) + " of " +
+                                std::to_string(captions) + ")");
+
+  check((int)lines.size() == captions,
+        "and no two say the same, so the two shape, rate and depth rows each "
+        "say which modulator they belong to");
+
+  check(found == captions,
+        "the pointer on each caption gets that caption's help (" +
+            std::to_string(found) + " of " + std::to_string(captions) + ")");
+
+  check(rowHelp(Row::MuteSolo).contains("-click to mute or solo only one"),
+        "the mute and solo caption says how to mute or solo only one");
+
+  // Folded, a section keeps the help on its heading and its rows have none,
+  // wherever the pointer is.
+  const auto folded = sectionBit(Section::Envelope);
+  gutter.setCollapsedSections(folded);
+
+  check(gutter.tooltipAt(captionAt(Row::EnvHeading, folded)) ==
+            rowHelp(Row::EnvHeading),
+        "with ENVELOPE folded its heading still has its help");
+
+  bool strikeAnywhere = false;
+
+  for (int y = 0; y < gutter.getHeight(); ++y)
+    strikeAnywhere |=
+        gutter.tooltipAt({gutter.getWidth() / 2, y}) == rowHelp(Row::Strike);
+
+  check(!strikeAnywhere, "and nowhere in the gutter offers STRIKE's help");
+
+  check(gutter.tooltipAt(captionAt(Row::Swell, folded)) == rowHelp(Row::Swell),
+        "while the rows below move up and keep theirs");
+
+  // The band under LEVEL's caption is the fader, not the caption.
+  gutter.setCollapsedSections(0);
+
+  const auto fader = layoutRows(
+      gutter.getLocalBounds().reduced(0, kStripPadY))[(size_t)Row::Fader];
+
+  check(gutter.tooltipAt({fader.getCentreX(), fader.getY() + 40}).isEmpty(),
+        "below LEVEL's caption the fader's band has no row help");
+}
+
 /// The glide caps in the gutter, beside the GLIDE caption: lit by the two
 /// switches, firing their own callbacks, and gone with the row when its
 /// section is folded.
@@ -753,9 +1321,11 @@ void testParameterWiring(OvertoniumProcessor &p) {
   //
   // And six for each macro: the amount, the row it reaches, the channels it
   // reaches, how it is shared out, the channel a taper leans on, and its
-  // colour.
+  // colour. Then the velocity curve, and the keyboard row on every channel and
+  // on noise.
   const int expected = ovt::kNumHarmonics * 23 + 20 + 18 + 10 + 4 + 2 + 1 + 1 +
-                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6;
+                       1 + 1 + 4 + 4 + ovt::params::kNumMacros * 6 + 1 +
+                       ovt::kNumHarmonics + 1;
 
   // No stack defaults to on. Asked of the parameter rather than of the tree, so
   // the answer does not depend on what an earlier test left behind.
@@ -1038,7 +1608,7 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
   // stage's lookahead is in the figure too and is paid on every clip type and
   // with the clipper off.
   const auto expected =
-      ovt::BusDrive::kLatency + ovt::OutputStage::lookaheadSamples(48000.0);
+      ovt::BusDrive::kLatency + dm::OutputStage::lookaheadSamples(48000.0);
 
   check(idle == expected, "both stages' latency is reported (" +
                               std::to_string(idle) + " samples, expected " +
@@ -1233,16 +1803,22 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
     mpe->setValueNotifyingHost(1.0f);
     p.prepareToPlay(48000.0, 256);
 
-    // Let go of the one it already has first. Two controllers may point at
-    // one control, and controllerFor answers with the lowest of them, so
-    // leaving CC 20 bound would have this reading 20 whatever CC 21 did.
-    p.midiLearn.forget(afterLoad);
+    // Learned again without forgetting CC 20 first, as the menu's "Bind a
+    // different controller" does. The new one replaces the old.
     p.midiLearn.arm(afterLoad);
     send(21, 64);
 
     check(p.midiLearn.controllerFor(afterLoad) == 21,
           "a controller is still learned with MPE on (" +
               std::to_string(p.midiLearn.controllerFor(afterLoad)) + ")");
+
+    const auto before = afterLoad->getValue();
+    send(20, before < 0.5f ? 127 : 0);
+
+    check(juce::exactlyEqual(afterLoad->getValue(), before),
+          "and the controller it had before lets go of it (" +
+              std::to_string(before) + " then " +
+              std::to_string(afterLoad->getValue()) + ")");
 
     send(21, 127);
     const auto high = afterLoad->getValue();
@@ -1263,8 +1839,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   // A control has to know which parameter it moves, and the menu has to offer
   // the item.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
 
@@ -1380,8 +1956,8 @@ void testMidiLearnBindsControllers(OvertoniumProcessor &p) {
   // reachable only if the macro panel is in the window and its fader carries
   // the same tag as every other control.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     if (editor != nullptr) {
       auto *amount =
@@ -1709,8 +2285,8 @@ void testMacrosMoveAWholeRow(OvertoniumProcessor &p) {
   // strips. Read off the control itself, since the look and feel draws whatever
   // colour it has been given.
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
 
@@ -1899,11 +2475,30 @@ void testPresets(OvertoniumProcessor &p) {
 
   const auto names = ovt::presets::names();
 
-  // Counted rather than spelt. Every name needs a case of its own, which is
-  // what the loop below tests: a name with no case applies nothing and the
-  // preset comes out silent.
+  // Counted rather than spelt. Every name needs a block of its own, found by
+  // the name: a name with no block applies nothing.
   check(names.size() > 0,
         "there are factory presets (" + std::to_string(names.size()) + ")");
+
+  // A value no preset sets, which every block's neutralBase puts back. One
+  // still there after a preset is applied means the preset had no block.
+  {
+    auto *probe = p.apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::tuneSuffix, 4));
+    juce::StringArray missing;
+
+    for (int i = 0; i < names.size() && probe != nullptr; ++i) {
+      probe->setValueNotifyingHost(0.123f);
+      ovt::presets::apply(p.apvts, i);
+
+      if (std::abs(probe->getValue() - 0.123f) < 1.0e-6f)
+        missing.add(names[i]);
+    }
+
+    check(probe != nullptr && missing.isEmpty(),
+          "every factory preset has a block of code (missing: " +
+              missing.joinIntoString(", ").toStdString() + ")");
+  }
 
   bool unique = true;
   for (int i = 0; i < names.size(); ++i)
@@ -2049,6 +2644,295 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   renderBlocks(p, 200, 512, pedalUp);
 
   check(p.getActiveVoiceCount() == 0, "and letting it up releases the note");
+
+  p.reset();
+  renderBlocks(p, 4, 512);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// Half-pedalling over MIDI. The engine's side is in the DSP suite. This checks
+/// that CC 64's value reaches it as a depth with MPE off and on, that 0 and
+/// 127 are what they always were, and the lamp.
+void testHalfPedalOverMidi(OvertoniumProcessor &p) {
+  section("Half-pedalling over MIDI");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // One partial at full sustain, every channel released over 200 ms.
+  const auto setUp = [&] {
+    ovt::presets::apply(p.apvts, presetIndex("Init"));
+    for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+      setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+               i == 0 ? 1.0f : 0.0f);
+      setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+      setParam(ovt::params::oscParamId(ovt::params::releaseSuffix, i), 0.2f);
+    }
+    setParam(ovt::params::noiseParamId(ovt::params::releaseSuffix), 0.2f);
+  };
+  setUp();
+
+  // 512-sample blocks, so about a hundred to the second at 48 kHz.
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages,
+                         int blocks) {
+    juce::MidiBuffer m;
+    for (const auto &message : messages)
+      m.addEvent(message, 0);
+    return renderBlocks(p, blocks, 512, m);
+  };
+  const auto cc = [](int channel, int value) {
+    return juce::MidiMessage::controllerEvent(channel, 64, value);
+  };
+  const auto on = [](int channel, int note) {
+    return juce::MidiMessage::noteOn(channel, note, 1.0f);
+  };
+  const auto off = [](int channel, int note) {
+    return juce::MidiMessage::noteOff(channel, note);
+  };
+  const auto voices = [&p] { return p.getActiveVoiceCount(); };
+
+  // ---- 0 and 127 are up and down, as they always were -----------------------
+  {
+    // The same note let go with and without a pedal at nought, sample for
+    // sample, on two processors made the same way from the same state.
+    juce::MemoryBlock state;
+    p.getStateInformation(state);
+
+    const auto make = [&state] {
+      auto made = std::make_unique<OvertoniumProcessor>();
+      made->setRateAndBufferSizeDetails(48000.0, 512);
+      made->prepareToPlay(48000.0, 512);
+      made->setStateInformation(state.getData(), (int)state.getSize());
+      return made;
+    };
+    const auto withoutOwner = make();
+    const auto withOwner = make();
+
+    bool same = true;
+    juce::AudioBuffer<float> a(2, 512), b(2, 512);
+    for (int block = 0; block < 60; ++block) {
+      juce::MidiBuffer ma, mb;
+      if (block == 0) {
+        ma.addEvent(on(1, 69), 0);
+        mb.addEvent(on(1, 69), 0);
+      }
+      if (block == 10) {
+        ma.addEvent(off(1, 69), 0);
+        mb.addEvent(cc(1, 0), 0);
+        mb.addEvent(off(1, 69), 0);
+      }
+      a.clear();
+      b.clear();
+      withoutOwner->processBlock(a, ma);
+      withOwner->processBlock(b, mb);
+      for (int n = 0; n < 512; ++n)
+        same &= ovt::exactly(a.getSample(0, n), b.getSample(0, n));
+    }
+    check(same, "CC 64 at 0 lets a note go exactly as no pedal does");
+
+    send({on(1, 69)}, 10);
+    send({cc(1, 127)}, 1);
+    const auto held = send({off(1, 69)}, 10).peak;
+    const auto later = send({}, 200).peak;
+    check(voices() == 1 && std::abs(later - held) < held * 1.0e-3f &&
+              p.isSustainDown() && ovt::exactly(p.getSustainDepth(), 1.0f),
+          "and at 127 it holds the note at its level, with the lamp full (" +
+              std::to_string(held) + " to " + std::to_string(later) + ")");
+    send({cc(1, 0)}, 100);
+    check(voices() == 0 && !p.isSustainDown() &&
+              ovt::exactly(p.getSustainDepth(), 0.0f),
+          "and lifted it lets go, and the lamp goes out");
+  }
+
+  // ---- part way down a note outlasts its release, and still ends ------------
+  {
+    send({on(1, 69)}, 10);
+    send({cc(1, 64)}, 1);
+    const bool half = std::abs(p.getSustainDepth() - 0.5f) < 1.0e-6f;
+    send({off(1, 69)}, 60);
+    const auto afterRelease = voices();
+    send({}, 400);
+
+    check(half && afterRelease == 1 && voices() == 0,
+          "at 64 the lamp reads half, and a note outlasts its own release "
+          "and then fades away (" +
+              std::to_string(afterRelease) + " sounding after 0.6 s)");
+    send({cc(1, 0)}, 2);
+  }
+
+  // ---- under MPE, a value below 64 still holds ------------------------------
+  //
+  // The parser holds notes from 64 up. It is told the pedal is down from the
+  // engine's own point instead, so a pedal a quarter down holds.
+  setParam(ovt::params::mpeId, 1.0f);
+  send({}, 2);
+  {
+    send({on(2, 69)}, 10);
+    send({cc(1, 40)}, 1);
+    send({off(2, 69)}, 60);
+    const auto quarter = voices();
+    send({}, 400);
+    const auto later = voices();
+    send({cc(1, 0)}, 50);
+
+    check(quarter == 1 && later == 0,
+          "under MPE a master channel's pedal a quarter down holds a note past "
+          "its release and fades it (" +
+              std::to_string(quarter) + " then " + std::to_string(later) + ")");
+
+    send({on(2, 69)}, 10);
+    send({cc(1, 127)}, 1);
+    send({off(2, 69)}, 60);
+    const auto down = voices();
+    send({cc(1, 0)}, 100);
+    check(down == 1 && voices() == 0,
+          "and all the way down it holds, and lifted it lets go");
+  }
+  setParam(ovt::params::mpeId, 0.0f);
+  send({}, 2);
+
+  p.reset();
+  renderBlocks(p, 4, 512);
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// The sostenuto pedal over MIDI, with MPE off and on. The engine's side is in
+/// the DSP suite. This checks the controller reaches it, that under MPE it is
+/// kept apart from the sustain pedal the parser holds, and the lamp.
+void testSostenutoOverMidi(OvertoniumProcessor &p) {
+  section("Sostenuto over MIDI");
+
+  const auto setParam = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // One partial, held at full sustain, and every release short, since a voice
+  // lasts until all its channels have finished.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  for (int i = 0; i < ovt::kNumHarmonics; ++i) {
+    setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, i),
+             i == 0 ? 1.0f : 0.0f);
+    setParam(ovt::params::oscParamId(ovt::params::sustainSuffix, i), 1.0f);
+    setParam(ovt::params::oscParamId(ovt::params::releaseSuffix, i), 0.03f);
+  }
+  setParam(ovt::params::noiseParamId(ovt::params::releaseSuffix), 0.03f);
+
+  const auto send = [&p](std::initializer_list<juce::MidiMessage> messages,
+                         int blocks = 30) {
+    juce::MidiBuffer m;
+    for (const auto &message : messages)
+      m.addEvent(message, 0);
+    renderBlocks(p, blocks, 512, m);
+  };
+  const auto cc = [](int channel, int number, int value) {
+    return juce::MidiMessage::controllerEvent(channel, number, value);
+  };
+  const auto on = [](int channel, int note) {
+    return juce::MidiMessage::noteOn(channel, note, 1.0f);
+  };
+  const auto off = [](int channel, int note) {
+    return juce::MidiMessage::noteOff(channel, note);
+  };
+  const auto voices = [&p] { return p.getActiveVoiceCount(); };
+
+  // ---- an ordinary keyboard -------------------------------------------------
+  {
+    send({on(1, 60)});
+    send({cc(1, 66, 127)});
+    const bool lit = p.isSostenutoDown();
+    send({off(1, 60), on(1, 64)});
+    send({off(1, 64)});
+    const auto heldOne = voices();
+    send({cc(1, 66, 0)});
+
+    check(lit && heldOne == 1 && voices() == 0 && !p.isSostenutoDown(),
+          "CC 66 holds the key that was down and not the one played after, "
+          "and lights the lamp while it is down (" +
+              std::to_string(heldOne) + " held)");
+
+    send({on(5, 60), cc(5, 66, 100)});
+    send({off(5, 60), cc(5, 66, 90)});
+    const auto onFive = voices();
+    send({cc(5, 66, 20)});
+    check(onFive == 1 && voices() == 0,
+          "on any channel, and a continuous pedal's values either side of the "
+          "middle work as down and up");
+  }
+
+  // ---- MPE: the master channel, and kept apart from the sustain pedal -------
+  setParam(ovt::params::mpeId, 1.0f);
+  send({}, 2);
+  {
+    send({on(2, 60)});
+    send({cc(1, 66, 127)});
+    const bool lit = p.isSostenutoDown();
+    send({off(2, 60), on(3, 64)});
+    send({off(3, 64)});
+    const auto heldOne = voices();
+    send({cc(1, 66, 0)});
+
+    check(lit && heldOne == 1 && voices() == 0,
+          "under MPE the master channel's pedal holds the key that was down "
+          "and not the one played after (" +
+              std::to_string(heldOne) + " held)");
+
+    send({on(2, 60), cc(3, 66, 127)});
+    send({off(2, 60)});
+    check(!p.isSostenutoDown() && voices() == 0,
+          "and a member channel's pedal does nothing, as with the sustain "
+          "pedal");
+
+    // The parser keeps one state for both pedals. Given CC 66 as well, it
+    // would let go of the caught note as the sustain pedal comes up.
+    send({on(2, 60)});
+    send({cc(1, 66, 127), cc(1, 64, 127)});
+    send({off(2, 60)});
+    send({cc(1, 64, 0)});
+    const auto afterSustain = voices();
+    send({cc(1, 66, 0)});
+    check(afterSustain == 1 && voices() == 0,
+          "with both down, lifting the sustain pedal keeps what the "
+          "sostenuto pedal caught, until that lifts too");
+
+    // And the other way: the sustain pedal takes over a note the sostenuto
+    // pedal held, and the engine lets it go when the zone's pedal lifts.
+    send({on(2, 60)});
+    send({cc(1, 66, 127)});
+    send({off(2, 60)});
+    send({cc(1, 64, 127)});
+    send({cc(1, 66, 0)});
+    const auto afterSostenuto = voices();
+    send({cc(1, 64, 0)});
+    check(afterSostenuto == 1 && voices() == 0,
+          "lifting the sostenuto pedal under the sustain pedal leaves the "
+          "note to it, and lifting that lets it go");
+  }
+  setParam(ovt::params::mpeId, 0.0f);
+  send({}, 2);
+
+  // ---- MIDI Learn leaves it alone ------------------------------------------
+  check(ovt::MidiLearn::isReserved(66) &&
+            juce::String(ovt::MidiLearn::reservedFor(66)) ==
+                "the sostenuto pedal",
+        "MIDI Learn will not take CC 66, and says what it is for");
+
+  // Every channel mode message, 120 to 127. Some hosts send reset all
+  // controllers on stop, which would move a control bound to it.
+  {
+    std::string learnable;
+
+    for (int number = 120; number < 128; ++number)
+      if (!ovt::MidiLearn::isReserved(number) ||
+          juce::String(ovt::MidiLearn::reservedFor(number)).isEmpty())
+        learnable += std::to_string(number) + " ";
+
+    check(learnable.empty(), "MIDI Learn will not take a channel mode "
+                             "message, and says what each is for (" +
+                                 learnable + "taken)");
+  }
 
   p.reset();
   renderBlocks(p, 4, 512);
@@ -2488,8 +3372,8 @@ void testActivityLamps(OvertoniumProcessor &p) {
   }
 
   // ---- holding still ------------------------------------------------------
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -2498,15 +3382,7 @@ void testActivityLamps(OvertoniumProcessor &p) {
   sizeEditor(*editor, 1348, 160);
 
   std::vector<ChannelStrip *> strips;
-  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ChannelStrip *>(child))
-        strips.push_back(s);
-
-      collect(*child);
-    }
-  };
-  collect(*editor);
+  strips = descendantsOf<ChannelStrip>(*editor);
 
   check(!strips.empty(), "the mixer has strips in it");
   if (strips.empty())
@@ -2518,11 +3394,11 @@ void testActivityLamps(OvertoniumProcessor &p) {
     juce::Array<juce::Rectangle<int>> bands;
 
     // First call has everything to say, since the lamps start dark.
-    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
     const auto first = bands.size();
 
     bands.clearQuick();
-    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(first > 0, "a lamp that lights asks to be repainted");
     check(bands.isEmpty(), "and the same values again ask for nothing (" +
@@ -2531,82 +3407,83 @@ void testActivityLamps(OvertoniumProcessor &p) {
     // A move too small to cross a step is a move nobody can see.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.0f / (4.0f * ActivityLamp::kSteps), 0.5f, 0.0f,
-                      0.0f, 0.0f, bands);
+                      0.0f, 0.0f, 0.0f, bands);
 
     check(bands.isEmpty(), "nor does a change smaller than one step");
 
     // A move of a whole step does.
     bands.clearQuick();
     strip.setActivity(0.5f + 1.5f / (float)ActivityLamp::kSteps, 0.5f, 0.0f,
-                      0.0f, 0.0f, bands);
+                      0.0f, 0.0f, 0.0f, bands);
 
     check(!bands.isEmpty(), "a change of a whole step does");
 
     // ---- the two envelope lamps never both light --------------------------
     bands.clearQuick();
-    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
-    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(-0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     // Reading the lamps back is not possible from here, so this is checked by
     // the shape of the request instead: flipping the sign has to move both
     // lamps, one out and one in, and nothing else.
     bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
 
     check(bands.size() == 2,
           "flipping to the key-off half moves exactly two lamps, one out and "
           "one in (" +
               std::to_string(bands.size()) + ")");
 
-    // ---- the two output lamps are gated on the note like the rest --------
+    // ---- the output lamp: one slot, a part for each row --------------------
     //
-    // The velocity half needs the gate most: it reads full when the row is
-    // taking nothing, so ungated it would sit lit on every channel of a silent
-    // mixer.
+    // Read back part by part, since the slot is one component and asks for
+    // one repaint whichever part moved.
+    const auto &out = strip.getOutputLamp();
+    const auto parts = [&out] {
+      return std::to_string(out.stepOf(0)) + " " +
+             std::to_string(out.stepOf(1)) + " " +
+             std::to_string(out.stepOf(2));
+    };
+    constexpr int kFull = ActivityLamp::kSteps;
+
+    // Gated on the note like the rest. The velocity and keyboard parts need it
+    // most: they read full when their rows take nothing, so ungated they would
+    // sit lit on every channel of a silent mixer.
     bands.clearQuick();
-    strip.setActivity(0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, bands);
 
+    check(out.stepOf(0) == 0 && out.stepOf(1) == 0 && out.stepOf(2) == 0,
+          "a strip with nothing sounding keeps every part of the output lamp "
+          "dark, the velocity and keyboard ones included (" +
+              parts() + ")");
+
+    // With a note under it each row lights its own part and only its own, in
+    // the order of the rows.
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
     bands.clearQuick();
-    strip.setActivity(0.0f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, bands);
 
-    check(bands.isEmpty(),
-          "a strip with nothing sounding keeps both output lamps dark, the "
-          "velocity one included (" +
-              std::to_string(bands.size()) + " bands)");
+    check(out.stepOf(0) == kFull && out.stepOf(1) == 0 && out.stepOf(2) == 0 &&
+              bands.size() == 1,
+          "with a note under it the velocity row lights the left part and "
+          "nothing else, in one repaint (" +
+              parts() + ")");
 
-    // With a note under it each row moves its own lamp and only its own.
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, bands);
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
 
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 0.0f, bands);
+    check(out.stepOf(0) == 0 && out.stepOf(1) == kFull && out.stepOf(2) == 0,
+          "the keyboard row the middle one (" + parts() + ")");
 
-    check(bands.size() == 1,
-          "with a note under it the velocity row moves exactly one lamp (" +
-              std::to_string(bands.size()) + ")");
+    strip.setActivity(0.8f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, bands);
 
-    // Which one, not just how many. The velocity lamp is the left half of the
-    // rule and the pressure lamp the right, and swapping what they are fed
-    // would leave every count above right.
-    const auto velocityBand = bands.getFirst();
+    check(out.stepOf(0) == 0 && out.stepOf(1) == 0 && out.stepOf(2) == kFull,
+          "and the pressure row the right one (" + parts() + ")");
 
-    bands.clearQuick();
-    strip.setActivity(0.8f, 0.0f, 0.0f, 1.0f, 1.0f, bands);
-
-    check(bands.size() == 1,
-          "and the pressure row moves exactly the other one (" +
-              std::to_string(bands.size()) + ")");
-
-    const auto pressureBand = bands.getFirst();
-    const auto middle = strip.getWidth() / 2;
-
-    check(velocityBand.getCentreX() < middle &&
-              pressureBand.getCentreX() > middle,
-          "with velocity on the left of the rule and aftertouch on the right "
-          "(" +
-              std::to_string(velocityBand.getCentreX()) + " and " +
-              std::to_string(pressureBand.getCentreX()) + " about " +
-              std::to_string(middle) + ")");
+    // It spans the rule, so a glow is never cut where a lamp's bounds end.
+    check(out.getWidth() >= strip.getWidth() - 2 * ovt::ui::kStripPadX,
+          "the slot runs the width of the strip (" +
+              std::to_string(out.getWidth()) + " of " +
+              std::to_string(strip.getWidth()) + ")");
   }
 }
 
@@ -2706,8 +3583,8 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   }
 
   // ---- what the strips actually show --------------------------------------
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -2716,15 +3593,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   sizeEditor(*editor, 1348, 160);
 
   std::vector<SegmentDisplay *> displays;
-  std::function<void(juce::Component &)> collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-        displays.push_back(d);
-
-      collect(*child);
-    }
-  };
-  collect(*editor);
+  displays = descendantsOf<SegmentDisplay>(*editor);
 
   // Three on the bar (the two converter readouts and the preset name), two on
   // each of the thirty-two channels, the level on the noise strip, and one per
@@ -2763,15 +3632,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   };
 
   std::vector<ChannelStrip *> strips;
-  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ChannelStrip *>(child))
-        strips.push_back(s);
-
-      gather(*child);
-    }
-  };
-  gather(*editor);
+  strips = descendantsOf<ChannelStrip>(*editor);
 
   check(!strips.empty(), "the mixer has strips in it");
   if (strips.empty())
@@ -2779,16 +3640,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
 
   // The readouts are the strip's own children, so they are found by walking
   // one strip rather than by being handed out.
-  std::vector<SegmentDisplay *> onFirst;
-  collect = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-        onFirst.push_back(d);
-
-      collect(*child);
-    }
-  };
-  collect(*strips.front());
+  const auto onFirst = descendantsOf<SegmentDisplay>(*strips.front());
 
   check(onFirst.size() == 2, "a channel carries two of them (" +
                                  std::to_string(onFirst.size()) + ")");
@@ -2917,15 +3769,7 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       param->setValueNotifyingHost(param->convertTo0to1(blend));
 
     std::vector<SegmentDisplay *> on;
-    std::function<void(juce::Component &)> walk = [&](juce::Component &c) {
-      for (auto *child : c.getChildren()) {
-        if (auto *d = dynamic_cast<SegmentDisplay *>(child))
-          on.push_back(d);
-
-        walk(*child);
-      }
-    };
-    walk(*strips[(size_t)channel]);
+    on = descendantsOf<SegmentDisplay>(*strips[(size_t)channel]);
 
     return on.empty() ? juce::String() : on.front()->getReading();
   };
@@ -3087,10 +3931,12 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Big Saw", "BIG SAW  "},
       {"Lo-fi", "LO-FI    "},
       {"Init", "INIT     "},
+      {"Pendulum", "PENDULUM "},
 
       // Exactly nine, which is the case that must not be touched.
       {"Cathedral", "CATHEDRAL"},
       {"Equal Saw", "EQUAL SAW"},
+      {"Soft Trio", "SOFT TRIO"},
 
       // The space goes and nothing else has to.
       {"Tape Choir", "TAPECHOIR"},
@@ -3240,8 +4086,8 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   using namespace ovt::ui;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -3251,17 +4097,7 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   ChannelStrip *strip = nullptr;
 
-  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (strip == nullptr)
-        if (auto *s = dynamic_cast<ChannelStrip *>(child))
-          strip = s;
-
-      findStrip(*child);
-    }
-  };
-
-  findStrip(*editor);
+  strip = firstOf<ChannelStrip>(*editor);
 
   check(strip != nullptr, "and has channel strips in it");
   if (strip == nullptr)
@@ -3322,6 +4158,48 @@ void testSilencedChannel(OvertoniumProcessor &p) {
 
   check(back.controlsLit == heard.controlsLit && back.controlsUnlit == 0,
         "and it all comes back when the channel is audible again");
+
+  // ---- the readouts go dark with the controls
+  // --------------------------------
+  //
+  // The noise channel is silenced by another channel's solo like any other,
+  // so its level readout goes dark as a channel's does.
+  const auto readoutsLit = [](juce::Component &c) {
+    int lit = 0;
+
+    for (auto *d : descendantsOf<SegmentDisplay>(c))
+      lit += d->isActive() ? 1 : 0;
+
+    return lit;
+  };
+
+  auto *noise = firstOf<NoiseStrip>(*editor);
+
+  check(noise != nullptr, "the noise channel is there");
+
+  for (juce::Component *column :
+       {(juce::Component *)strip, (juce::Component *)noise}) {
+    auto *asColumn = dynamic_cast<StripColumn *>(column);
+
+    if (asColumn == nullptr)
+      continue;
+
+    const auto name =
+        std::string(column == strip ? "a channel's" : "the noise channel's");
+    const auto before = readoutsLit(*column);
+
+    asColumn->setSilencedByOthers(true);
+    const auto silenced = readoutsLit(*column);
+    asColumn->setSilencedByOthers(false);
+    const auto after = readoutsLit(*column);
+
+    check(before > 0 && silenced == 0 && after == before,
+          name +
+              " readouts go dark while it is silenced and light again "
+              "after (" +
+              std::to_string(before) + " lit, " + std::to_string(silenced) +
+              " silenced, " + std::to_string(after) + " after)");
+  }
 
   // ---- and a macro does not relight it --------------------------------------
   //
@@ -3388,8 +4266,8 @@ void testMuteSoloGang(OvertoniumProcessor &p) {
   using namespace ovt::ui;
   using LAF = OvertoniumLookAndFeel;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -3466,8 +4344,8 @@ void testChannelHover(OvertoniumProcessor &p) {
 
   using namespace ovt::ui;
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -3720,10 +4598,18 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
       }
     }
 
-    // params::atSuffix is the one constant not named after the id it makes.
+    // params::atSuffix and params::keySuffix are the two constants not named
+    // after the id they make.
     const auto suffixOf = [](const juce::String &constant) {
       const auto stem = constant.upToFirstOccurrenceOf("Suffix", false, false);
-      return stem == "at" ? juce::String("aftertouch") : stem;
+
+      if (stem == "at")
+        return juce::String(ovt::params::atSuffix);
+
+      if (stem == "key")
+        return juce::String(ovt::params::keySuffix);
+
+      return stem;
     };
 
     for (const auto &statement : statements) {
@@ -3867,7 +4753,8 @@ void testFactoryCodeGenerator(OvertoniumProcessor &p) {
 void testBothPresetKindsCarryTheSame() {
   section("Both kinds of preset carry the same set");
 
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
 
   const auto everyParam = [&p] {
     std::vector<juce::RangedAudioParameter *> out;
@@ -4446,7 +5333,8 @@ void testUserPresets(OvertoniumProcessor &p) {
 
     const auto code = presets::factoryCode(p.apvts, "Test Patch");
 
-    check(code.contains("case N: // Test Patch"), "the case is named");
+    check(code.contains("if (name == \"Test Patch\") {"),
+          "the block is found by its name");
     check(code.contains("ap.neutralBase();"),
           "it starts from the neutral base");
     check(code.contains(params::oscParamId(params::driftSuffix, 0)),
@@ -4550,6 +5438,36 @@ void testMasterEffects(OvertoniumProcessor &p) {
   setParam(ovt::params::resonatorModeId, (float)(int)ovt::ResonatorMode::Off);
 
   check(tailAfterNote() < 1.0e-5f, "switching them off takes them away");
+
+  // A macro on the release row lengthens every release without writing the
+  // parameters, so the reported tail has to read what the engine gets rather
+  // than the knobs.
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto knobsOnly = p.getTailLengthSeconds();
+
+  int releaseRow = 0;
+  for (int row = 0; row < ovt::params::kNumMacroRows; ++row)
+    if (juce::String(ovt::params::kMacroRows[row]) ==
+        ovt::params::releaseSuffix)
+      releaseRow = row + 1; // the list opens with None
+
+  const auto setMacro = [&p](const juce::String &id, float plain) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  setMacro(ovt::params::macroRowId(0), (float)releaseRow);
+  setMacro(ovt::params::macroScopeId(0), 0.0f);
+  setMacro(ovt::params::macroCurveId(0), 0.0f);
+  setMacro(ovt::params::macroAmountId(0), 1.0f);
+
+  const auto stretched = p.getTailLengthSeconds();
+
+  check(stretched > knobsOnly + 1.0,
+        "the reported tail follows a macro on the release row (" +
+            std::to_string(knobsOnly) + " s, then " +
+            std::to_string(stretched) + " s)");
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
   p.reset();
@@ -4685,7 +5603,7 @@ void testMeterRepaint() {
   }
 }
 
-/// The LINK menu as data: its sections and items, the ticks, what choosing an
+/// The tool menu as data: its sections and items, the ticks, what choosing an
 /// item does, and how the curve is saved.
 void testLinkMenu() {
   section("Link menu");
@@ -4693,11 +5611,10 @@ void testLinkMenu() {
   using namespace ovt::ui;
 
   LinkSettings settings;
-  settings.enabled = false;
   settings.scope = LinkScope::Odd;
   settings.curve = LinkCurve::Taper;
 
-  auto menu = buildLinkMenu(settings);
+  auto menu = buildToolMenu(PointerTool::Pointer, settings);
 
   int items = 0, headers = 0, ticked = 0, enabled = 0;
   std::string tickedNames;
@@ -4724,26 +5641,27 @@ void testLinkMenu() {
       ++enabled;
   }
 
-  check(headers == 2, "the menu is in two named sections");
-  // The switch, the scopes, clearing the selection and the curves.
-  check(items == 1 + (int)LinkScope::NumScopes + 1 + (int)LinkCurve::NumCurves,
-        "the switch, every scope, clearing the selection and every curve are "
+  check(headers == 3, "the menu is in three named sections");
+  // The tools, the scopes, clearing the selection and the curves.
+  check(items == (int)PointerTool::NumTools + (int)LinkScope::NumScopes + 1 +
+                     (int)LinkCurve::NumCurves,
+        "every tool, every scope, clearing the selection and every curve are "
         "all there (" +
             std::to_string(items) + ")");
 
-  // Exactly the two current settings are ticked, and nothing else.
-  check(ticked == 2, "two items are ticked");
-  check(tickedNames == "Odd harmonics Taper from the grab ",
+  // The tool and the two current settings are ticked, and nothing else.
+  check(ticked == 3, "three items are ticked");
+  check(tickedNames == "Pointer Odd harmonics Taper from the grab ",
         "and they are the current ones: " + tickedNames);
 
-  // With LINK off the lists are shown but greyed, so the menu does not change
-  // shape as the switch moves.
-  check(enabled == 1, "with LINK off only the switch itself can be picked");
+  // Under another tool LINK's lists are shown but greyed, so the menu does
+  // not change shape as the tool changes.
+  check(enabled == (int)PointerTool::NumTools,
+        "under the pointer only the tools can be picked");
 
-  settings.enabled = true;
   settings.hasSelection = true;
   int enabledOn = 0;
-  auto onMenu = buildLinkMenu(settings);
+  auto onMenu = buildToolMenu(PointerTool::Link, settings);
 
   for (juce::PopupMenu::MenuItemIterator it(onMenu); it.next();)
     if (it.getItem().itemID != 0 && it.getItem().isEnabled &&
@@ -4751,7 +5669,7 @@ void testLinkMenu() {
       ++enabledOn;
 
   check(enabledOn == items,
-        "with LINK on and a selection made, every item can be picked");
+        "under LINK with a selection made, every item can be picked");
 
   check(isClearSelectionChoice(2) && !isClearSelectionChoice(1) &&
             !applyLinkMenuChoice(2, settings),
@@ -4763,11 +5681,6 @@ void testLinkMenu() {
 
   check(!applyLinkMenuChoice(0, state), "dismissing the menu changes nothing");
   check(!applyLinkMenuChoice(9999, state), "an id from elsewhere is ignored");
-
-  check(applyLinkMenuChoice(1, state) && state.enabled,
-        "the first item is the switch");
-  check(applyLinkMenuChoice(1, state) && !state.enabled,
-        "and it toggles rather than setting");
 
   // Every scope and every curve has to come back as itself, which is what the
   // two id ranges are for.
@@ -4978,7 +5891,8 @@ void testPresetMenuGroups(OvertoniumProcessor &p) {
 void testFirstProgramIsReachable() {
   section("The first preset on a new instance");
 
-  OvertoniumProcessor fresh;
+  const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+  auto &fresh = *freshOwner;
 
   auto *volume = fresh.apvts.getParameter(
       ovt::params::oscParamId(ovt::params::volumeSuffix, 0));
@@ -5019,14 +5933,15 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
 
   using ovt::ui::PointerTool;
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
   // What a window left on this tool reports when the next one opens, with the
   // session carried between them the way a host carries it.
   const auto reopenedOn = [&proc](PointerTool chosen) {
     {
-      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+      auto ed = openEditor(proc);
+      auto *editor = ed.get();
 
       if (editor == nullptr)
         return PointerTool::NumTools;
@@ -5039,8 +5954,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
     proc.getStateInformation(carried);
     proc.setStateInformation(carried.getData(), (int)carried.getSize());
 
-    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+    auto ed = openEditor(proc);
+    auto *editor = ed.get();
 
     if (editor == nullptr)
       return PointerTool::NumTools;
@@ -5072,8 +5987,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
   // callback, so choosing another tool afterwards has to write it again.
   {
     {
-      std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-      auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+      auto ed = openEditor(proc);
+      auto *editor = ed.get();
 
       check(editor != nullptr, "a window opens to leave LINK's mark in");
 
@@ -5093,8 +6008,8 @@ void testTheToolOutlivesTheWindow(OvertoniumProcessor &) {
     proc.getStateInformation(carried);
     proc.setStateInformation(carried.getData(), (int)carried.getSize());
 
-    std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+    auto ed = openEditor(proc);
+    auto *editor = ed.get();
 
     if (editor != nullptr) {
       sizeEditor(*editor, 1340);
@@ -5123,7 +6038,8 @@ void testPresetNameOutlivesTheWindow() {
     return bar != nullptr ? bar->getPresetName() : juce::String("(no bar)");
   };
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
   check(shownBy(proc).isEmpty(),
         "a window on a new instance shows nothing loaded");
@@ -5144,7 +6060,8 @@ void testPresetNameOutlivesTheWindow() {
   juce::MemoryBlock saved;
   proc.getStateInformation(saved);
 
-  OvertoniumProcessor restored;
+  const auto restoredOwner = std::make_unique<OvertoniumProcessor>();
+  auto &restored = *restoredOwner;
   restored.setStateInformation(saved.getData(), (int)saved.getSize());
 
   check(restored.presetName() == "Something Of My Own",
@@ -5332,8 +6249,8 @@ void testPresetsTellTheHostOnlyWhatChanged(OvertoniumProcessor &p) {
 void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
   section("The channels TUNE cannot move");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -5341,15 +6258,7 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 
   std::vector<ovt::ui::ChannelStrip *> strips;
 
-  std::function<void(juce::Component &)> gather = [&](juce::Component &c) {
-    for (auto *child : c.getChildren()) {
-      if (auto *s = dynamic_cast<ovt::ui::ChannelStrip *>(child))
-        strips.push_back(s);
-
-      gather(*child);
-    }
-  };
-  gather(*editor);
+  strips = descendantsOf<ovt::ui::ChannelStrip>(*editor);
 
   check(strips.size() == (size_t)ovt::kNumHarmonics, "the mixer is all there");
   if (strips.size() != (size_t)ovt::kNumHarmonics)
@@ -5396,6 +6305,187 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 /// A global switch reached from a per-channel menu, so this checks that the
 /// pitch button and the amplitude button reach different switches. Both menus
 /// would still tick and untick if they did not.
+/// The two entries in a shape menu that set every channel at once. "Set every
+/// channel to" lists every shape, so a shape can be given to all channels
+/// without choosing it on one channel first, and either entry comes back in one
+/// undo step. Driven through the ids the menu carries, since opening it needs a
+/// window.
+void testSetEveryChannelTo(OvertoniumProcessor &p) {
+  section("Set every channel to a shape");
+
+  using namespace ovt::ui;
+  using ovt::params::amShapeSuffix;
+  using ovt::params::pmShapeSuffix;
+
+  auto &undo = p.undo();
+
+  const auto shapeOf = [&p](const juce::String &id) {
+    auto *value = p.apvts.getRawParameterValue(id);
+    return value != nullptr ? juce::roundToInt(value->load()) : -1;
+  };
+
+  // Written with no gesture, as automation writes, so none of it is undone.
+  const auto put = [&p](const juce::String &id, int index) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(param->convertTo0to1((float)index));
+  };
+
+  // Every channel the menu reaches, the noise channel last where it has one.
+  const auto idsFor = [&p](const char *suffix) {
+    std::vector<juce::String> ids;
+
+    for (int i = 0; i < ovt::kNumHarmonics; ++i)
+      ids.push_back(ovt::params::oscParamId(suffix, i));
+
+    const auto noise = ovt::params::noiseParamId(suffix);
+
+    if (p.apvts.getParameter(noise) != nullptr)
+      ids.push_back(noise);
+
+    return ids;
+  };
+
+  // A different shape on each channel, so a step that misses one shows.
+  const auto spread = [&](const std::vector<juce::String> &ids, int count) {
+    for (size_t i = 0; i < ids.size(); ++i)
+      put(ids[i], (int)i % count);
+  };
+
+  const auto allAre = [&](const std::vector<juce::String> &ids, int index) {
+    int matching = 0;
+
+    for (const auto &id : ids)
+      matching += shapeOf(id) == index ? 1 : 0;
+
+    return matching == (int)ids.size();
+  };
+
+  const auto stillSpread = [&](const std::vector<juce::String> &ids,
+                               int count) {
+    int matching = 0;
+
+    for (size_t i = 0; i < ids.size(); ++i)
+      matching += shapeOf(ids[i]) == (int)i % count ? 1 : 0;
+
+    return matching == (int)ids.size();
+  };
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  ShapeButton pitch(p.apvts, ovt::params::oscParamId(pmShapeSuffix, 0),
+                    pmShapeSuffix, ovt::params::kPitchShapes,
+                    ovt::params::pitchShapeNames());
+
+  ShapeButton amp(p.apvts, ovt::params::oscParamId(amShapeSuffix, 0),
+                  amShapeSuffix, ovt::params::kAmpShapes,
+                  ovt::params::ampShapeNames());
+
+  // The two entries, read off the menu. The submenu's ids are kept in the
+  // order it lists them.
+  struct Entries {
+    int thisOne = -1;
+    bool submenuAfterIt = false;
+    juce::StringArray names;
+    std::vector<int> ids;
+  };
+
+  const auto entriesOf = [](const ShapeButton &button) {
+    Entries found;
+    auto menu = button.buildMenu();
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.text == "Set every channel to this")
+        found.thisOne = item.itemID;
+
+      if (item.text == "Set every channel to" && item.subMenu != nullptr) {
+        found.submenuAfterIt = found.thisOne > 0;
+
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu);
+             sub.next();) {
+          found.names.add(sub.getItem().text);
+          found.ids.push_back(sub.getItem().itemID);
+        }
+      }
+    }
+
+    return found;
+  };
+
+  const auto pitchEntries = entriesOf(pitch);
+  const auto ampEntries = entriesOf(amp);
+
+  check(pitchEntries.thisOne > 0 && pitchEntries.submenuAfterIt,
+        "the pitch shape menu offers both entries, the submenu after the one "
+        "that copies this channel");
+
+  check(pitchEntries.names == ovt::params::pitchShapeNames(),
+        "and its submenu lists every pitch shape in order (" +
+            pitchEntries.names.joinIntoString(", ").toStdString() + ")");
+
+  check(ampEntries.names == ovt::params::ampShapeNames(),
+        "and the amplitude menu's lists every amplitude shape in order");
+
+  const auto pitchIds = idsFor(pmShapeSuffix);
+  const auto ampIds = idsFor(amShapeSuffix);
+  const auto pitchCount = (int)ovt::params::kPitchShapes.size();
+  const auto ampCount = (int)ovt::params::kAmpShapes.size();
+
+  check(pitchIds.size() == (size_t)ovt::kNumHarmonics &&
+            ampIds.size() == (size_t)ovt::kNumHarmonics + 1,
+        "pitch reaches the 32 channels and amplitude the noise channel too");
+
+  // The last shape, which channel 1 is not set to, so nothing is chosen on a
+  // channel first.
+  spread(pitchIds, pitchCount);
+  spread(ampIds, ampCount);
+  undo.clearUndoHistory();
+
+  const auto lastPitch = pitchCount - 1;
+
+  check(shapeOf(pitchIds[0]) != lastPitch,
+        "channel 1 starts on a different pitch shape from the one picked");
+
+  pitch.chooseFromMenu(pitchEntries.ids.back());
+
+  check(allAre(pitchIds, lastPitch),
+        "picking the last pitch shape sets it on all 32 channels");
+
+  check(stillSpread(ampIds, ampCount),
+        "and leaves every amplitude shape as it was");
+
+  check(undo.undo() && stillSpread(pitchIds, pitchCount),
+        "one undo puts every channel's pitch shape back");
+
+  check(!undo.canUndo(), "which was the whole change, not the first of 32");
+
+  // The amplitude menu, which reaches the noise channel as well.
+  undo.clearUndoHistory();
+  amp.chooseFromMenu(ampEntries.ids[2]);
+
+  check(allAre(ampIds, 2),
+        "picking an amplitude shape sets it on all 32 channels and noise");
+
+  check(undo.undo() && stillSpread(ampIds, ampCount) && !undo.canUndo(),
+        "and one undo puts all 33 back");
+
+  // The entry that was there before, copying this channel's own shape, is one
+  // step now as well.
+  put(ampIds[0], 3);
+  undo.clearUndoHistory();
+  amp.chooseFromMenu(ampEntries.thisOne);
+
+  check(allAre(ampIds, 3),
+        "\"Set every channel to this\" copies channel 1's shape everywhere");
+
+  check(undo.undo() && shapeOf(ampIds[1]) == 1 && !undo.canUndo(),
+        "and is one undo step too");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+}
+
 void testModulatorsInPhase(OvertoniumProcessor &p) {
   section("Modulators in phase across the keyboard");
 
@@ -5621,8 +6711,8 @@ void testSettingsMenu(OvertoniumProcessor &p) {
 void testFitAllChannels(OvertoniumProcessor &p) {
   section("Fitting the mixer back in");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -5686,8 +6776,8 @@ void testFitAllChannels(OvertoniumProcessor &p) {
 void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
   section("The machine menus follow their parameters");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -5790,11 +6880,11 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
 
     write(ovt::params::safetyClipId, 1.0f);
 
-    for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+    for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i) {
       write(ovt::params::clipTypeId, (float)i);
 
       auto menu = bar->buildClipMenu();
-      const std::string wanted = ovt::clipTypeName((ovt::ClipType)i);
+      const std::string wanted = dm::clipTypeName((dm::ClipType)i);
 
       check(tickedIn(menu) == wanted, "and names " + wanted +
                                           " when that is the shape running (" +
@@ -5844,10 +6934,9 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
       const auto room = (float)(clip->getWidth() - margin * 2);
 
       int tooWide = 0;
-      for (int i = 0; i < (int)ovt::ClipType::NumTypes; ++i) {
+      for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i) {
         const juce::String label =
-            juce::String(ovt::clipTypeShortName((ovt::ClipType)i))
-                .toUpperCase();
+            juce::String(dm::clipTypeShortName((dm::ClipType)i)).toUpperCase();
 
         const auto width = juce::GlyphArrangement::getStringWidth(font, label);
 
@@ -5902,8 +6991,8 @@ void testMachineMenusFollowTheirParameters(OvertoniumProcessor &p) {
 void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
   section("The Settings menu names the version");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -5963,8 +7052,8 @@ void testSettingsNamesTheVersion(OvertoniumProcessor &p) {
 void testWheelOverAKnobStaysOnTheKnob(OvertoniumProcessor &p) {
   section("A wheel over a knob does not scroll the mixer");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6127,8 +7216,8 @@ void testWheelOverABarKnobStaysOnTheKnob(OvertoniumProcessor &p) {
 
   p.applyFactoryPreset(presetIndex("Init"));
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6606,8 +7695,8 @@ std::vector<float> renderTone(OvertoniumProcessor &p, double sampleRate,
 void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
   section("The wheel scrolls the parameters");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6725,8 +7814,8 @@ void testTheWheelScrollsTheParameters(OvertoniumProcessor &p) {
 void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
   section("A sideways wheel moves the mixer");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -6812,8 +7901,8 @@ void testASidewaysWheelMovesTheMixer(OvertoniumProcessor &p) {
 void testTheGutterBorderIsOneLine(OvertoniumProcessor &p) {
   section("The gutter border is one line");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7063,7 +8152,8 @@ void testACorruptStateCannotPoisonTheOutput() {
   int checked = 0;
 
   for (const char *poison : poisons) {
-    OvertoniumProcessor victim;
+    const auto victimOwner = std::make_unique<OvertoniumProcessor>();
+    auto &victim = *victimOwner;
     victim.setRateAndBufferSizeDetails(48000.0, 256);
     victim.prepareToPlay(48000.0, 256);
     victim.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7086,9 +8176,33 @@ void testACorruptStateCannotPoisonTheOutput() {
       continue;
     }
 
+    // Not even for a moment, since the audio thread can render a block while
+    // the host is still restoring the session.
+    struct Watch : juce::AudioProcessorParameter::Listener {
+      int notNumbers = 0;
+
+      void parameterValueChanged(int, float value) override {
+        if (!std::isfinite(value))
+          ++notNumbers;
+      }
+
+      void parameterGestureChanged(int, bool) override {}
+    } watch;
+
+    for (auto *parameter : victim.getParameters())
+      parameter->addListener(&watch);
+
     juce::MemoryBlock block;
     victim.copyXmlToBinary(*xml, block);
     victim.setStateInformation(block.getData(), (int)block.getSize());
+
+    for (auto *parameter : victim.getParameters())
+      parameter->removeListener(&watch);
+
+    check(watch.notNumbers == 0,
+          std::string("a state of \"") + poison +
+              "\" never puts a value that is not a number on a parameter (" +
+              std::to_string(watch.notNumbers) + " did)");
 
     juce::MidiBuffer midi;
     midi.addEvent(juce::MidiMessage::noteOn(1, 60, 1.0f), 0);
@@ -7118,7 +8232,8 @@ void testEveryHostRateStaysFinite() {
 
   for (double rate : rates) {
     for (int block : {64, 512}) {
-      OvertoniumProcessor fresh;
+      const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+      auto &fresh = *freshOwner;
       fresh.setRateAndBufferSizeDetails(rate, block);
       fresh.prepareToPlay(rate, block);
       fresh.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7141,7 +8256,8 @@ void testEveryHostRateStaysFinite() {
       // And in tune, which finiteness and loudness cannot see: an engine that
       // assumed 48 kHz would render a good note two octaves down at 192 kHz.
       if (block == 512) {
-        OvertoniumProcessor tone;
+        const auto toneOwner = std::make_unique<OvertoniumProcessor>();
+        auto &tone = *toneOwner;
         tone.setRateAndBufferSizeDetails(rate, block);
         tone.prepareToPlay(rate, block);
         tone.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7188,7 +8304,8 @@ void testTheSafetyClipHoldsUnity() {
   float worst = 0.0f;
 
   for (double rate : {44100.0, 48000.0, 96000.0}) {
-    OvertoniumProcessor fresh;
+    const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+    auto &fresh = *freshOwner;
     fresh.setRateAndBufferSizeDetails(rate, 256);
     fresh.prepareToPlay(rate, 256);
     fresh.applyFactoryPreset(presetIndex("Big Saw"));
@@ -7208,9 +8325,9 @@ void testTheSafetyClipHoldsUnity() {
     // Every one of the eight. The limiter, and Console, Cassette and Print,
     // which end in it, keep the bound by seeing the peak coming, with a hard
     // clip behind it for whatever the window is too short to see.
-    for (int type = 0; type < (int)ovt::ClipType::NumTypes; ++type) {
+    for (int type = 0; type < (int)dm::ClipType::NumTypes; ++type) {
       set(ovt::params::clipTypeId,
-          (float)type / (float)((int)ovt::ClipType::NumTypes - 1));
+          (float)type / (float)((int)dm::ClipType::NumTypes - 1));
 
       juce::MidiBuffer chord;
       for (int note : {36, 43, 48, 52, 55, 59, 60, 64, 67, 72})
@@ -7220,7 +8337,7 @@ void testTheSafetyClipHoldsUnity() {
           renderBlocks(fresh, (int)(1.0 * rate / 256.0) + 1, 256, chord);
 
       check(each.finite && each.peak <= 1.0f,
-            std::string(ovt::clipTypeName((ovt::ClipType)type)) +
+            std::string(dm::clipTypeName((dm::ClipType)type)) +
                 " stays inside unity at " + std::to_string((int)rate) +
                 " Hz (" + std::to_string(each.peak) + ")");
     }
@@ -7255,8 +8372,8 @@ void testTheSafetyClipHoldsUnity() {
 void testFittingShowsEveryRow(OvertoniumProcessor &p) {
   section("Fitting shows every row");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7330,8 +8447,8 @@ void testFittingShowsEveryRow(OvertoniumProcessor &p) {
 void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
   section("Fitting lands where a drag can return");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -7392,8 +8509,8 @@ void testFittingLandsWhereADragCanReturn(OvertoniumProcessor &p) {
 void testFoldingAndUnfoldingIsSymmetric(OvertoniumProcessor &p) {
   section("Folding and unfolding leaves the window where it was");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -8046,13 +9163,12 @@ void testResonatorParameters(OvertoniumProcessor &p) {
 
   auto *mode = dynamic_cast<juce::AudioParameterChoice *>(
       p.apvts.getParameter(pp::resonatorModeId));
-  check(
-      mode != nullptr &&
-          mode->choices ==
-              juce::StringArray{"Off", "Piano", "Open", "Octave", "Series"} &&
-          mode->getIndex() == (int)ovt::ResonatorMode::Off,
-      "Resonator Mode is Off, Piano, Open, Octave or Series, and Off to begin "
-      "with");
+  check(mode != nullptr &&
+            mode->choices == juce::StringArray{"Off", "Piano", "Open", "Octave",
+                                               "Series", "Fifths", "Chord"} &&
+            mode->getIndex() == (int)ovt::ResonatorMode::Off,
+        "Resonator Mode is Off, Piano, Open, Octave, Series, Fifths or Chord, "
+        "and Off to begin with");
 
   if (auto *decay = p.apvts.getParameter(pp::resonatorDecayId))
     check(decay->getText(decay->getDefaultValue(), 16) == "4.00 s",
@@ -8402,6 +9518,25 @@ void testPlayingBar(OvertoniumProcessor &p) {
   const bool none = inUse.getReading().trim() == "0" && inUse.isActive() &&
                     !sustain.getToggleState();
 
+  bar->showActivity({0, true, false, 0.5f});
+  const bool halfShown = std::abs(sustain.getLevel() - 0.5f) < 1.0e-6f;
+  bar->showActivity({});
+  check(halfShown, "SUSTAIN shows how far down the pedal is");
+
+  const auto &sostenuto = bar->sostenutoLamp();
+  bar->showActivity({0, false, true});
+  const bool sostenutoLit =
+      sostenuto.getToggleState() && !sustain.getToggleState();
+  bar->showActivity({});
+
+  check(sostenuto.isVisible() && sostenuto.getX() == sustain.getX() &&
+            sostenuto.getWidth() == sustain.getWidth() &&
+            sostenuto.getY() > sustain.getBottom() &&
+            sostenuto.getHeight() == sustain.getHeight() && sostenutoLit &&
+            !sostenuto.getToggleState(),
+        "SOSTENUTO stands under SUSTAIN, the same size, and lights on its "
+        "own");
+
   check(three, "it shows the voices in use and lights SUSTAIN (" +
                    inUse.getReading().toStdString() + ", " +
                    inUse.getTitle().toStdString() + ")");
@@ -8414,12 +9549,13 @@ void testPlayingBar(OvertoniumProcessor &p) {
 
   check(pitchMeter.isVisible() && wheelMeter.isVisible() &&
             pressureMeter.isVisible() &&
-            sustain.getRight() < pitchMeter.getX() &&
+            sostenuto.getRight() < pitchMeter.getX() &&
             pitchMeter.getRight() < wheelMeter.getX() &&
             wheelMeter.getRight() < pressureMeter.getX() &&
-            pitchMeter.getBounds().getCentreY() ==
-                sustain.getBounds().getCentreY(),
-        "PITCH, WHEEL and PRESSURE stand after SUSTAIN, on its line");
+            pitchMeter.getY() > sustain.getY() &&
+            pitchMeter.getBottom() < sostenuto.getBottom(),
+        "PITCH, WHEEL and PRESSURE stand after the pedals, within their "
+        "height");
 
   {
     // Where a needle's two ends and middle are, from its own width.
@@ -8432,15 +9568,15 @@ void testPlayingBar(OvertoniumProcessor &p) {
     };
     const auto near = [](int a, int b) { return std::abs(a - b) <= 1; };
 
-    bar->showActivity({0, false, -1.0f, 0.0f, 0.0f});
+    bar->showActivity({0, false, false, 0.0f, -1.0f, 0.0f, 0.0f});
     const bool atRest = pitchMeter.getColumn() == left &&
                         wheelMeter.getColumn() == left &&
                         pressureMeter.getColumn() == left;
-    bar->showActivity({0, false, 0.0f, 0.5f, 0.5f});
+    bar->showActivity({0, false, false, 0.0f, 0.0f, 0.5f, 0.5f});
     const bool halfway = near(pitchMeter.getColumn(), middle(pitchMeter)) &&
                          near(wheelMeter.getColumn(), middle(wheelMeter)) &&
                          near(pressureMeter.getColumn(), middle(pressureMeter));
-    bar->showActivity({0, false, 1.0f, 1.0f, 1.0f});
+    bar->showActivity({0, false, false, 0.0f, 1.0f, 1.0f, 1.0f});
     const bool atTheEnd = pitchMeter.getColumn() == right(pitchMeter) &&
                           wheelMeter.getColumn() == right(wheelMeter) &&
                           pressureMeter.getColumn() == right(pressureMeter);
@@ -8945,16 +10081,25 @@ void testTuningBar(OvertoniumProcessor &p) {
     setMode(ovt::ResonatorMode::Series);
     bar->refresh();
     const bool liveForSeries = root->isActive() && settingsRootLive();
-    setMode(ovt::ResonatorMode::Piano);
+    setMode(ovt::ResonatorMode::Fifths);
     bar->refresh();
-    const bool deadAgain = !root->isActive() && !settingsRootLive();
+    const bool liveForFifths = root->isActive() && settingsRootLive();
+    bool deadAgain = true;
+    for (const auto other :
+         {ovt::ResonatorMode::Piano, ovt::ResonatorMode::Open,
+          ovt::ResonatorMode::Octave, ovt::ResonatorMode::Chord}) {
+      setMode(other);
+      bar->refresh();
+      deadAgain &= !root->isActive() && !settingsRootLive();
+    }
     setMode(ovt::ResonatorMode::Off);
     bar->refresh();
 
-    check(topBar != nullptr && deadBefore && liveForSeries && deadAgain,
+    check(topBar != nullptr && deadBefore && liveForSeries && liveForFifths &&
+              deadAgain,
           "and under Equal the root lights, on the bar and in Settings, while "
-          "the resonator is in Series, which rings the root's harmonics, and "
-          "only then");
+          "the resonator is in Series or Fifths, which are built on the root, "
+          "and only then");
   }
 
   // ---- under Adaptive, Retune joins it -------------------------------------
@@ -9457,8 +10602,8 @@ void testSegmentCells() {
 void testToolButtonShowsTheTool(OvertoniumProcessor &p) {
   section("The tool button shows the tool");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -9681,8 +10826,8 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
   section("LINK survives a reopen");
 
   const auto reopen = [&p]() {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
     auto *bar = editor != nullptr ? findTopBar(*editor) : nullptr;
 
     return std::pair<std::unique_ptr<juce::AudioProcessorEditor>,
@@ -9764,8 +10909,8 @@ void testLinkSurvivesAReopen(OvertoniumProcessor &p) {
 void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
   section("Drawing the faders");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -10033,8 +11178,8 @@ void testDrawingAcrossTheFaders(OvertoniumProcessor &p) {
 void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   section("The zoom tick follows the zoom");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -10046,7 +11191,8 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   if (bar == nullptr)
     return;
 
-  const auto ticked = [bar]() {
+  // By reference, since the bar is found again when the editor reopens below.
+  const auto ticked = [&bar]() {
     // Named rather than iterated off the call, since the iterator keeps a
     // reference to it. Whatever is ticked, so two ticks fail as loudly as none.
     auto menu = bar->buildSettingsMenu();
@@ -10067,7 +11213,7 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   };
 
   // Every zoom the menu offers, in turn, ending at 100% for whatever runs next.
-  for (const auto factor : {1.25f, 0.75f, 1.5f, 1.0f}) {
+  for (const auto factor : {1.25f, 0.75f, 2.0f, 1.5f, 1.75f, 1.0f}) {
     const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
 
     bar->onZoomChanged(factor);
@@ -10075,6 +11221,59 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     check(ticked() == reads,
           "the window at " + reads + " ticks " + reads + " (" + ticked() + ")");
   }
+
+  // At every zoom the window still goes down to the smallest it goes at 100%,
+  // scaled by the zoom, so a large zoom never leaves it stuck at a size.
+  const auto *limits = editor->getConstrainer();
+
+  check(limits != nullptr, "the editor has resize limits");
+  if (limits == nullptr)
+    return;
+
+  const auto floorWidth = limits->getMinimumWidth();
+  const auto floorHeight = limits->getMinimumHeight();
+
+  for (const auto factor : {0.75f, 1.25f, 1.5f, 1.75f, 2.0f}) {
+    bar->onZoomChanged(factor);
+
+    const auto width = limits->getMinimumWidth();
+    const auto height = limits->getMinimumHeight();
+
+    std::printf("  smallest window at %d%%: %d x %d\n",
+                juce::roundToInt(factor * 100.0f), width, height);
+
+    const auto wantWidth = juce::roundToInt((float)floorWidth * factor);
+    const auto wantHeight = juce::roundToInt((float)floorHeight * factor);
+
+    check(std::abs(width - wantWidth) <= 1 &&
+              std::abs(height - wantHeight) <= 1,
+          "the smallest window at " +
+              std::to_string(juce::roundToInt(factor * 100.0f)) +
+              "% is the one at 100% scaled by the zoom");
+  }
+
+  // A window left at 200% opens again at 200% and the same size.
+  const auto leftWidth = editor->getWidth();
+  const auto leftHeight = editor->getHeight();
+
+  base.reset();
+  base = openEditor(p);
+  editor = base.get();
+
+  check(editor != nullptr, "the editor opens again");
+  if (editor == nullptr)
+    return;
+
+  bar = findTopBar(*editor);
+
+  check(bar != nullptr && ticked() == "200%" &&
+            editor->getWidth() == leftWidth &&
+            editor->getHeight() == leftHeight,
+        "a window closed at 200% opens again at 200% and the same size");
+
+  // Back to 100% for whatever runs next, since the zoom is kept in the state.
+  if (bar != nullptr)
+    bar->onZoomChanged(1.0f);
 }
 
 /// That every word the bar has to say fits in the button that says it.
@@ -10603,8 +11802,8 @@ void testPresetsAreReproducible(OvertoniumProcessor &p) {
 void testKnobSizes(OvertoniumProcessor &p) {
   section("Knob sizes");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -10901,6 +12100,42 @@ void testUndo(OvertoniumProcessor &p) {
 
   check(!undo.canUndo(), "which was the whole history, not the first of 32");
 
+  // ---- a restored session starts a new history ---------------------------
+  //
+  // Undoing past a restore would write values from the patch before it, which
+  // is what a host's A/B switch or reloaded project replaced.
+  undo.clearUndoHistory();
+  userTurns({0}, tuneOf(0) > 0.5f ? 0.1f : 0.9f);
+
+  {
+    juce::MemoryBlock session;
+    p.getStateInformation(session);
+    p.setStateInformation(session.getData(), (int)session.getSize());
+  }
+
+  check(!undo.canUndo(), "restoring a session empties the history");
+
+  // ---- a window closed mid-drag ------------------------------------------
+  //
+  // The gesture never ends, so the processor has to close it when the window
+  // goes, or every later edit would be left out of the history.
+  {
+    std::unique_ptr<juce::AudioProcessorEditor> editor(p.createEditor());
+    tuneParam(0)->beginChangeGesture();
+    tuneParam(0)->setValueNotifyingHost(tuneOf(0) > 0.5f ? 0.2f : 0.8f);
+  }
+
+  check(undo.canUndo(), "a drag cut short by the window closing is a step");
+
+  undo.clearUndoHistory();
+  p.recordEdit("Load preset",
+               [&p] { p.applyFactoryPreset(presetIndex("Init")); });
+
+  check(undo.canUndo(), "and the edits after it are recorded");
+
+  // The host's own end of the gesture, arriving late, changes nothing.
+  tuneParam(0)->endChangeGesture();
+
   undo.clearUndoHistory();
 }
 
@@ -11071,7 +12306,8 @@ void testBusLayouts(OvertoniumProcessor &p) {
 void testUndersizedBuffer() {
   section("Undersized buffers");
 
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
   p.setRateAndBufferSizeDetails(48000.0, 512);
   p.prepareToPlay(48000.0, 512);
 
@@ -11116,7 +12352,8 @@ void testMonoOutput() {
   section("Mono output");
 
   const auto renderPeak = [](juce::AudioChannelSet main) {
-    OvertoniumProcessor p;
+    const auto pOwner = std::make_unique<OvertoniumProcessor>();
+    auto &p = *pOwner;
 
     juce::AudioProcessor::BusesLayout layout;
     layout.outputBuses.add(main);
@@ -11176,10 +12413,11 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
 
   using ovt::ui::PointerTool;
 
-  OvertoniumProcessor proc;
+  const auto procOwner = std::make_unique<OvertoniumProcessor>();
+  auto &proc = *procOwner;
 
-  std::unique_ptr<juce::AudioProcessorEditor> ed(proc.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(ed.get());
+  auto ed = openEditor(proc);
+  auto *editor = ed.get();
 
   check(editor != nullptr, "a window opens for the host to save under");
 
@@ -11260,8 +12498,8 @@ void testTheSessionSurvivesAHostSavingUnderIt() {
 
   ed.reset();
 
-  std::unique_ptr<juce::AudioProcessorEditor> reopened(proc.createEditor());
-  auto *second = dynamic_cast<OvertoniumEditor *>(reopened.get());
+  auto reopened = openEditor(proc);
+  auto *second = reopened.get();
 
   check(second != nullptr, "and a window opens again afterwards");
 
@@ -11606,8 +12844,8 @@ void testStandaloneWindow(OvertoniumProcessor &p) {
         "a window starts on whatever look and feel the application has");
 
   {
-    std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-    auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+    auto base = openEditor(p);
+    auto *editor = base.get();
 
     check(editor != nullptr, "the editor opens");
     if (editor == nullptr)
@@ -11755,8 +12993,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
   // ---- and the panel says which it is --------------------------------------
   set(ovt::Character::Rail);
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
 
@@ -11865,8 +13103,8 @@ void testCharacterControl(OvertoniumProcessor &p) {
     for (int t = 0; t < (int)ovt::ReverbType::NumTypes; ++t)
       reverb.push_back(ovt::ui::reverbColour((ovt::ReverbType)t));
 
-    for (int t = 0; t < (int)ovt::ClipType::NumTypes; ++t)
-      clip.push_back(ovt::ui::clipColour((ovt::ClipType)t));
+    for (int t = 0; t < (int)dm::ClipType::NumTypes; ++t)
+      clip.push_back(ovt::ui::clipColour((dm::ClipType)t));
 
     beside = echo;
     beside.insert(beside.end(), reverb.begin(), reverb.end());
@@ -12054,7 +13292,8 @@ void testUpdateCheckIsQuiet(OvertoniumProcessor &p) {
   const bool before = ovt::updateCheckAllowed();
 
   for (int instance = 0; instance < 3; ++instance) {
-    OvertoniumProcessor fresh;
+    const auto freshOwner = std::make_unique<OvertoniumProcessor>();
+    auto &fresh = *freshOwner;
 
     for (int open = 0; open < 3; ++open) {
       std::unique_ptr<juce::AudioProcessorEditor> ed(fresh.createEditor());
@@ -12246,8 +13485,8 @@ void testUpdateCheckOutlivesEditors(OvertoniumProcessor &p) {
 void testEveryControlIsNamed(OvertoniumProcessor &p) {
   section("Accessible names");
 
-  std::unique_ptr<juce::AudioProcessorEditor> base(p.createEditor());
-  auto *editor = dynamic_cast<OvertoniumEditor *>(base.get());
+  auto base = openEditor(p);
+  auto *editor = base.get();
 
   check(editor != nullptr, "the editor opens");
   if (editor == nullptr)
@@ -12347,7 +13586,8 @@ void testMpeSlide() {
 
   // Its own processor, since an earlier test leaves notes decaying and a master
   // gain of its own, and this measures loudness.
-  OvertoniumProcessor p;
+  const auto pOwner = std::make_unique<OvertoniumProcessor>();
+  auto &p = *pOwner;
 
   const auto setParam = [&p](const juce::String &id, float plain) {
     if (auto *param = p.apvts.getParameter(id))
@@ -12498,6 +13738,161 @@ void testMpeSlide() {
         "both ends sound with slide aimed at tuning");
 }
 
+/// Option-click on M or S, and the matching menu entry, mute or solo only that
+/// channel. Every other channel's switch goes off, the noise channel's
+/// included, in one undo step, and the same click on a channel that is already
+/// alone puts it back to none.
+void testOnlyThisChannel(OvertoniumProcessor &p) {
+  section("Muting or soloing only one channel");
+
+  using namespace ovt::ui;
+  using ovt::params::muteSuffix;
+  using ovt::params::soloSuffix;
+
+  auto &undo = p.undo();
+
+  const auto on = [&p](const char *suffix) {
+    return ovt::params::channelsSwitchedOn(p.apvts, suffix);
+  };
+
+  const auto isOn = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return param != nullptr && param->getValue() > 0.5f;
+  };
+
+  // Written with no gesture, as automation writes, so none of it is undone.
+  const auto set = [&p](const juce::String &id, bool state) {
+    if (auto *param = p.apvts.getParameter(id))
+      param->setValueNotifyingHost(state ? 1.0f : 0.0f);
+  };
+
+  const auto onlyEntry = [](MuteSoloButton &button) {
+    auto menu = button.buildMenu();
+    std::pair<int, bool> found{0, false};
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+      if (it.getItem().text.endsWith("only this channel"))
+        found = {it.getItem().itemID, it.getItem().isEnabled};
+
+    return found;
+  };
+
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+  ovt::params::clearChannelSwitch(p.apvts, soloSuffix);
+
+  // Three solos, the noise channel among them, and one mute, which a solo
+  // must leave alone.
+  const auto six = ovt::params::oscParamId(soloSuffix, 5);
+
+  set(ovt::params::oscParamId(soloSuffix, 2), true);
+  set(ovt::params::oscParamId(soloSuffix, 20), true);
+  set(ovt::params::noiseParamId(soloSuffix), true);
+  set(ovt::params::oscParamId(muteSuffix, 9), true);
+  undo.clearUndoHistory();
+
+  MuteSoloButton solo(p.apvts, "S", six, soloSuffix);
+
+  check(solo.onlyThisHint().endsWith("-click to solo only this channel."),
+        "the tooltip says what the click does (" +
+            solo.onlyThisHint().toStdString() + ")");
+
+  // An Option-click, through the button's own mouse handling.
+  const auto press = [](MuteSoloButton &button, juce::ModifierKeys mods) {
+    const auto centre = button.getLocalBounds().getCentre().toFloat();
+    const auto now = juce::Time::getCurrentTime();
+
+    const juce::MouseEvent e(juce::Desktop::getInstance().getMainMouseSource(),
+                             centre, mods,
+                             juce::MouseInputSource::defaultPressure,
+                             juce::MouseInputSource::defaultOrientation,
+                             juce::MouseInputSource::defaultRotation,
+                             juce::MouseInputSource::defaultTiltX,
+                             juce::MouseInputSource::defaultTiltY, &button,
+                             &button, now, centre, now, 1, false);
+
+    button.mouseDown(e);
+    button.mouseUp(e);
+  };
+
+  solo.setSize(20, 20);
+  press(solo, juce::ModifierKeys(juce::ModifierKeys::altModifier |
+                                 juce::ModifierKeys::leftButtonModifier));
+
+  check(isOn(six) && on(soloSuffix) == 1,
+        "Option-click on channel 6's S solos channel 6 alone (" +
+            std::to_string(on(soloSuffix)) + " soloed)");
+
+  check(!isOn(ovt::params::noiseParamId(soloSuffix)),
+        "the noise channel's solo goes off with the rest");
+
+  check(isOn(ovt::params::oscParamId(muteSuffix, 9)),
+        "and the mute is left alone");
+
+  check(!onlyEntry(solo).second,
+        "with channel 6 alone, the menu entry is greyed out");
+
+  check(undo.undo() && on(soloSuffix) == 3 && !isOn(six) && !undo.canUndo(),
+        "one undo brings the three solos back and takes channel 6's away");
+
+  // The menu entry does the same.
+  undo.clearUndoHistory();
+
+  const auto entry = onlyEntry(solo);
+
+  check(entry.first > 0 && entry.second,
+        "with others soloed, the menu offers to solo channel 6 alone");
+
+  solo.chooseFromMenu(entry.first);
+
+  check(isOn(six) && on(soloSuffix) == 1, "and picking it does");
+
+  // Option-click again on the channel that is alone clears it.
+  undo.clearUndoHistory();
+  solo.switchOnlyThis();
+
+  check(on(soloSuffix) == 0,
+        "Option-click on the only soloed channel clears the solo");
+
+  check(undo.undo() && isOn(six) && on(soloSuffix) == 1 && !undo.canUndo(),
+        "in one undo step as well");
+
+  // Mute works the same way, here from the noise channel's M.
+  set(ovt::params::oscParamId(muteSuffix, 0), true);
+  set(ovt::params::oscParamId(muteSuffix, 31), true);
+  undo.clearUndoHistory();
+
+  MuteSoloButton noiseMute(p.apvts, "M", ovt::params::noiseParamId(muteSuffix),
+                           muteSuffix);
+
+  const auto muteEntry = onlyEntry(noiseMute);
+
+  check(muteEntry.first > 0 && muteEntry.second,
+        "the noise channel's M menu offers to mute only it");
+
+  noiseMute.chooseFromMenu(muteEntry.first);
+
+  check(isOn(ovt::params::noiseParamId(muteSuffix)) && on(muteSuffix) == 1,
+        "and picking it mutes the noise channel and unmutes the other three");
+
+  check(isOn(six) && on(soloSuffix) == 1, "leaving the solo alone");
+
+  check(undo.undo() && on(muteSuffix) == 3 &&
+            !isOn(ovt::params::noiseParamId(muteSuffix)) && !undo.canUndo(),
+        "and one undo brings the three mutes back");
+
+  // Clearing every mute is one step too, where it used to be one per channel.
+  undo.clearUndoHistory();
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+
+  check(on(muteSuffix) == 0 && undo.undo() && on(muteSuffix) == 3 &&
+            !undo.canUndo(),
+        "clearing three mutes comes back in one undo step");
+
+  ovt::params::clearChannelSwitch(p.apvts, muteSuffix);
+  ovt::params::clearChannelSwitch(p.apvts, soloSuffix);
+  undo.clearUndoHistory();
+}
+
 /// Clearing every mute or every solo at once, from the menu a right-click on an
 /// M or an S opens.
 void testClearMuteAndSolo(OvertoniumProcessor &p) {
@@ -12538,19 +13933,23 @@ void testClearMuteAndSolo(OvertoniumProcessor &p) {
   // The menu says how many there are to clear, which is the other question a
   // player opens it to ask.
   {
-    juce::Component parent;
-    MuteSoloButton button(p.apvts, "M");
+    MuteSoloButton button(p.apvts, "M",
+                          ovt::params::oscParamId(ovt::params::muteSuffix, 1),
+                          ovt::params::muteSuffix);
     auto menu = button.buildMenu();
 
     std::vector<std::string> entries;
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      entries.push_back(it.getItem().text.toStdString());
+      if (!it.getItem().isSeparator)
+        entries.push_back(it.getItem().text.toStdString());
 
-    check(entries.size() == 2 && entries[0] == "Clear all mutes (5)" &&
-              entries[1] == "Clear all solos (2)",
-          "the menu counts what it would clear (" +
-              (entries.empty() ? std::string("nothing")
-                               : entries[0] + " / " + entries[1]) +
+    check(entries.size() == 3 && entries[0] == "Mute only this channel" &&
+              entries[1] == "Clear all mutes (5)" &&
+              entries[2] == "Clear all solos (2)",
+          "the menu offers this channel alone, then counts what it would "
+          "clear (" +
+              (entries.size() < 3 ? std::string("not three entries")
+                                  : entries[1] + " / " + entries[2]) +
               ")");
   }
 
@@ -12567,17 +13966,22 @@ void testClearMuteAndSolo(OvertoniumProcessor &p) {
   // Nothing to clear is not an error, and the entries say so rather than
   // disappearing.
   {
-    MuteSoloButton button(p.apvts, "S");
+    MuteSoloButton button(p.apvts, "S",
+                          ovt::params::oscParamId(ovt::params::soloSuffix, 1),
+                          ovt::params::soloSuffix);
     auto menu = button.buildMenu();
 
     std::vector<std::pair<std::string, bool>> entries;
     for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-      entries.emplace_back(it.getItem().text.toStdString(),
-                           it.getItem().isEnabled);
+      if (!it.getItem().isSeparator)
+        entries.emplace_back(it.getItem().text.toStdString(),
+                             it.getItem().isEnabled);
 
-    check(entries.size() == 2 && entries[0].first == "Clear all mutes" &&
-              !entries[0].second && !entries[1].second,
-          "with none on, both entries are there and both are greyed out");
+    check(entries.size() == 3 && entries[0].first == "Solo only this channel" &&
+              entries[0].second && entries[1].first == "Clear all mutes" &&
+              !entries[1].second && !entries[2].second,
+          "with none on, both clear entries are there and greyed out, and "
+          "soloing only this channel is offered");
   }
 
   ovt::params::clearChannelSwitch(p.apvts, ovt::params::muteSuffix);
@@ -12629,6 +14033,42 @@ void testSoloAndMute(OvertoniumProcessor &p) {
   p.reset();
 }
 
+/// An answer that puts up another notice replaces the action that is running.
+/// The notice keeps a copy of the action while it runs, so the action can go
+/// on using what it captured. Under the sanitizers the old way is a heap use
+/// after free.
+void testANoticeCanReplaceItself() {
+  section("A notice that answers with another");
+
+  ovt::ui::Notice notice;
+  std::string said;
+
+  const std::string first(64, 'a');
+
+  notice.show(
+      "First", "One", "Next", "Close",
+      [&notice, &said, first] {
+        notice.show(
+            "Second", "Two", "OK", "Close", [&said] { said += "second "; },
+            nullptr);
+
+        // Still the first action's own copy of what it captured.
+        said += first.substr(0, 5) + " ";
+      },
+      nullptr);
+
+  notice.primaryButton().onClick();
+
+  check(said == "aaaaa ",
+        "the first answer finishes after replacing itself (" + said + ")");
+  check(notice.isShowing() && notice.getMessage() == "Two",
+        "and the second notice is the one showing");
+
+  notice.primaryButton().onClick();
+
+  check(said == "aaaaa second ", "and its own answer runs (" + said + ")");
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -12638,7 +14078,8 @@ int main(int argc, char **argv) {
 
   juce::ScopedJuceInitialiser_GUI juceInit;
 
-  OvertoniumProcessor processor;
+  const auto processorOwner = std::make_unique<OvertoniumProcessor>();
+  auto &processor = *processorOwner;
 
   // Writes docs/parameters.json from the layout and stops, rather than
   // testing. The check further down then holds the file to it.
@@ -12658,6 +14099,8 @@ int main(int argc, char **argv) {
   testAttackReachesIntoThePhase(processor);
   testLegatoSwitch(processor);
   testGlideCaps();
+  testRowNameHelp();
+  testANoticeCanReplaceItself();
   testChoiceParameterCounts(processor);
   testRendering(processor);
   testReleaseVelocity(processor);
@@ -12665,6 +14108,8 @@ int main(int argc, char **argv) {
   testPresets(processor);
   testAftertouchMidi(processor);
   testMpe(processor);
+  testSostenutoOverMidi(processor);
+  testHalfPedalOverMidi(processor);
   testMpeSlide();
   testActivityLamps(processor);
   testStrikeReadout();
@@ -12725,6 +14170,7 @@ int main(int argc, char **argv) {
   testPresetMenuGroups(processor);
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
+  testSetEveryChannelTo(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);
@@ -12755,6 +14201,9 @@ int main(int argc, char **argv) {
   testEveryControlIsNamed(processor);
   testSoloAndMute(processor);
   testClearMuteAndSolo(processor);
+  testOnlyThisChannel(processor);
+  testVelocityCurveSwitch(processor);
+  testKeyboardRowParameters(processor);
 
   std::printf("\n%d checks, %d failures\n", checks, failures);
   return failures == 0 ? 0 : 1;

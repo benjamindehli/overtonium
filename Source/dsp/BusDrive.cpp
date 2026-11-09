@@ -207,40 +207,66 @@ double BusDrive::delayed(Channel &c, double x) noexcept {
   return c.in[(size_t)Halfband::kHalf];
 }
 
-/// One sample in, one out, with the circuit run twice in between.
+/// The newest pair at the doubled rate.
 ///
 /// The half-band's middle coefficient is exactly a half and every second
 /// one is zero, so one of the two samples is the input passed through and
 /// only the one between has to be computed.
-double BusDrive::run(Channel &c, const Curve &k, double x,
-                     double dcCoef) noexcept {
+void BusDrive::doubled(const Channel &c, double &even, double &odd) noexcept {
   const auto &h = Halfband::kernel();
   constexpr int half = Halfband::kHalf;
 
-  const auto late = delayed(c, x);
-
-  // Nothing to run, so the samples are handed back delayed by the same amount
-  // the filters would have cost, keeping the plugin's latency fixed.
-  if (k.up.drive <= 0.0)
-    return late;
-
   // The one that was already there, and the one between it and the next.
-  const auto even = c.in[(size_t)(half / 2)];
-  double odd = 0.0;
+  even = c.in[(size_t)(half / 2)];
+  odd = 0.0;
 
   for (int m = 0; m < half; ++m)
     odd += h[(size_t)(2 * m + 1)] * c.in[(size_t)m];
 
   odd *= 2.0;
+}
 
-  const auto first = processSample(k, even, c.last);
-  const auto second = processSample(k, odd, c.last);
-
+void BusDrive::pushUp(Channel &c, double first, double second) noexcept {
   for (int i = (int)c.up.size() - 1; i > 1; --i)
     c.up[(size_t)i] = c.up[(size_t)i - 2];
 
   c.up[1] = first;
   c.up[0] = second;
+}
+
+/// Keeps the circuit's history going while nothing runs through it, as if the
+/// curve were a straight line. Without it, the first block on a curve after a
+/// block without one starts its filters from whatever they last held, and the
+/// output drops out for the length of the filter.
+void BusDrive::follow(Channel &c, double late) noexcept {
+  double even = 0.0, odd = 0.0;
+  doubled(c, even, odd);
+  pushUp(c, even, odd);
+
+  c.last = odd;
+  c.dcIn = late;
+  c.dc = late;
+}
+
+/// One sample in, one out, with the circuit run twice in between.
+double BusDrive::run(Channel &c, const Curve &k, double x,
+                     double dcCoef) noexcept {
+  const auto late = delayed(c, x);
+
+  // Nothing to run, so the samples are handed back delayed by the same amount
+  // the filters would have cost, keeping the plugin's latency fixed.
+  if (k.up.drive <= 0.0) {
+    follow(c, late);
+    return late;
+  }
+
+  double even = 0.0, odd = 0.0;
+  doubled(c, even, odd);
+
+  const auto first = processSample(k, even, c.last);
+  const auto second = processSample(k, odd, c.last);
+
+  pushUp(c, first, second);
 
   // Back down, through the half-band with the lift folded into it. Its middle
   // lands on the one the host would have had rather than between two of them.
@@ -277,6 +303,9 @@ void BusDrive::process(float *left_, float *right_, int numSamples, Character c,
     for (int n = 0; n < numSamples; ++n) {
       const auto l = delayed(left, (double)left_[n]);
       const auto r = delayed(right, (double)right_[n]);
+
+      follow(left, l);
+      follow(right, r);
 
       // Power heats the filament, from both channels at once, since there is
       // one lamp.

@@ -48,9 +48,6 @@ public:
   std::function<void(const juce::String &, const std::function<void()> &)>
       recordEdit;
 
-  /// How many macros are made, for the button that opens this to say so.
-  static int madeCount(const juce::AudioProcessorValueTreeState &);
-
 private:
   /// A fader that hands its right-click on rather than dragging, since the
   /// slider would open a drag gesture whose mouse-up goes to the menu. As

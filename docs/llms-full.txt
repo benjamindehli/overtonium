@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-10-31
+Last changed: 2026-11-07
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the forty-one [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eleven of the forty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-one presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-four presets.
 
 ## The control to try first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The forty-one that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The forty-four that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -130,7 +130,7 @@ All three earlier instruments are sample libraries with a plugin wrapper, sold a
 
 Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-10-18
+Last changed: 2026-11-06
 
 # The Overtonium tuning system
 
@@ -199,6 +199,8 @@ The bottom of the series barely moves and the top moves a long way. Turn it furt
 
 It is separate from TUNE, and the two work together. Equal temperament with heavy stretch sounds different from just intonation with the same stretch. Zero is the plain harmonic series.
 
+The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are just as stiff, so a stretched partial still finds the string it should ring. Up to about a piano's worth of stretch, the first sixteen overtones of each string land within a fraction of a cent of the partials. Further out the upper ones drift. The low strings can only be pulled in a little, so with negative stretch it is mostly the high strings that follow.
+
 One note while STRETCH turns from a harmonic series to beyond a piano. The bottom of the series barely moves and the top moves a long way. Along the way the partials stop sharing a fundamental.
 
 **STRETCH from 0 to 500 cents**
@@ -245,7 +247,7 @@ C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it wi
 
 ### Root
 
-Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series, which is built on the root in every temperament.
+Sets which pitch class the temperament is built on. An unequal temperament is only in tune in the keys near its centre, so you choose that centre here. For Adaptive it sets where the middle versions are placed. It is greyed out for equal temperament, which has no centre, unless the [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator) is in Series or Fifths, which are built on the root in every temperament.
 
 On a root of C every temperament is laid out the way organs were tuned. Pythagorean and quarter-comma meantone each have one fifth that cannot be used, the wolf, and on C it is G#-Eb. That keeps C, F, Bb, G, D and A major in tune. On another root the wolf moves with it, a minor sixth above the root.
 
@@ -253,7 +255,7 @@ On a root of C every temperament is laid out the way organs were tuned. Pythagor
 
 One of eleven pitches for A: 415, 430, 432, 435, 438, 440, 442, 443, 444, 446 or 466 Hz. A stays exactly at this pitch in every fixed temperament, because the offsets are measured relative to A, the same way a tuner tunes A first and works outwards. Only the other eleven notes move. Under Adaptive, A's middle version sits on the reference, and an A in a chord that needs it takes the version a comma either side.
 
-The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are tuned the same way, so they follow the temperament, the root and the reference pitch. Its Series mode is built on the root's own harmonics.
+The [resonator](https://benjamindehli.github.io/overtonium/effects/#resonator)'s strings are tuned the same way, so they follow the temperament, the root and the reference pitch. Its Series mode is built on the root's own harmonics, and its Fifths mode on the root and its fifth.
 
 None of the three is saved with a [preset](https://benjamindehli.github.io/overtonium/presets/). A temperament belongs to the music you are playing, not to any one sound in it. You set it once and keep working, and a patch that reset it to equal while you worked would get in the way. This includes Init, which clears the patch but not the session.
 
@@ -293,11 +295,11 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-10-31
+Last changed: 2026-11-04
 
 # Overtonium controls
 
-Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-three controls. That is seven hundred and thirty-six of them before the bar is counted, so much of the design is about not having to move them one at a time.
+Thirty-two channel strips, a noise channel, and a bar of global controls across the top. Every strip has the same twenty-four controls. That is seven hundred and sixty-eight of them before the bar is counted, so much of the design is about not having to move them one at a time.
 
 This page covers the mixer. The bar across the top, from the oscillator character to the output stage, is covered on [Effects](https://benjamindehli.github.io/overtonium/effects/). Playing the instrument from a keyboard, a host or a controller is covered on [Playing](https://benjamindehli.github.io/overtonium/playing/).
 
@@ -306,6 +308,8 @@ This page covers the mixer. The bar across the top, from the oscillator characte
 [Image: A close view of the first six channels, showing the row captions in the gutter with the pointer tool button above them, and the interval colour of each channel.]
 
 Six channels and the caption gutter. Each row is named once on the left instead of on every strip.
+
+Hold the pointer over a row's name in the gutter to see what the row does. The table below says the same at more length.
 
 | Control | Range | What it does |
 |---|---|---|
@@ -316,10 +320,11 @@ Six channels and the caption gutter. Each row is named once on the left instead 
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope that runs when the key is released |
 | AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
-| VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it |
+| VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it. The dB switch beside the caption picks the curve |
+| KEYBOARD | -200 to +200% | How the level follows the key played. Up to 100% it tilts around middle C, and past 100% the turn moves away from middle C |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
 | PAN | hard left to hard right | Equal power, so the level stays the same as the partial moves across the stereo field |
-| M and S |  | Mute overrides solo. Right-click either one to clear every mute or every solo at once |
+| M and S |  | Mute overrides solo. Option-click or Alt-click either one to mute or solo only that channel. Right-click either one for the same, or to clear every mute or every solo at once |
 | LEVEL | -inf to 0 dB | Fader scaled in decibels, with the meter inside its track |
 
 ## What the modulators trace
@@ -339,9 +344,9 @@ Both per-partial modulators have a shape as well as a rate and a depth. You pick
 
 The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard as a click.
 
-LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once.
+LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo.
 
-**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/) and Tape Pluck ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
+**Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/), Tape Pluck and Soft Trio ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
 Each channel keeps its own rate and shape either way. Sharing gives one modulator per channel, not one for the whole instrument, so a patch built on thirty-two rates that never line up still sounds the same with the switch on. The switch is part of the patch, so a preset saves it. Both switches are off unless a patch turns them on.
 
@@ -353,9 +358,25 @@ Because velocity is set per partial, a soft note can have a different timbre, no
 
 Both controls go either side of zero. A positive amount makes harder or heavier playing louder. A negative amount inverts that, so the partial is loudest when you play softly. The two halves mirror each other exactly, so -50% at a given velocity matches +50% at the opposite velocity. The negative half is useful for crossfading. Give one set of partials a positive amount and another set a negative one, and the two timbres swap places across the velocity range instead of one just fading in.
 
+**The dB switch** beside the VELOCITY caption picks how velocity becomes level, for every channel at once. Lit, each step of velocity takes the same number of decibels off. At 100% a medium note is 20 dB down and the softest note 40 dB down, and at 50% each of those is half as much. Dark is the Classic curve, which takes velocity off as a fraction of the level. Even at 100% it leaves a medium note only 6 dB down, and most of what it does happens on the softest notes, so it only starts to sound like much near the top of the knob.
+
+Patches made before the switch existed keep Classic, so a saved project and a saved preset sound as they did. The factory presets use dB. Clicking the switch converts every channel's amount with it, so a medium note keeps its level and only the soft and loud ends move. Classic at 100% becomes about 30% on dB. Both the switch and the conversion are a single step to undo.
+
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity. A strip with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
 
 By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings.
+
+## Following the keyboard, per partial
+
+KEYBOARD turns a partial down depending on which key is played, so a patch can be voiced across the keyboard the way an organ builder voices a stop: a fundamental that is weaker in the bass, bell partials only on the top keys, or the noise only in one range. It only ever turns a key down, so a partial is never louder than its fader. At zero, the default, it does nothing.
+
+Up to 100% either way it tilts around middle C, which it never changes. A positive amount turns down the keys below middle C and a negative one the keys above it. At 100% the slope is 24 dB per octave. The knob is shaped so the gentle slopes get most of its travel: 50% is 6 dB per octave and 25% is 1.5.
+
+**Past 100% the slope stays at 24 dB per octave and the turn moves** away from middle C, an octave for every 20%. A positive amount moves it up, so only the treble is left, and at 200% it is at C9, near the top of the MIDI range. A negative amount moves it down, and at -200% it is at C-1, the bottom. Turning the knob further from zero always turns more of the keyboard down, so a macro, LINK or automation moving it does more of the same all the way. A moved turn always comes with the steepest slope, which makes a near split, with a partial fading out over a few keys.
+
+The readout under the knob gives the slope and the key the fade starts from, such as "6.0 dB/oct below C4" or "24 dB/oct above F#1". Middle C is C4.
+
+It reads the key number, not the pitch, so pitch bend, TUNE, the temperament and drift leave the level alone. When a glide carries a note to a new key, the level follows the note as it slides. It also scales what AFTERTOUCH adds, so pressure cannot bring a partial back on keys the row has faded it out of. TRACK in the bar does a different job: it dulls the top of every partial alike, by frequency. KEYBOARD is set per channel and can go either way.
 
 ## The two-part envelope
 
@@ -425,7 +446,9 @@ LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulati
 
 **Hovering over a strip** shows the partial it belongs to: the harmonic number, the interval that harmonic makes with the fundamental, how many semitones above the played note its tempered position is, and how far the exact ratio is from that in cents. It is that channel's row in [the table of the series](https://benjamindehli.github.io/overtonium/tuning/), shown in the mixer. The mute and solo buttons show which harmonic they would silence.
 
-**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click clears every mute or every solo at once instead.
+**Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click offers to mute or solo only that channel, or to clear every mute or every solo at once, instead.
+
+**Option-click or Alt-click** on M or S mutes or solos only that channel, and turns the switch off on every other channel, the noise channel included. Doing it again on the channel that is already alone turns it off, so the same click goes in and out of hearing one partial. Either way it is a single step to undo.
 
 ## Reading the mixer
 
@@ -443,9 +466,9 @@ Each of the rules that divide a strip into groups has a lamp. It shows what the 
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
 | AMP MOD | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth |
-| OUTPUT | two lamps side by side, one for each row below it: the left shows how much of the partial velocity has left, the right shows what pressure on the key is adding |
+| OUTPUT | one long lamp in three parts, one for each row below it: the left shows how much of the partial velocity has left, the middle how much the keyboard row has left on the key being played, and the right what pressure on the key is adding |
 
-The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has two lamps, one for each row below it, and each has the shape of the knob above it. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
+The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has one long lamp in three parts, one for each row below it and in the same order. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. KEYBOARD reads the same way, for the key being played, and follows a glide across. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
 
 ### Meters
 
@@ -465,7 +488,7 @@ Clicking a section heading in the caption gutter folds that group of rows away o
 
 ## The noise channel
 
-A noise channel marked NZ sits on the right, after the series. It has the same envelope, tremolo, velocity, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
+A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
 
 COLOUR tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is fully flat, not just less filtered. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
 
@@ -477,7 +500,7 @@ The envelope sets how the string is played. A noise envelope a few milliseconds 
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-10-31
+Last changed: 2026-11-07
 
 # Overtonium effects
 
@@ -511,7 +534,7 @@ Each character is also a rack of thirty-two oscillators, not one oscillator used
 
 The button lights in the character's own colour, so you can tell which one is chosen at a glance. FM, PD and 6581 light in a colour of the instrument they were measured from: FM in the green of the synthesizer's membrane buttons, PD in the colour of the model name printed on the synthesizer, and 6581 in the blue of the startup screen of the computer the chip was made for. The others are spread as far apart in hue as they go. Pure does not light, because it adds nothing.
 
-Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-six of the forty-one [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-nine of the forty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
 
 ## Wobble
 
@@ -521,11 +544,11 @@ Makes the whole instrument sound like a warped record. The pitch is bent by read
 
 The resonator is eighty-eight sympathetic strings, one for each key of a piano from A0 to C8, that resonate with what you play. Each is a Karplus-Strong string, the same kind the noise channel strikes. They are fed the sum of the thirty-three channels, and what they ring back is mixed in before the bus drive. So the drive and everything after it treat them as part of the instrument, not as a room around it. It has its own frame on the top bar, after the character's. The RESONATOR button shows the mode and opens a menu of the five, and it is lit whenever the mode is not Off, in a colour for each mode. The ECHO, REVERB and CLIP buttons do the same, each machine in its own colour, so the bar shows what is chosen without reading it. The knobs beside each button light in the same colour.
 
-**Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series. The root is set on the [Tuning](https://benjamindehli.github.io/overtonium/tuning/#root) bar or in Settings, and it stays available for Series under equal temperament too.
+**Piano** works like a piano: the strings of the keys you hold are free, the rest are damped, and the sustain pedal lifts every damper. The sostenuto pedal keeps the dampers up for the keys that were down when it went down. With the sustain pedal part way down, the dampers rest lightly on the strings, so they ring for a time between a damped string's and DECAY. A held key's string is tuned to the pitch the key is sounding. The other strings wait at the pitch a key struck now would sound, which under Adaptive is the tuning their pitch class had last. None of them bends, because a piano's strings do not follow the wheel. **Open** is Piano with the sustain pedal always down: every string rings, and held keys ring the loudest. **Octave** is twelve strings from C3, always free, so every note finds something to ring with. **Series** is the tuning root's first eight harmonics from its second octave, tuned pure and always free. It works as a drone that responds to any note that falls on the root's own harmonic series. The root is set on the [Tuning](https://benjamindehli.github.io/overtonium/tuning/#root) bar or in Settings, and it stays available for Series under equal temperament too. **Fifths** is a drone of the root and the pure fifth above it in four octaves, from C2 to G5 on a root of C, always free. It follows the root as Series does. **Chord** is Piano that keeps the last chord: the strings of keys struck together stay free after you let go, so you can play a chord, let go and play a line over it while the chord rings on. A key added while the chord is down joins it, a new chord struck after letting go replaces it, and a single note leaves it be. The strings are as stiff as [STRETCH](https://benjamindehli.github.io/overtonium/tuning/#stretch) makes the partials, so their overtones are spread the same way and a stretched partial still rings its string. Each string rings back on the side of the partials that drive it, so a panned patch keeps its resonator with it, and a patch in the middle rings in the middle.
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
-The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck and 8-bit Choir use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck, 8-bit Choir, Soft Trio, Pendulum and Chapel use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
@@ -573,7 +596,7 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-10-31
+Last changed: 2026-11-07
 
 # Playing Overtonium
 
@@ -638,9 +661,13 @@ GLIDE is a row like any other, so [LINK](https://benjamindehli.github.io/overton
 
 The lower two of the four buttons at the left end of the top bar, a keyboard and a tuning fork, each open a bar between the top bar and the mixer. The bars hold the settings you change while playing, as opposed to the ones you set once. Both bars start closed, and each instance remembers which are open. A bar takes its height from the mixer, which scrolls, so the window stays the same size. If the window is already at its minimum height, it grows by the height of the bar.
 
-**Playing** has the voice count with IN USE, which shows how many voices are sounding, release tails included. Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows what your hands are doing. SUSTAIN lights while the pedal is down. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight [macros](https://benjamindehli.github.io/overtonium/playing/#macros) as knobs in their colours. Each is named after the row it controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. **Tuning** has the temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last are twelve displays, one for each note, showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way to reach the same settings, not a separate copy of them. If the window is too narrow for a whole bar, the bar wraps onto more rows like the top bar does, and takes the extra height from the mixer.
+**Playing** has the voice count with IN USE, which shows how many voices are sounding, release tails included. Beside them are Legato and No stack, the pitch bend range, and MPE with Aftertouch from and Slide to. After these it shows what your hands are doing. SUSTAIN lights while the sustain pedal is down, with a bar along its foot for how far, and SOSTENUTO under it while the sostenuto pedal is. PITCH shows the pitch wheel's position from the centre against the bend range, or with MPE on, the key bent furthest. WHEEL and PRESSURE fill from the left. PRESSURE shows the keyboard's own pressure, from the channel or from the key pressed hardest, so the wheel moves only WHEEL even when Aftertouch from follows it. Last are the eight [macros](https://benjamindehli.github.io/overtonium/playing/#macros) as knobs in their colours. Each is named after the row it controls and turns by the same amount as its slider in MACROS. A macro not yet made shows a blank knob with its number. Right-click a knob to assign its macro, to edit it in MACROS, or to bind a controller to it. **Tuning** has the temperament, root and reference pitch, and under Adaptive, the drift beside them. Under Adaptive it also has a NO DRIFT switch that keeps the keyboard home, a 7:4 switch for the harmonic seventh, a PURE lamp and the Retune knob. Together they show [what Adaptive is doing](https://benjamindehli.github.io/overtonium/tuning/#adaptive) to the chord you hold. Last are twelve displays, one for each note, showing how far it is from equal temperament in cents, with the white keys on a lighter background as on a keyboard. Each setting's display opens the same list as its entry in Settings, and each switch lights while it is on, so a bar is another way to reach the same settings, not a separate copy of them. If the window is too narrow for a whole bar, the bar wraps onto more rows like the top bar does, and takes the extra height from the mixer.
 
-[Image: The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8.] [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
+The **sostenuto pedal**, controller 66 and the middle pedal on a grand piano, holds only the keys that are down when it goes down. Hold a chord, press the pedal and let go, and the chord keeps sounding while the notes you play over it stop as your fingers lift. Keys pressed after the pedal went down are not held, and a note held only by the sustain pedal is not caught. With both pedals down, lifting the sustain pedal leaves the caught notes sounding. With the resonator in Piano, the caught keys' strings stay free too. With MPE on it is read on the zone's master channel, like the sustain pedal.
+
+The **sustain pedal** can be half-pedalled. A continuous pedal sends how far down it is, and the instrument uses all of it. All the way down it holds notes as it always has. Part way down, a note it holds fades once its key comes up, faster the less the pedal is down, and at the top of its travel the note fades as quickly as its own release. Moving the pedal changes the fade from that moment, so you can keep a line connected without blurring it. An on/off pedal, which sends only up and down, works as it always did. With the resonator in Piano, the dampers rest on the strings as far as the pedal is up, so the strings ring for less time too.
+
+[Image: The Playing bar with C7 held on the pedal: eight voices with four in use, Legato off and No stack lit, a bend range of 2 semitones, MPE off with aftertouch from Either and slide to Brightness, SUSTAIN lit with its bar full and SOSTENUTO dark under it, the pitch wheel at rest in the middle, the mod wheel and pressure part way up, and three macros made, Level in red, Pitch mod depth in green and Release in blue, followed by five blank knobs numbered 4 to 8.] [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
 
 ## The Settings menu
 
@@ -666,7 +693,7 @@ Settings you set once and then leave. The menu is where you set up the instrumen
 | Phase reset | on by default | When a note begins from silence, starts each partial at the point its ATTACK sets: a rising zero crossing, or nearer its peak when the attack is turned below its shortest time. When off, a partial carries on from wherever its cycle was |
 | Safety clip | on by default | Whether the output stage at the end of the chain is on. Best left on when you push 32 faders up. Which of its eight machines it uses is chosen on the bar, under the meter |
 | Limiter lookahead | off by default | Whether the Limiter can look ahead at the incoming signal. On makes it smoother but adds two milliseconds of latency on every shape. Only the Limiter, Console, Cassette and Print use the lookahead, but the latency must not change with the patch. The only setting here that changes what the plugin reports to your host |
-| Zoom | 75, 100, 125 or 150% | How big the window is on your screen. It sits at the bottom with the entry below it, because everything above these two is about the instrument and these are not |
+| Zoom | 75, 100, 125, 150, 175 or 200% | How big the window is on your screen. It sits at the bottom with the entry below it, because everything above these two is about the instrument and these are not |
 | Fit all 32 channels |  | Resets the window to the width that shows the whole mixer, and to the height your unfolded rows need. A window remembers the size you dragged it to, so a narrow window opens narrow in every later session. This entry resets it |
 
 Almost none of these settings are saved in a [preset](https://benjamindehli.github.io/overtonium/presets/). This is a rule, not a list that might get out of date: how you play the instrument and what it is tuned to belong to the session, not to any one sound in it. For the same reason, presets do not save the zoom, the window size or which groups of rows you have folded away.
@@ -675,7 +702,7 @@ The safety clip is the exception in this table, and the master fader is the exce
 
 ## Automating it from the host
 
-Eight hundred and fifty parameters reach the host: forty-four global ones, twenty-three on each of the 32 partials, twenty-two on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
+Eight hundred and eighty-four parameters reach the host: forty-five global ones, twenty-four on each of the 32 partials, twenty-three on the noise channel, and six for each of the eight macros. They are listed in the same order as the panel, with the globals first, then each channel in turn, and the noise channel last.
 
 Every per-channel name includes its channel, so you can search a parameter list either way. Type `H7` to find that partial, or type `Tune` to find that row across the whole mixer. A screen reader reads the same names, which is why they are words, not numbers.
 
@@ -687,7 +714,7 @@ Every per-channel name includes its channel, so you can search a parameter list 
 | The noise channel's brightness | `Noise Colour` |
 | How long the echo's repeats are | `Echo Time` |
 
-The noise channel has twenty-two instead of twenty-three because it has no tuning, pitch modulation, drift or glide, and has COLOUR and the four knobs of its string instead.
+The noise channel has twenty-three instead of twenty-four because it has no tuning, pitch modulation, drift or glide, and has COLOUR and the four knobs of its string instead.
 
 Everything in Settings is in the list too, even though no preset changes it. The temperament, the polyphony and the bend range can all be automated, so a host can change the temperament partway through a piece.
 
@@ -697,9 +724,9 @@ LINK is not a parameter, because it is a mouse tool, not part of the sound. A LI
 
 ### Every parameter
 
-All 850 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
+All 884 as the host lists them, with a control that every partial or every macro carries given one row for all of them. The range and the default are what the plugin itself shows. The same list, one parameter per line with its id, is [parameters.json](https://benjamindehli.github.io/overtonium/parameters.json), written by the plugin rather than by hand.
 
-**Global**, forty-four of them.
+**Global**, forty-five of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -743,12 +770,13 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Adaptive Retune` | `adaptiveRetune` | 0.0 ms to 1.00 s | 30.0 ms |
 | `Adaptive Harmonic Sevenths` | `adaptiveSeventh` | Off or on | On |
 | `Adaptive No Drift` | `adaptiveHome` | Off or on | Off |
-| `Resonator Mode` | `resonatorMode` | Off, Piano, Open, Octave, Series | Off |
+| `Resonator Mode` | `resonatorMode` | Off, Piano, Open, Octave, Series, Fifths, Chord | Off |
 | `Resonator Mix` | `resonatorMix` | 0 % to 100 % | 50 % |
 | `Resonator Decay` | `resonatorDecay` | 200 ms to 10.00 s | 4.00 s |
 | `Resonator Damp` | `resonatorDamp` | 0 % to 100 % | 40 % |
+| `Velocity Curve` | `velocityCurve` | Classic, dB | dB |
 
-**On every partial**, twenty-three controls, each one on all 32 partials.
+**On every partial**, twenty-four controls, each one on all 32 partials.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -769,14 +797,15 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `H1 Amp Mod Rate to H32 Amp Mod Rate` | `h01_amRate to h32_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth` | `h01_amDepth to h32_amDepth` | 0 % to 100 % | 0 % |
 | `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
-| `H1 Velocity to H32 Velocity` | `h01_vel to h32_vel` | -100 % to +100 % | +70 % |
+| `H1 Velocity to H32 Velocity` | `h01_vel to h32_vel` | -100 % to +100 % | 0 % |
 | `H1 Aftertouch to H32 Aftertouch` | `h01_aftertouch to h32_aftertouch` | -100 % to +100 % | 0 % |
 | `H1 Mute to H32 Mute` | `h01_mute to h32_mute` | Off or on | Off |
 | `H1 Solo to H32 Solo` | `h01_solo to h32_solo` | Off or on | Off |
 | `H1 Pan to H32 Pan` | `h01_pan to h32_pan` | L100 to R100 | Centre |
 | `H1 Level to H32 Level` | `h01_volume to h32_volume` | -inf dB to 0.0 dB | Differs by channel, 0.0 dB on H1 to -inf dB on H32 |
+| `H1 Keyboard to H32 Keyboard` | `h01_keyboard to h32_keyboard` | 24 dB/oct above C-1 to 24 dB/oct below C9 | 0 dB/oct |
 
-**On the noise channel**, twenty-two of them.
+**On the noise channel**, twenty-three of them.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
@@ -792,7 +821,7 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Noise Amp Mod Rate` | `noise_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `Noise Amp Mod Depth` | `noise_amDepth` | 0 % to 100 % | 0 % |
 | `Noise Amp Mod Shape` | `noise_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
-| `Noise Velocity` | `noise_vel` | -100 % to +100 % | +70 % |
+| `Noise Velocity` | `noise_vel` | -100 % to +100 % | 0 % |
 | `Noise Aftertouch` | `noise_aftertouch` | -100 % to +100 % | 0 % |
 | `Noise Mute` | `noise_mute` | Off or on | Off |
 | `Noise Solo` | `noise_solo` | Off or on | Off |
@@ -802,13 +831,14 @@ All 850 as the host lists them, with a control that every partial or every macro
 | `Noise String Decay` | `noise_stringDecay` | 50.0 ms to 10.00 s | 1.50 s |
 | `Noise String Damp` | `noise_stringDamp` | 0 % to 100 % | 40 % |
 | `Noise String Point` | `noise_stringPoint` | 0 % to 100 % | 25 % |
+| `Noise Keyboard` | `noise_keyboard` | 24 dB/oct above C-1 to 24 dB/oct below C9 | 0 dB/oct |
 
 **On every macro**, six controls, each one on all eight macros.
 
 | What the host calls it | Id | Range | Default |
 |---|---|---|---|
 | `Macro 1 to Macro 8` | `macro1_amount to macro8_amount` | -100.0 % to +100.0 % | 0.0 % |
-| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level | None |
+| `Macro 1 Row to Macro 8 Row` | `macro1_row to macro8_row` | None, Tune, Glide, Pitch mod rate, Pitch mod depth, Drift, Strike, Delay, Attack, Decay, Sustain, Key-off swell, Key-off level, Release, Amp mod rate, Amp mod depth, Velocity, Aftertouch, Pan, Level, Keyboard | None |
 | `Macro 1 Scope to Macro 8 Scope` | `macro1_scope to macro8_scope` | All, Odd, Even, Prime/octave, Minor second, Major second, Minor third, Major third, Fourth, Tritone, Fifth, Minor sixth, Major sixth, Minor seventh, Major seventh, Selected | All |
 | `Macro 1 Curve to Macro 8 Curve` | `macro1_curve to macro8_curve` | Uniform, Taper | Uniform |
 | `Macro 1 Anchor to Macro 8 Anchor` | `macro1_anchor to macro8_anchor` | 1 to 32 | 1 |
@@ -840,9 +870,9 @@ A full sweep reaches the ends of the range, so if the patch value is already nea
 
 **Right-click any control and choose MIDI Learn**, then move something on your controller. A violet ring marks the control while it waits, so you can see which control is listening without opening the menu again. Only one control can wait at a time. Right-click the same control afterwards and the menu shows which controller moves it, with options to remove the binding or bind a different one. In the mixer these items are below the LINK settings in the right-click menu. On the top bar, the Playing and Tuning bars and the noise channel, they have a menu of their own, because none of these is part of the series LINK gangs.
 
-Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 850 parameters, and it works the same way in every host.
+Your host almost certainly offers the same thing. The difference is that here you set up the mapping by right-clicking the knob itself, instead of finding `H17 AM Rate` in a list of 884 parameters, and it works the same way in every host.
 
-**Eleven controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 is the sustain pedal. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. 120 and 123 stop notes. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
+**Eighteen controllers cannot be bound**, because the instrument already uses them and losing them would affect your playing. Controller 1 is the mod wheel, which can drive aftertouch. 64 and 66 are the sustain and sostenuto pedals. 74 is the slide axis, the easiest to bind by accident because it moves whenever a finger moves on an MPE keyboard. Controllers 6, 38, 98, 99, 100 and 101 are how a keyboard tells the instrument what kind of keyboard it is. 120 to 127 are the channel mode messages, which stop notes, reset controllers and switch modes. Some hosts send 121 when the transport stops. If you arm a knob and then touch the slide to steady a note, the note is steadied and the knob keeps waiting.
 
 **It works the same with MPE on**, which takes extra handling. With MPE on, nearly every message goes to the part of the instrument that reads your keyboard's layout, so bindings are checked before that, not after. Otherwise MIDI Learn would not work on the controllers the instrument is most often played from.
 
@@ -852,13 +882,13 @@ Two things to expect. A control jumps to the controller's current position inste
 
 ---
 
-Page: Overtonium presets: the forty-one that ship, and saving your own
+Page: Overtonium presets: the forty-four that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-10-31
+Last changed: 2026-11-08
 
 # Overtonium presets
 
-Forty-one presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-four presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -884,11 +914,11 @@ Straight to one of them:
 
 ## What ships
 
-Forty-one presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-four presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-six of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Thirty-nine of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -921,6 +951,10 @@ A sawtooth with a little randomness in it, so it drifts and beats instead of sta
 **Cathedral**
 
 A principal chorus: octaves and fifths only, a registration an organ builder would recognise. It fades in slowly, the way pipes start to sound
+
+**Chapel**
+
+A small pipe organ in a chapel, on the PD character. The fundamental carries it over a quiet chorus of octaves and fifths, every pipe wavers a little on its wind, and each note starts with a breath. Velocity does nothing, as on an organ, and aftertouch brings the chorus up. It goes into a short digital echo, the room and the resonator's open strings
 
 **Combo Organ**
 
@@ -1002,6 +1036,10 @@ Every even partial is silent, which gives the hollow tone of a stopped pipe. Vel
 
 The SonicStrings Voice 2 from a Suzuki Omnichord OM-84 System Two
 
+**Pendulum**
+
+Every partial has its own tremolo and pitch movement, faster the higher it sits, and the fast ones die away first, so the movement slows as the note rings, like a pendulum coming to rest. It is on the 6581 character, with the partials spread left and right
+
 **Shimmer**
 
 Every partial rises and falls in level at its own rate, so the spectrum never repeats
@@ -1009,6 +1047,10 @@ Every partial rises and falls in level at its own rate, so the spectrum never re
 **Slow Pad**
 
 Staggered envelope delays, so the spectrum builds up gradually instead of starting at once, with mirrored pans across the series
+
+**Soft Trio**
+
+A Karplus-Strong string from the noise channel, plucked like a clavichord or a guitar, over the first two partials on the Wheel character. Pressure or the mod wheel brings in a vibraphone, with faint partials behind it that swell slowly and wander in pitch. The clip is played without it. Everything sits hard right, and a short digital echo answers on the left at the same level, which doubles it into stereo
 
 **Space Cowboy**
 
@@ -1195,11 +1237,25 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-10-31
+Last changed: 2026-11-08
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.17.0, 9 November 2026
+
+**Velocity in decibels and a KEYBOARD row (#105, #106).** A dB switch beside the VELOCITY caption makes equal steps of the knob equal steps of loudness, up to 40 dB on the softest note, and older patches stay on the Classic curve. The KEYBOARD row in OUTPUT voices a partial across the keyboard, tilting it around middle C or fading it out of part of the keyboard.
+
+**Pedals and the resonator (#118 to #122).** The sostenuto pedal, and half-pedalling on a continuous sustain pedal. The resonator's strings follow STRETCH and ring back on the side of the partials that drive them, and two new modes: Fifths, a drone of the root and its fifth, and Chord, which keeps the last chord ringing under a line.
+
+**Smaller changes (#101 to #104).** Option-click or Alt-click on M or S mutes or solos only that channel. The shape menus can set every channel to any shape. Zoom goes to 175% and 200%. A row's name in the gutter says what the row does.
+
+**Three new presets and a quieter panel.** Chapel, Pendulum and Soft Trio, forty-four in all, and the factory presets moved to the dB curve. The meters and macro faders sit in recesses, and the noise channel is marked with a noise trace.
+
+**Fixes.** Switching from Pure or Bulb no longer drops the sound out, two bounces of the same passage come out the same, MIDI Learn replaces a control's controller, the tail counts macros on the release, a session file holding a value that is not a number no longer silences the plugin, and two ways the window could crash the host are closed.
+
+**Before upgrading.** The resonator's mode list grows from five choices to seven and each macro's row list from twenty to twenty-one, so automation drawn before lands a little further along. MIDI program changes from 8 up land later. The factory presets play softer notes differently. 884 parameters.
 
 ## 1.16.0, 1 November 2026
 

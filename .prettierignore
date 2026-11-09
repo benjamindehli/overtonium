@@ -10,8 +10,8 @@ temp/
 node_modules/
 package-lock.json
 
-# Written by hand to a shape search engines read rather than a shape prettier
-# would choose.
+# Written by Tools/build_site.py in a shape search engines read rather than a
+# shape prettier would choose.
 docs/sitemap.xml
 
 # Written by the plugin, overtonium_runtime_test --write-parameters, one

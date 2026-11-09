@@ -51,11 +51,36 @@ public:
     decayCoef = coefFor(decayTime);
     swellCoef = coefFor(swellTime);
     releaseCoef = coefFor(releaseTime);
+    pedalCoef = pedalCoefFor(pedalRate);
+  }
+
+  /// How fast a note the sustain pedal holds fades, as a share of the release
+  /// rate: nought holds it, as a pedal all the way down does, and one fades
+  /// it as fast as its own release would. For half-pedalling. Only a note
+  /// before its key-off fades this way, and the fade is a level of its own
+  /// over the envelope's, so the stage it is in carries on beneath it.
+  ///
+  /// The fade moves once a block, in advancePedal, and is applied by whoever
+  /// ramps the channel's gain across the block, so tick, which runs for every
+  /// sample of every channel, costs what it did without it. After a key-off
+  /// it stays where it got to, under the release.
+  void setPedalFade(float rate) noexcept {
+    rate = std::clamp(rate, 0.0f, 1.0f);
+
+    if (exactly(rate, pedalRate))
+      return;
+
+    pedalRate = rate;
+    pedalCoef = pedalCoefFor(pedalRate);
   }
 
   /// @param resetLevel  true restarts from silence (percussive retrigger),
   /// false ramps from wherever the envelope currently sits (legato).
   void noteOn(bool resetLevel) noexcept {
+    // Struck again, the fade is over. The caller's gain ramp takes it back up
+    // across a block, so the level does not step.
+    pedalLevel = 1.0f;
+
     if (resetLevel)
       level = 0.0f;
 
@@ -111,16 +136,17 @@ public:
     swellRemaining = 0;
     swellTarget = 0.0f;
     forcedRelease = false;
+    pedalLevel = 1.0f;
   }
 
   bool isActive() const noexcept { return stage != Stage::Idle; }
   Stage getStage() const noexcept { return stage; }
-  float getLevel() const noexcept { return level; }
+  float getLevel() const noexcept { return level * pedalLevel; }
 
   /// True when the envelope is holding at silence until a key-off, so the
   /// caller can skip the oscillator without dropping the note.
   bool isSilentlyHolding() const noexcept {
-    return stage == Stage::Sustain && level < kEpsilon;
+    return stage == Stage::Sustain && level * pedalLevel < kEpsilon;
   }
 
   /// Advances one sample and returns the level, 0 to 1.
@@ -182,8 +208,35 @@ public:
     return level;
   }
 
+  /// Moves the half-pedal's fade on by a block and returns where it is at the
+  /// block's end, for the caller to fold into its gain ramp. A fade that has
+  /// taken the note out of hearing ends it, as a release would, and stays
+  /// where it got to until the next note-on, since a string the channel
+  /// struck rings on under the same gain.
+  float advancePedal(int samples) noexcept {
+    if (pedalRate > 0.0f && stage != Stage::Idle && stage != Stage::Swell &&
+        stage != Stage::Release) {
+      pedalLevel *= (float)std::pow((double)pedalCoef, (double)samples);
+
+      if (level * pedalLevel < kEpsilon) {
+        level = 0.0f;
+        stage = Stage::Idle;
+      }
+    }
+
+    return pedalLevel;
+  }
+
 private:
   static constexpr float kEpsilon = 1.0e-5f;
+
+  /// The release coefficient with its rate scaled, so `rate` of one is the
+  /// release itself and nought holds.
+  float pedalCoefFor(float rate) const noexcept {
+    return rate <= 0.0f
+               ? 1.0f
+               : (float)std::exp((double)rate * std::log((double)releaseCoef));
+  }
 
   /// Exponential coefficient that covers 99% of the remaining distance in
   /// `seconds`.
@@ -210,6 +263,13 @@ private:
 
   bool forcedRelease = false;
   float forcedReleaseCoef = 0.0f;
+
+  /// The half-pedal's fade, its rate as a share of the release rate, and the
+  /// coefficient that makes. See setPedalFade.
+  float pedalLevel = 1.0f;
+  float pedalRate = 0.0f;
+  float pedalCoef = 1.0f;
+
   bool dirty = true;
 };
 

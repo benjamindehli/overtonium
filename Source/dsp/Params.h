@@ -1,13 +1,15 @@
 #pragma once
 
-#include "OutputStage.h"
+#include "dm/dsp/OutputStage.h"
 
 #include <array>
 
 #include "Character.h"
 #include "Harmonics.h"
+#include "Keyboard.h"
 #include "Lfo.h"
 #include "Temperament.h"
+#include "Velocity.h"
 
 namespace ovt {
 
@@ -74,12 +76,17 @@ struct OscParams {
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
-  /// harder is louder, negative means softer is louder.
-  float velAmount = 0.7f;
+  /// harder is louder, negative means softer is louder. Zero by default, so
+  /// velocity is something a patch asks for. See GlobalParams::velocityCurve.
+  float velAmount = 0.0f;
   /// How much channel or polyphonic aftertouch moves this partial's level,
   /// -1 to 1. It adds to the fader rather than scaling it, so a strip at zero
   /// can be faded in by pressure.
   float atAmount = 0.0f;
+  /// How much the key number turns this partial down, -2 to 2. Positive
+  /// fades the keys below the centre, negative the keys above it. See
+  /// Keyboard.h.
+  float keyAmount = 0.0f;
   /// Linear gain, mute/solo already folded in by the caller.
   float volume = 0.0f;
   /// Where this partial sits in the field, -1 hard left to +1 hard right.
@@ -105,8 +112,9 @@ struct NoiseParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f;
-  float velAmount = 0.7f;
+  float velAmount = 0.0f;
   float atAmount = 0.0f;
+  float keyAmount = 0.0f;
   float volume = 0.0f;
   float pan = 0.0f;
 
@@ -174,7 +182,7 @@ struct GlobalParams {
   bool lookahead = false;
 
   /// Which output stage type, when it is on.
-  ClipType clipType = ClipType::Soft;
+  dm::ClipType clipType = dm::ClipType::Soft;
   /// Whether striking a key that is already sounding takes over its voice
   /// rather than starting a second one. See SynthEngine::noteOnImpl.
   bool oneVoicePerKey = true;
@@ -190,6 +198,11 @@ struct GlobalParams {
   /// GlideTrigger and GlideMode.
   GlideTrigger glideTrigger = GlideTrigger::Always;
   GlideMode glideMode = GlideMode::Rate;
+
+  /// How every channel's VELOCITY row turns velocity into level. Decibels for
+  /// anything new. A session or preset made before the switch existed loads
+  /// as Classic. See VelocityCurve.
+  VelocityCurve velocityCurve = VelocityCurve::Decibels;
 };
 
 /// Which delay the repeats come out of.
@@ -305,6 +318,12 @@ enum class ResonatorMode {
   /// The tuning root's harmonic series from its second octave, pure, always
   /// undamped.
   Series,
+  /// The tuning root and the pure fifth above it, in four octaves from its
+  /// second, always undamped, as a drone.
+  Fifths,
+  /// Piano, with the last chord struck held free after its keys come up, as
+  /// if a sostenuto pedal caught every chord. See SynthEngine::noteOnImpl.
+  Chord,
   NumModes
 };
 
@@ -320,6 +339,10 @@ inline const char *resonatorModeName(ResonatorMode m) {
     return "Octave";
   case ResonatorMode::Series:
     return "Series";
+  case ResonatorMode::Fifths:
+    return "Fifths";
+  case ResonatorMode::Chord:
+    return "Chord";
 
   case ResonatorMode::NumModes:
     break;
@@ -346,9 +369,14 @@ struct SynthParams {
   LofiParams lofi{};
   ResonatorParams resonator{};
 
-  /// Whether a sustain pedal is down on any channel. Set by whoever handles
-  /// the MIDI, since under MPE the pedal never reaches the engine as a pedal.
+  /// Whether a sustain pedal is down on any channel, and how far down the one
+  /// furthest down is, above nought and up to one. Set by whoever handles the
+  /// MIDI, since under MPE the pedal never reaches the engine as a pedal. The
+  /// resonator's dampers follow the depth, which is only read while the pedal
+  /// is down, so a pedal said to be down is all the way down unless the depth
+  /// says otherwise.
   bool pedalDown = false;
+  float pedalDepth = 1.0f;
 };
 
 } // namespace ovt

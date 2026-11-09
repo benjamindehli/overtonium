@@ -3,8 +3,14 @@
 #include "dsp/BusDrive.h"
 
 #include "dsp/Harmonics.h"
+#include "dsp/Keyboard.h"
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
+
+#include <cmath>
+#include <iterator>
+#include <utility>
+#include <vector>
 
 namespace ovt::params {
 
@@ -280,29 +286,21 @@ juce::String oscParamId(const char *suffix, int index0) {
   return "h" + juce::String(index0 + 1).paddedLeft('0', 2) + "_" + suffix;
 }
 
-juce::String macroAmountId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_amount";
+juce::String macroParamId(int macro, const char *suffix) {
+  return "macro" + juce::String(macro + 1) + "_" + suffix;
 }
 
-juce::String macroRowId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_row";
-}
+juce::String macroAmountId(int macro) { return macroParamId(macro, "amount"); }
 
-juce::String macroScopeId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_scope";
-}
+juce::String macroRowId(int macro) { return macroParamId(macro, "row"); }
 
-juce::String macroCurveId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_curve";
-}
+juce::String macroScopeId(int macro) { return macroParamId(macro, "scope"); }
 
-juce::String macroColourId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_colour";
-}
+juce::String macroCurveId(int macro) { return macroParamId(macro, "curve"); }
 
-juce::String macroAnchorId(int macro) {
-  return "macro" + juce::String(macro + 1) + "_anchor";
-}
+juce::String macroColourId(int macro) { return macroParamId(macro, "colour"); }
+
+juce::String macroAnchorId(int macro) { return macroParamId(macro, "anchor"); }
 
 const char *macroScopeName(int scope) {
   switch ((MacroScope)scope) {
@@ -464,7 +462,8 @@ const char *macroRowName(int row) {
                                       "Velocity",
                                       "Aftertouch",
                                       "Pan",
-                                      "Level"};
+                                      "Level",
+                                      "Keyboard"};
 
   static_assert((int)(sizeof(names) / sizeof(names[0])) == kNumMacroRows + 1,
                 "every row a macro can drive has to have a name, and None too");
@@ -511,19 +510,87 @@ int channelsSwitchedOn(juce::AudioProcessorValueTreeState &apvts,
   return on;
 }
 
-void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
-                        const char *suffix) {
+namespace {
+/// Sets the switch on every channel, on for `onlyId` and off for the rest, or
+/// off everywhere when it is empty.
+void setChannelSwitches(juce::AudioProcessorValueTreeState &apvts,
+                        const char *suffix, const juce::String &onlyId) {
+  std::vector<std::pair<juce::RangedAudioParameter *, float>> moving;
+
   for (const auto &id : channelIds(suffix)) {
     auto *param = apvts.getParameter(id);
 
-    // Only what is on, so no gesture or empty undo step is made for the rest.
-    if (param == nullptr || param->getValue() <= 0.5f)
+    if (param == nullptr)
       continue;
 
-    param->beginChangeGesture();
-    param->setValueNotifyingHost(0.0f);
-    param->endChangeGesture();
+    const auto on = id == onlyId;
+
+    // Only what changes, so no gesture or empty undo step is made for the rest.
+    if ((param->getValue() > 0.5f) != on)
+      moving.emplace_back(param, on ? 1.0f : 0.0f);
   }
+
+  moveAsOneStep(moving);
+}
+} // namespace
+
+void moveAsOneStep(const std::vector<Move> &moves) {
+  for (const auto &move : moves)
+    move.first->beginChangeGesture();
+
+  for (const auto &move : moves)
+    move.first->setValueNotifyingHost(move.second);
+
+  for (const auto &move : moves)
+    move.first->endChangeGesture();
+}
+
+void setAsOneStep(juce::RangedAudioParameter *param, float normalised) {
+  if (param != nullptr)
+    moveAsOneStep({{param, normalised}});
+}
+
+void clearChannelSwitch(juce::AudioProcessorValueTreeState &apvts,
+                        const char *suffix) {
+  setChannelSwitches(apvts, suffix, {});
+}
+
+void switchVelocityCurve(juce::AudioProcessorValueTreeState &apvts) {
+  auto *curve = apvts.getParameter(velocityCurveId);
+
+  if (curve == nullptr)
+    return;
+
+  const auto toDecibels = curve->getValue() < 0.5f;
+
+  // Normalised values, so each parameter is set as it is stored.
+  std::vector<std::pair<juce::RangedAudioParameter *, float>> moving;
+
+  for (const auto &id : channelIds(velSuffix)) {
+    auto *param = apvts.getParameter(id);
+
+    if (param == nullptr)
+      continue;
+
+    const auto amount = param->convertFrom0to1(param->getValue());
+    const auto converted =
+        toDecibels ? decibelsAmountFor(amount) : classicAmountFor(amount);
+    const auto stored = param->convertTo0to1(converted);
+
+    // Only what changes, so a channel at zero gets no gesture.
+    if (std::abs(stored - param->getValue()) > 1.0e-7f)
+      moving.emplace_back(param, stored);
+  }
+
+  moving.emplace_back(curve, toDecibels ? 1.0f : 0.0f);
+
+  // The switch and the amounts together, as one step.
+  moveAsOneStep(moving);
+}
+
+void switchOnlyChannel(juce::AudioProcessorValueTreeState &apvts,
+                       const char *suffix, const juce::String &onlyId) {
+  setChannelSwitches(apvts, suffix, onlyId);
 }
 
 float defaultVolumeFor(int index0) {
@@ -554,6 +621,9 @@ juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
 juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
 juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
 
+namespace {
+/// The shape a stored index means, clamped so an index from a later build
+/// stays in range.
 LfoShape pitchShapeAt(int index) {
   return kPitchShapes[(size_t)juce::jlimit(0, (int)kPitchShapes.size() - 1,
                                            index)];
@@ -562,6 +632,7 @@ LfoShape pitchShapeAt(int index) {
 LfoShape ampShapeAt(int index) {
   return kAmpShapes[(size_t)juce::jlimit(0, (int)kAmpShapes.size() - 1, index)];
 }
+} // namespace
 
 juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
   using Layout = juce::AudioProcessorValueTreeState::ParameterLayout;
@@ -873,7 +944,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
-        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+        juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
         FAttr().withStringFromValueFunction(signedPercentText)));
 
     layout.add(std::make_unique<FloatP>(
@@ -961,7 +1032,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
-      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.7f,
+      juce::NormalisableRange<float>(-1.0f, 1.0f), 0.0f,
       FAttr().withStringFromValueFunction(signedPercentText)));
 
   layout.add(std::make_unique<FloatP>(
@@ -1008,12 +1079,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       (int)EchoType::Tape));
 
   juce::StringArray clipTypeChoices;
-  for (int i = 0; i < (int)ClipType::NumTypes; ++i)
-    clipTypeChoices.add(clipTypeName((ClipType)i));
+  for (int i = 0; i < (int)dm::ClipType::NumTypes; ++i)
+    clipTypeChoices.add(dm::clipTypeName((dm::ClipType)i));
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{clipTypeId, 1}, "Clip Type", clipTypeChoices,
-      (int)ClipType::Soft));
+      (int)dm::ClipType::Soft));
 
   juce::StringArray reverbTypeChoices;
   for (int i = 0; i < (int)ReverbType::NumTypes; ++i)
@@ -1106,8 +1177,129 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
       juce::NormalisableRange<float>(0.0f, 1.0f), 0.4f,
       FAttr().withStringFromValueFunction(percentText)));
 
+  // The velocity curve, on the end. Part of the patch. dB for anything new,
+  // and Classic for whatever was saved before it existed, see
+  // valueInOlderFiles. Two entries, fixed, since a choice's length is part of
+  // what a stored value means.
+  layout.add(std::make_unique<juce::AudioParameterChoice>(
+      juce::ParameterID{velocityCurveId, 1}, "Velocity Curve",
+      juce::StringArray{"Classic", "dB"}, (int)VelocityCurve::Decibels));
+
+  // The KEYBOARD rows, on the end so existing automation keeps its place.
+  // Linear in the amount, since the slope's own curve is in keyboardTilt, and
+  // the readout names the slope and the centre.
+  const auto keyboardAttributes =
+      FAttr()
+          .withStringFromValueFunction(keyboardText)
+          .withValueFromStringFunction(keyboardValue);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    layout.add(std::make_unique<FloatP>(
+        juce::ParameterID{oscParamId(keySuffix, i), 1},
+        prefixFor(i) + "Keyboard",
+        juce::NormalisableRange<float>(-kKeyboardMaxAmount, kKeyboardMaxAmount),
+        0.0f, keyboardAttributes));
+
+  layout.add(std::make_unique<FloatP>(
+      juce::ParameterID{noiseParamId(keySuffix), 1}, "Noise Keyboard",
+      juce::NormalisableRange<float>(-kKeyboardMaxAmount, kKeyboardMaxAmount),
+      0.0f, keyboardAttributes));
+
   return layout;
 }
+
+std::optional<float> valueInOlderFiles(juce::StringRef id) {
+  if (id == juce::StringRef(velocityCurveId))
+    return (float)VelocityCurve::Classic;
+
+  if (juce::String(id).endsWith(juce::String("_") + keySuffix))
+    return 0.0f;
+
+  return std::nullopt;
+}
+
+namespace {
+/// Every parameter on a channel strip: its id's suffix, where the cache keeps
+/// it, and the field of the snapshot it goes to as a plain number. The shapes,
+/// MUTE and SOLO have no such field, since snapshot turns them into something
+/// else, and are read by name.
+struct OscRow {
+  const char *suffix;
+  std::atomic<float> *Cache::Osc::*cached;
+  float OscParams::*field;
+};
+
+constexpr OscRow kOscRows[] = {
+    {tuneSuffix, &Cache::Osc::tune, &OscParams::tuneBlend},
+    {glideSuffix, &Cache::Osc::glide, &OscParams::glideSeconds},
+    {pmRateSuffix, &Cache::Osc::pmRate, &OscParams::pmRateHz},
+    {pmDepthSuffix, &Cache::Osc::pmDepth, &OscParams::pmDepthCents},
+    {pmShapeSuffix, &Cache::Osc::pmShape, nullptr},
+    {driftSuffix, &Cache::Osc::drift, &OscParams::driftCents},
+    {strikeSuffix, &Cache::Osc::strike, &OscParams::strikeAmount},
+    {delaySuffix, &Cache::Osc::delay, &OscParams::delay},
+    {attackSuffix, &Cache::Osc::attack, &OscParams::attack},
+    {decaySuffix, &Cache::Osc::decay, &OscParams::decay},
+    {sustainSuffix, &Cache::Osc::sustain, &OscParams::sustain},
+    {swellSuffix, &Cache::Osc::swell, &OscParams::swell},
+    {offLevelSuffix, &Cache::Osc::offLevel, &OscParams::offLevel},
+    {releaseSuffix, &Cache::Osc::release, &OscParams::release},
+    {amRateSuffix, &Cache::Osc::amRate, &OscParams::amRateHz},
+    {amDepthSuffix, &Cache::Osc::amDepth, &OscParams::amDepth},
+    {amShapeSuffix, &Cache::Osc::amShape, nullptr},
+    {velSuffix, &Cache::Osc::vel, &OscParams::velAmount},
+    {atSuffix, &Cache::Osc::at, &OscParams::atAmount},
+    {keySuffix, &Cache::Osc::key, &OscParams::keyAmount},
+    {muteSuffix, &Cache::Osc::mute, nullptr},
+    {soloSuffix, &Cache::Osc::solo, nullptr},
+    {volumeSuffix, &Cache::Osc::volume, &OscParams::volume},
+    {panSuffix, &Cache::Osc::pan, &OscParams::pan},
+};
+
+/// The same for the noise channel.
+struct NoiseRow {
+  const char *suffix;
+  std::atomic<float> *Cache::NoiseChannel::*cached;
+  float NoiseParams::*field;
+};
+
+constexpr NoiseRow kNoiseRows[] = {
+    {colourSuffix, &Cache::NoiseChannel::colour, &NoiseParams::colour},
+    {strikeSuffix, &Cache::NoiseChannel::strike, &NoiseParams::strikeAmount},
+    {delaySuffix, &Cache::NoiseChannel::delay, &NoiseParams::delay},
+    {attackSuffix, &Cache::NoiseChannel::attack, &NoiseParams::attack},
+    {decaySuffix, &Cache::NoiseChannel::decay, &NoiseParams::decay},
+    {sustainSuffix, &Cache::NoiseChannel::sustain, &NoiseParams::sustain},
+    {swellSuffix, &Cache::NoiseChannel::swell, &NoiseParams::swell},
+    {offLevelSuffix, &Cache::NoiseChannel::offLevel, &NoiseParams::offLevel},
+    {releaseSuffix, &Cache::NoiseChannel::release, &NoiseParams::release},
+    {amRateSuffix, &Cache::NoiseChannel::amRate, &NoiseParams::amRateHz},
+    {amDepthSuffix, &Cache::NoiseChannel::amDepth, &NoiseParams::amDepth},
+    {amShapeSuffix, &Cache::NoiseChannel::amShape, nullptr},
+    {velSuffix, &Cache::NoiseChannel::vel, &NoiseParams::velAmount},
+    {atSuffix, &Cache::NoiseChannel::at, &NoiseParams::atAmount},
+    {keySuffix, &Cache::NoiseChannel::key, &NoiseParams::keyAmount},
+    {muteSuffix, &Cache::NoiseChannel::mute, nullptr},
+    {soloSuffix, &Cache::NoiseChannel::solo, nullptr},
+    {volumeSuffix, &Cache::NoiseChannel::volume, &NoiseParams::volume},
+    {panSuffix, &Cache::NoiseChannel::pan, &NoiseParams::pan},
+    {stringSuffix, &Cache::NoiseChannel::string, &NoiseParams::stringAmount},
+    {stringDecaySuffix, &Cache::NoiseChannel::stringDecay,
+     &NoiseParams::stringDecay},
+    {stringDampSuffix, &Cache::NoiseChannel::stringDamp,
+     &NoiseParams::stringDamp},
+    {stringPointSuffix, &Cache::NoiseChannel::stringPoint,
+     &NoiseParams::stringPoint},
+};
+
+// Every pointer the cache keeps for a channel is in its table.
+static_assert(std::size(kOscRows) ==
+                  sizeof(Cache::Osc) / sizeof(std::atomic<float> *),
+              "a channel parameter is missing from kOscRows");
+static_assert(std::size(kNoiseRows) ==
+                  sizeof(Cache::NoiseChannel) / sizeof(std::atomic<float> *),
+              "a noise parameter is missing from kNoiseRows");
+} // namespace
 
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   masterGain = apvts.getRawParameterValue(masterGainId);
@@ -1117,6 +1309,7 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   amInPhase = apvts.getRawParameterValue(amInPhaseId);
   glideTrigger = apvts.getRawParameterValue(glideTriggerId);
   glideMode = apvts.getRawParameterValue(glideModeId);
+  velocityCurve = apvts.getRawParameterValue(velocityCurveId);
   legato = apvts.getRawParameterValue(legatoId);
   adaptiveRetune = apvts.getRawParameterValue(adaptiveRetuneId);
   adaptiveSeventh = apvts.getRawParameterValue(adaptiveSeventhId);
@@ -1143,7 +1336,25 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
     cached.scope = apvts.getRawParameterValue(macroScopeId(m));
     cached.curve = apvts.getRawParameterValue(macroCurveId(m));
     cached.anchor = apvts.getRawParameterValue(macroAnchorId(m));
+
+    jassert(cached.amount != nullptr && cached.row != nullptr &&
+            cached.scope != nullptr && cached.curve != nullptr &&
+            cached.anchor != nullptr);
   }
+
+  // Every pointer comes from the layout, so a missing one is a typo in an id,
+  // and snapshot reads them without checking.
+  jassert(masterGain != nullptr && polyphony != nullptr &&
+          oneVoicePerKey != nullptr && pmInPhase != nullptr &&
+          amInPhase != nullptr && glideTrigger != nullptr &&
+          glideMode != nullptr && velocityCurve != nullptr &&
+          legato != nullptr && adaptiveRetune != nullptr &&
+          adaptiveSeventh != nullptr && adaptiveHome != nullptr &&
+          bendRange != nullptr && phaseReset != nullptr && stretch != nullptr &&
+          atSource != nullptr && slideDest != nullptr && track != nullptr &&
+          character != nullptr && wobble != nullptr && temperament != nullptr &&
+          tuningRoot != nullptr && referenceHz != nullptr &&
+          safetyClip != nullptr && lookahead != nullptr);
 
   // Read once here rather than per block, since a row's range cannot change.
   for (int r = 0; r < kNumMacroRows; ++r) {
@@ -1180,66 +1391,106 @@ void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
   resonator.decay = apvts.getRawParameterValue(resonatorDecayId);
   resonator.damp = apvts.getRawParameterValue(resonatorDampId);
 
-  jassert(echo.on != nullptr && reverb.on != nullptr &&
+  jassert(mpe != nullptr && lofiRate != nullptr && lofiBits != nullptr &&
+          clipType != nullptr && echo.on != nullptr && echo.type != nullptr &&
+          reverb.on != nullptr && reverb.type != nullptr &&
           resonator.mode != nullptr && resonator.damp != nullptr);
 
   for (int i = 0; i < kNumHarmonics; ++i) {
     auto &o = osc[(size_t)i];
 
-    o.tune = apvts.getRawParameterValue(oscParamId(tuneSuffix, i));
-    o.glide = apvts.getRawParameterValue(oscParamId(glideSuffix, i));
-    o.pmRate = apvts.getRawParameterValue(oscParamId(pmRateSuffix, i));
-    o.pmDepth = apvts.getRawParameterValue(oscParamId(pmDepthSuffix, i));
-    o.pmShape = apvts.getRawParameterValue(oscParamId(pmShapeSuffix, i));
-    o.drift = apvts.getRawParameterValue(oscParamId(driftSuffix, i));
-    o.strike = apvts.getRawParameterValue(oscParamId(strikeSuffix, i));
-    o.delay = apvts.getRawParameterValue(oscParamId(delaySuffix, i));
-    o.attack = apvts.getRawParameterValue(oscParamId(attackSuffix, i));
-    o.decay = apvts.getRawParameterValue(oscParamId(decaySuffix, i));
-    o.sustain = apvts.getRawParameterValue(oscParamId(sustainSuffix, i));
-    o.swell = apvts.getRawParameterValue(oscParamId(swellSuffix, i));
-    o.offLevel = apvts.getRawParameterValue(oscParamId(offLevelSuffix, i));
-    o.release = apvts.getRawParameterValue(oscParamId(releaseSuffix, i));
-    o.amRate = apvts.getRawParameterValue(oscParamId(amRateSuffix, i));
-    o.amDepth = apvts.getRawParameterValue(oscParamId(amDepthSuffix, i));
-    o.amShape = apvts.getRawParameterValue(oscParamId(amShapeSuffix, i));
-    o.vel = apvts.getRawParameterValue(oscParamId(velSuffix, i));
-    o.at = apvts.getRawParameterValue(oscParamId(atSuffix, i));
-    o.mute = apvts.getRawParameterValue(oscParamId(muteSuffix, i));
-    o.solo = apvts.getRawParameterValue(oscParamId(soloSuffix, i));
-    o.volume = apvts.getRawParameterValue(oscParamId(volumeSuffix, i));
-    o.pan = apvts.getRawParameterValue(oscParamId(panSuffix, i));
-
-    jassert(o.tune != nullptr && o.volume != nullptr);
+    for (const auto &row : kOscRows) {
+      o.*row.cached = apvts.getRawParameterValue(oscParamId(row.suffix, i));
+      jassert(o.*row.cached != nullptr);
+    }
   }
 
-  noise.colour = apvts.getRawParameterValue(noiseParamId(colourSuffix));
-  noise.strike = apvts.getRawParameterValue(noiseParamId(strikeSuffix));
-  noise.delay = apvts.getRawParameterValue(noiseParamId(delaySuffix));
-  noise.attack = apvts.getRawParameterValue(noiseParamId(attackSuffix));
-  noise.decay = apvts.getRawParameterValue(noiseParamId(decaySuffix));
-  noise.sustain = apvts.getRawParameterValue(noiseParamId(sustainSuffix));
-  noise.swell = apvts.getRawParameterValue(noiseParamId(swellSuffix));
-  noise.offLevel = apvts.getRawParameterValue(noiseParamId(offLevelSuffix));
-  noise.release = apvts.getRawParameterValue(noiseParamId(releaseSuffix));
-  noise.amRate = apvts.getRawParameterValue(noiseParamId(amRateSuffix));
-  noise.amDepth = apvts.getRawParameterValue(noiseParamId(amDepthSuffix));
-  noise.amShape = apvts.getRawParameterValue(noiseParamId(amShapeSuffix));
-  noise.vel = apvts.getRawParameterValue(noiseParamId(velSuffix));
-  noise.at = apvts.getRawParameterValue(noiseParamId(atSuffix));
-  noise.mute = apvts.getRawParameterValue(noiseParamId(muteSuffix));
-  noise.solo = apvts.getRawParameterValue(noiseParamId(soloSuffix));
-  noise.volume = apvts.getRawParameterValue(noiseParamId(volumeSuffix));
-  noise.pan = apvts.getRawParameterValue(noiseParamId(panSuffix));
-  noise.string = apvts.getRawParameterValue(noiseParamId(stringSuffix));
-  noise.stringDecay =
-      apvts.getRawParameterValue(noiseParamId(stringDecaySuffix));
-  noise.stringDamp = apvts.getRawParameterValue(noiseParamId(stringDampSuffix));
-  noise.stringPoint =
-      apvts.getRawParameterValue(noiseParamId(stringPointSuffix));
+  for (const auto &row : kNoiseRows) {
+    noise.*row.cached = apvts.getRawParameterValue(noiseParamId(row.suffix));
+    jassert(noise.*row.cached != nullptr);
+  }
+}
 
-  jassert(noise.colour != nullptr && noise.volume != nullptr &&
-          noise.string != nullptr && noise.stringPoint != nullptr);
+namespace {
+/// A MIDI key's name, middle C (60) being C4.
+juce::String keyName(int key) {
+  const auto k = juce::jlimit(0, 127, key);
+
+  return juce::String(kPitchClassNames[(size_t)(k % 12)]) +
+         juce::String(k / 12 - 1);
+}
+} // namespace
+
+juce::String keyboardText(float amount, int) {
+  const auto tilt = keyboardTilt(amount);
+
+  // Shown as zero by the slope's own rounding, so the knob does not claim a
+  // side while it does nothing.
+  if (tilt.dbPerOctave < 0.05f)
+    return "0 dB/oct";
+
+  const auto slope = tilt.dbPerOctave < 9.95f
+                         ? juce::String(tilt.dbPerOctave, 1)
+                         : juce::String(juce::roundToInt(tilt.dbPerOctave));
+
+  return slope + " dB/oct " + (tilt.below ? "below " : "above ") +
+         keyName(juce::roundToInt(tilt.centre));
+}
+
+namespace {
+/// A key name such as "F#2" or "C-1" at the start of `text`, or -1.
+int keyFromName(const juce::String &text) {
+  const auto t = text.trim().toUpperCase();
+
+  if (t.isEmpty())
+    return -1;
+
+  static const int letters[] = {9, 11, 0, 2, 4, 5, 7}; // A to G
+  const auto letter = t[0];
+
+  if (letter < 'A' || letter > 'G')
+    return -1;
+
+  int pitchClass = letters[letter - 'A'];
+  auto rest = t.substring(1);
+
+  if (rest.startsWithChar('#')) {
+    ++pitchClass;
+    rest = rest.substring(1);
+  }
+
+  if (!rest.containsOnly("-0123456789") || !rest.containsAnyOf("0123456789"))
+    return -1;
+
+  const auto key = (rest.getIntValue() + 1) * 12 + pitchClass;
+  return key >= 0 && key <= 127 ? key : -1;
+}
+} // namespace
+
+float keyboardValue(const juce::String &text) {
+  const auto t = text.trim().toLowerCase();
+  const auto n = t.getFloatValue();
+
+  if (t.containsChar('%'))
+    return juce::jlimit(-kKeyboardMaxAmount, kKeyboardMaxAmount, n / 100.0f);
+
+  const bool above = t.contains("above");
+  const auto sign = above ? -1.0f : 1.0f;
+
+  // A centre away from middle C on the side the slope turns down is past full
+  // amount. On the other side there is no such setting, so only the slope is
+  // read.
+  const auto centre = keyFromName(
+      t.fromLastOccurrenceOf(above ? "above" : "below", false, false));
+  const auto away = (float)centre - kKeyboardCentreKey;
+
+  if (centre >= 0 && away * sign > 0.0f)
+    return juce::jlimit(-kKeyboardMaxAmount, kKeyboardMaxAmount,
+                        sign *
+                            (1.0f + std::abs(away) / kKeyboardKeysPerAmount));
+
+  const auto slope = juce::jlimit(0.0f, kKeyboardMaxSlopeDb, std::abs(n));
+  return sign * std::sqrt(slope / kKeyboardMaxSlopeDb);
 }
 
 juce::String strikeRangeText(float amount, float delay, float attack) {
@@ -1330,13 +1581,15 @@ float *macroField(OscParams &o, int row) {
     return &o.pan;
   case 19:
     return &o.volume;
+  case 20:
+    return &o.keyAmount;
 
   default:
     return nullptr;
   }
 }
 
-static_assert(kNumMacroRows == 19,
+static_assert(kNumMacroRows == 20,
               "macroField has a case per row and has to grow with the list");
 
 } // namespace
@@ -1355,27 +1608,12 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
     const auto &c = osc[(size_t)i];
     auto &o = out.osc[(size_t)i];
 
-    o.tuneBlend = c.tune->load();
-    o.pmRateHz = c.pmRate->load();
+    for (const auto &row : kOscRows)
+      if (row.field != nullptr)
+        o.*row.field = (c.*row.cached)->load();
+
     o.pmShape = pitchShapeAt((int)c.pmShape->load());
-    o.pmDepthCents = c.pmDepth->load();
-    o.glideSeconds = c.glide->load();
-    o.driftCents = c.drift->load();
-    o.strikeAmount = c.strike->load();
-    o.delay = c.delay->load();
-    o.attack = c.attack->load();
-    o.decay = c.decay->load();
-    o.sustain = c.sustain->load();
-    o.swell = c.swell->load();
-    o.offLevel = c.offLevel->load();
-    o.release = c.release->load();
-    o.amRateHz = c.amRate->load();
     o.amShape = ampShapeAt((int)c.amShape->load());
-    o.amDepth = c.amDepth->load();
-    o.velAmount = c.vel->load();
-    o.atAmount = c.at->load();
-    o.volume = c.volume->load();
-    o.pan = c.pan->load();
 
     const bool muted = c.mute->load() > 0.5f;
     const bool soloed = c.solo->load() > 0.5f;
@@ -1391,10 +1629,6 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // a macro does.
   for (int m = 0; m < kNumMacros; ++m) {
     const auto &cached = macro[(size_t)m];
-
-    if (cached.amount == nullptr)
-      continue;
-
     const auto amount = cached.amount->load();
 
     // The common case, and it has to cost nothing.
@@ -1419,9 +1653,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     // Numbered from one on the panel, counted from zero here.
     const auto anchor = juce::jlimit(
-        0, kNumHarmonics - 1,
-        cached.anchor == nullptr ? 0
-                                 : (int)std::lround(cached.anchor->load()) - 1);
+        0, kNumHarmonics - 1, (int)std::lround(cached.anchor->load()) - 1);
 
     const auto &range = rowRange[(size_t)(row - 1)];
 
@@ -1447,26 +1679,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   {
     auto &n = out.noise;
 
-    n.colour = noise.colour->load();
-    n.strikeAmount = noise.strike->load();
-    n.delay = noise.delay->load();
-    n.attack = noise.attack->load();
-    n.decay = noise.decay->load();
-    n.sustain = noise.sustain->load();
-    n.swell = noise.swell->load();
-    n.offLevel = noise.offLevel->load();
-    n.release = noise.release->load();
-    n.amRateHz = noise.amRate->load();
+    for (const auto &row : kNoiseRows)
+      if (row.field != nullptr)
+        n.*row.field = (noise.*row.cached)->load();
+
     n.amShape = ampShapeAt((int)noise.amShape->load());
-    n.amDepth = noise.amDepth->load();
-    n.velAmount = noise.vel->load();
-    n.atAmount = noise.at->load();
-    n.volume = noise.volume->load();
-    n.pan = noise.pan->load();
-    n.stringAmount = noise.string->load();
-    n.stringDecay = noise.stringDecay->load();
-    n.stringDamp = noise.stringDamp->load();
-    n.stringPoint = noise.stringPoint->load();
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;
@@ -1484,9 +1701,7 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   {
     const auto pick = [](const std::atomic<float> *p, int count) {
-      return p == nullptr
-                 ? 0
-                 : juce::jlimit(0, count - 1, (int)std::lround(p->load()));
+      return juce::jlimit(0, count - 1, (int)std::lround(p->load()));
     };
 
     out.global.temperament =
@@ -1510,16 +1725,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   out.global.busDrive = (float)ovt::BusDrive::amountFor(out.global.character);
   out.global.safetyClip = safetyClip->load() > 0.5f;
 
-  // A null pointer means a state without the switch, which always had the
-  // lookahead.
-  out.global.lookahead = lookahead == nullptr || lookahead->load() > 0.5f;
-
-  // A patch without a type reads zero, the soft clipper.
-  out.global.clipType =
-      clipType == nullptr
-          ? ClipType::Soft
-          : (ClipType)juce::jlimit(0, (int)ClipType::NumTypes - 1,
-                                   (int)std::lround(clipType->load()));
+  out.global.lookahead = lookahead->load() > 0.5f;
+  out.global.clipType = (dm::ClipType)juce::jlimit(
+      0, (int)dm::ClipType::NumTypes - 1, (int)std::lround(clipType->load()));
   out.global.oneVoicePerKey = oneVoicePerKey->load() > 0.5f;
   out.global.pitchModInPhase = pmInPhase->load() > 0.5f;
   out.global.ampModInPhase = amInPhase->load() > 0.5f;
@@ -1527,6 +1735,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       glideTrigger->load() > 0.5f ? GlideTrigger::Legato : GlideTrigger::Always;
   out.global.glideMode =
       glideMode->load() > 0.5f ? GlideMode::Time : GlideMode::Rate;
+  out.global.velocityCurve = velocityCurve->load() > 0.5f
+                                 ? VelocityCurve::Decibels
+                                 : VelocityCurve::Classic;
 
   {
     const auto r = juce::jlimit(0, (int)kLofiRateChoices.size() - 1,
@@ -1540,12 +1751,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.echo.enabled = echo.on->load() > 0.5f;
 
-  // A patch without a type reads zero, the tape echo.
-  out.echo.type =
-      echo.type == nullptr
-          ? EchoType::Tape
-          : (EchoType)juce::jlimit(0, (int)EchoType::NumTypes - 1,
-                                   (int)std::lround(echo.type->load()));
+  out.echo.type = (EchoType)juce::jlimit(0, (int)EchoType::NumTypes - 1,
+                                         (int)std::lround(echo.type->load()));
   out.echo.mix = echo.mix->load();
   out.echo.timeSeconds = echo.time->load();
   out.echo.feedback = echo.feedback->load();
@@ -1553,11 +1760,8 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
   out.reverb.enabled = reverb.on->load() > 0.5f;
 
-  out.reverb.type =
-      reverb.type == nullptr
-          ? ReverbType::Room
-          : (ReverbType)juce::jlimit(0, (int)ReverbType::NumTypes - 1,
-                                     (int)std::lround(reverb.type->load()));
+  out.reverb.type = (ReverbType)juce::jlimit(
+      0, (int)ReverbType::NumTypes - 1, (int)std::lround(reverb.type->load()));
   out.reverb.mix = reverb.mix->load();
   out.reverb.decaySeconds = reverb.decay->load();
   out.reverb.damping = reverb.damp->load();

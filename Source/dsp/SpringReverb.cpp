@@ -1,4 +1,5 @@
 #include "SpringReverb.h"
+#include "dm/dsp/Filters.h"
 
 #include <algorithm>
 #include <cmath>
@@ -6,8 +7,6 @@
 namespace ovt {
 
 namespace {
-constexpr double kTwoPi = 6.283185307179586;
-
 /// How long a wave takes to cross each spring, in seconds. The lengths share no
 /// small ratio so the three trains of repeats never land together.
 constexpr double kTransits[] = {0.0291, 0.0330, 0.0371};
@@ -49,9 +48,6 @@ constexpr float kPickupHz = 5000.0f;
 constexpr float kOpenHz = 10000.0f;
 constexpr float kClosedHz = 900.0f;
 
-inline float onePole(float hz, double sr) noexcept {
-  return (float)std::exp(-kTwoPi * (double)hz / sr);
-}
 } // namespace
 
 void SpringReverb::Spring::resize(int transitSamples, int sections,
@@ -77,7 +73,7 @@ void SpringReverb::Spring::clear() noexcept {
   dark = rumble = tail = 0.0f;
 }
 
-void SpringReverb::prepare(double newSampleRate) noexcept {
+void SpringReverb::prepare(double newSampleRate) {
   sampleRate = std::max(1.0, newSampleRate);
 
   preDelay.assign((size_t)(kMaxPreDelaySeconds * sampleRate) + 4, 0.0f);
@@ -132,9 +128,9 @@ void SpringReverb::process(float *outL, float *outR, int numSamples,
   const auto damping = std::clamp(p.damping, 0.0f, 1.0f);
   // DAMP moves the loop corner geometrically, so it moves evenly in octaves.
   const auto darkCoef =
-      onePole(kOpenHz * std::pow(kClosedHz / kOpenHz, damping), sampleRate);
-  const auto rumbleCoef = onePole(kRumbleHz, sampleRate);
-  const auto pickupCoef = onePole(kPickupHz, sampleRate);
+      dm::onePole(kOpenHz * std::pow(kClosedHz / kOpenHz, damping), sampleRate);
+  const auto rumbleCoef = dm::onePole(kRumbleHz, sampleRate);
+  const auto pickupCoef = dm::onePole(kPickupHz, sampleRate);
 
   // Each spring loses the same proportion per second rather than per bounce,
   // so the tail keeps its colour as it fades. The loop length counts the
