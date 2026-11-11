@@ -21,10 +21,13 @@ public:
   ///                 can follow another partial, or -1 for one that offers the
   ///                 shapes alone. The parameter then lists the partials after
   ///                 the shapes. See params::ampSourceNames.
+  /// @param offersFeedback  whether it can follow its own partial too, which
+  ///                 the pitch modulator can as feedback. See
+  ///                 OscParams::pmSource.
   ShapeButton(juce::AudioProcessorValueTreeState &state,
               const juce::String &parameterId, const char *suffix,
               juce::Span<const LfoShape> shapes, juce::StringArray shapeNames,
-              int ownPartial = -1);
+              int ownPartial = -1, bool offersFeedback = false);
 
   void paint(juce::Graphics &) override;
   void mouseDown(const juce::MouseEvent &) override;
@@ -43,8 +46,11 @@ public:
   LfoShape selectedShape() const;
 
   /// The partial, 0 to 31, this modulator follows, or -1 when it traces one
-  /// of the shapes.
+  /// of the shapes. Its own partial when it feeds itself back.
   int selectedPartial() const;
+
+  /// Whether it follows its own partial, as feedback.
+  bool feedsBack() const;
 
   /// Called when the parameter moves, from wherever it is moved. The strip
   /// uses it to grey the rate, which a partial has no use for, and to show
@@ -72,6 +78,10 @@ private:
   /// channel" entries in the menu do.
   void applyToEveryChannel(int index);
 
+  /// Sets every channel to follow its own partial, as feedback, as one step
+  /// in the undo history.
+  void applyFeedbackToEveryChannel();
+
   /// Everything paint draws, before it is kept as a picture.
   void paintShape(juce::Graphics &);
 
@@ -87,6 +97,7 @@ private:
   juce::String id;
   const char *sharedSuffix;
   int partialOf = -1;
+  bool feedbackOffered = false;
   juce::Span<const LfoShape> offered;
   juce::StringArray names;
   bool hovered = false;

@@ -1,6 +1,8 @@
 #include "Voice.h"
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 #include "Character.h"
 #include "Exact.h"
@@ -62,6 +64,44 @@ constexpr double kRadiansToTurns = 0.15915494309189535; // 1 / 2 pi
 /// does. Truncated, which at 2^-32 of a turn is far below hearing.
 inline std::uint64_t phaseOffset(float turns32) noexcept {
   return (std::uint64_t)(std::int64_t)turns32 << 32;
+}
+
+/// How far down a harmonic has to be at the top of the band for a partial that
+/// moves its own phase: 60 dB, as a natural log.
+constexpr double kFeedbackFloor = 6.907755278982137; // ln 1000
+
+/// A partial whose phase follows its own wave, sin(t + b sin(...)), has its
+/// n-th harmonic at 2 J_n(n b) / (n b). For an index b under 1 that falls
+/// about as e^(-n r), and this is r, from the Bessel functions' large-order
+/// form. It grows without end as b goes to nothing and is nothing at 1, past
+/// which the wave has no single value and turns to noise.
+inline double feedbackFalloff(double index) noexcept {
+  if (index <= 0.0)
+    return std::numeric_limits<double>::infinity();
+
+  if (index >= 1.0)
+    return 0.0;
+
+  const double s = std::sqrt(1.0 - index * index);
+  return std::log((1.0 + s) / index) - s;
+}
+
+/// The deepest index whose harmonic `harmonic`, the one at the top of the
+/// band, is kFeedbackFloor down. Found by halving, since the falloff only
+/// shrinks as the index grows.
+inline double feedbackIndexFor(double harmonic) noexcept {
+  if (harmonic <= 1.0)
+    return 0.0;
+
+  const double need = kFeedbackFloor / harmonic;
+  double lo = 0.0, hi = 1.0;
+
+  for (int i = 0; i < 30; ++i) {
+    const double mid = 0.5 * (lo + hi);
+    (feedbackFalloff(mid) > need ? lo : hi) = mid;
+  }
+
+  return lo;
 }
 } // namespace
 
@@ -241,6 +281,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       ringSource[(size_t)i].fill(0.0f);
       pt.lastRingDepth = 0.0f;
       pt.lastPhaseDepth = 0.0f;
+      pt.fedBack = {};
       pt.lastSourceGain = -1.0f;
     }
 
@@ -434,6 +475,7 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.lastFreq = src.lastFreq;
     pt.lastRingDepth = src.lastRingDepth;
     pt.lastPhaseDepth = src.lastPhaseDepth;
+    pt.fedBack = src.fedBack;
     pt.lastSourceGain = src.lastSourceGain;
   }
 
@@ -648,6 +690,9 @@ void Voice::render(float *left, float *right, int numSamples,
               ? op.pmSource
               : -1;
 
+      // Or whether it moves its own, from its own last samples.
+      const bool feedback = op.pmSource == i;
+
       // Scaled by what the note-on made of the velocity, so turning either knob
       // under a sounding note keeps that proportion. The delay is only read at
       // the next note-on, and is scaled here to keep the two calls agreeing.
@@ -690,7 +735,7 @@ void Voice::render(float *left, float *right, int numSamples,
               : pt.pitchLfo.value(op.pmShape);
 
       // A partial whose phase another one moves has no vibrato of its own,
-      // and neither does one that names itself.
+      // and neither does one that moves its own.
       const double pmCents = op.pmDepthCents > 0.0f && op.pmSource < 0
                                  ? (double)(pmShapeValue * op.pmDepthCents)
                                  : 0.0;
@@ -847,6 +892,12 @@ void Voice::render(float *left, float *right, int numSamples,
       // it, one source frequency apart, and nearly all of it lies within the
       // index plus one pairs. So the index is held to what keeps the highest
       // pair under the top of the band, unless folding is wanted.
+      //
+      // A partial that moves its own phase makes its own harmonics instead,
+      // and keeps them under the top of the band the same way, with its
+      // harmonic there 60 dB down. That holds the index under 1, where the
+      // wave goes from a sine towards a sawtooth. Past 1 it turns to noise,
+      // which only the lo-fi rate reaches.
       double phaseIndex = 0.0;
 
       if (phaseFrom >= 0) {
@@ -857,6 +908,12 @@ void Voice::render(float *left, float *right, int numSamples,
         if (!foldAliases && by > 0.0)
           phaseIndex = std::clamp((kPhaseModTop * sampleRate - freq) / by - 1.0,
                                   0.0, phaseIndex);
+      } else if (feedback) {
+        phaseIndex = (double)(op.pmDepthCents / kCentsPerIndex);
+
+        if (!foldAliases)
+          phaseIndex = std::min(
+              phaseIndex, feedbackIndexFor(kPhaseModTop * sampleRate / freq));
       }
 
       // In 2^-32 of a turn per unit of the wave, which the loop below shifts
@@ -867,9 +924,15 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.lastPhaseDepth = phaseEnd;
 
       // The highest the moved partial reaches, which the table is chosen for.
+      // Moving itself, its harmonics reach as far as they take to fall 60 dB.
       const double reach =
           phaseFrom >= 0
               ? freq + phaseIndex * partials[(size_t)phaseFrom].lastFreq
+          : feedback && phaseIndex > 0.0
+              ? (phaseIndex < 1.0
+                     ? freq *
+                           (1.0 + kFeedbackFloor / feedbackFalloff(phaseIndex))
+                     : sampleRate)
               : freq;
 
       // ---- which oscillator this is ----------------------------------------
@@ -943,7 +1006,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // tremolo and the half-pedal. Its own envelope goes in per sample.
       float sourceStart = 0.0f, sourceEnd = 0.0f;
 
-      if (source) {
+      if (source || feedback) {
         const float expression =
             std::clamp(pt.velGain +
                            std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
@@ -1018,6 +1081,7 @@ void Voice::render(float *left, float *right, int numSamples,
         // still needs its wave.
         if (source) {
           auto &mine = ringSource[(size_t)i];
+          auto fed = pt.fedBack;
           std::uint64_t ph = toFixedPhase(pt.phase);
           const std::uint64_t step = toFixedStep(inc);
 
@@ -1045,6 +1109,9 @@ void Voice::render(float *left, float *right, int numSamples,
             if (mover != nullptr) {
               read += phaseOffset(moved * mover[k]);
               moved += movedInc;
+            } else if (feedback) {
+              read += phaseOffset(moved * 0.5f * (fed[0] + fed[1]));
+              moved += movedInc;
             }
 
             float v = wave.at(read) * pt.env.tick() * passed;
@@ -1055,14 +1122,20 @@ void Voice::render(float *left, float *right, int numSamples,
             }
 
             mine[k] = v;
+            fed = {v, fed[0]};
             passed += passedInc;
             ph += step;
           }
 
           pt.phase = fromFixedPhase(ph);
+          pt.fedBack = fed;
         } else {
           for (int n = 0; n < len; ++n)
             pt.env.tick();
+
+          // Unheard and moving nothing else, so its own phase starts again
+          // from still when it comes back.
+          pt.fedBack = {};
 
           // Stepped as the loop below steps it, so a partial that comes back
           // audible is where it would have been had it played throughout.
@@ -1097,7 +1170,7 @@ void Voice::render(float *left, float *right, int numSamples,
       // place would store and reload its level every sample. Same samples.
       Envelope env = pt.env;
 
-      if (source || ringFrom >= 0 || phaseFrom >= 0) {
+      if (source || ringFrom >= 0 || phaseFrom >= 0 || feedback) {
         // Modulating or modulated, which the plain loops below leave out to
         // stay as quick as they are. One loop for all of it, with the
         // cross-fade when the table changes.
@@ -1120,17 +1193,21 @@ void Voice::render(float *left, float *right, int numSamples,
             phaseFrom >= 0 ? ringSource[(size_t)phaseFrom].data() : nullptr;
         float moved = phaseStart;
         const float movedInc = (phaseEnd - phaseStart) / (float)len;
+        auto fed = pt.fedBack;
 
         for (int n = 0; n < len; ++n) {
           const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
 
           // Where the table is read: the partial's own phase, moved by the
-          // other partial's wave. The phase itself runs on untouched, so the
-          // partial stays at its pitch.
+          // other partial's wave or by its own last two samples. The phase
+          // itself runs on untouched, so the partial stays at its pitch.
           std::uint64_t read = ph;
 
           if (mover != nullptr) {
             read += phaseOffset(moved * mover[k]);
+            moved += movedInc;
+          } else if (feedback) {
+            read += phaseOffset(moved * 0.5f * (fed[0] + fed[1]));
             moved += movedInc;
           }
 
@@ -1158,9 +1235,14 @@ void Voice::render(float *left, float *right, int numSamples,
           // its expression, but not the fader or the mute, so a muted
           // partial modulates as strongly as a loud one. Round a loop, its
           // wave alone.
-          if (mine != nullptr) {
-            mine[k] = shaped * (passesRing ? ring : 1.0f) * passed;
+          if (mine != nullptr || feedback) {
+            const float out = shaped * (passesRing ? ring : 1.0f) * passed;
             passed += passedInc;
+
+            if (mine != nullptr)
+              mine[k] = out;
+
+            fed = {out, fed[0]};
           }
 
           l[n] += s * pl;
@@ -1169,6 +1251,8 @@ void Voice::render(float *left, float *right, int numSamples,
           ph += step;
           g += gInc;
         }
+
+        pt.fedBack = fed;
       } else if (previous == nullptr || previous == &wave) {
         for (int n = 0; n < len; ++n) {
           const float s = wave.at(ph) * env.tick() * g;

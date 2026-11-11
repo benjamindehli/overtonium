@@ -814,13 +814,15 @@ juce::String rowHelp(Row r) {
   case Row::PmShape:
     return "The shape the vibrato traces. Click the drawing on a channel to "
            "choose one, or choose another partial, whose wave then moves this "
-           "one's phase, as an FM synthesizer does.";
+           "one's phase, as an FM synthesizer does. Feedback moves it by its "
+           "own wave.";
   case Row::PmRate:
     return "How fast the vibrato moves, from 0.01 to 30 Hz. Not used while a "
-           "partial is the source.";
+           "partial or feedback is the source.";
   case Row::PmDepth:
     return "How far the vibrato moves the partial, up to 1200 cents. With a "
-           "partial as the source, the modulation index, from 0 to 12.";
+           "partial or feedback as the source, the modulation index, from 0 to "
+           "12.";
   case Row::Drift:
     return "A slow random wander in pitch, different for every partial, up to "
            "25 cents.";
