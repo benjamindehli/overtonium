@@ -10935,17 +10935,11 @@ void testPartialAsPitchSource() {
         "a muted partial still moves the phase");
 
   // At index nothing, a partial as the source changes nothing, sample for
-  // sample. Nor does naming itself, which turns off the vibrato as well.
+  // sample.
   auto none = moved;
   none.osc[1].pmDepthCents = 0.0f;
   check(sameSamples(play(none), alone),
         "at index nothing, a partial as the source changes nothing");
-
-  auto itself = plain;
-  itself.osc[1].pmSource = 1;
-  itself.osc[1].pmDepthCents = 600.0f;
-  check(sameSamples(play(itself), alone),
-        "a partial that names itself is not moved, and has no vibrato");
 
   // What a partial passes on has its own phase movement in it: partial 3
   // ringed by partial 2 rings with partial 2's new tones as well.
@@ -10993,6 +10987,120 @@ void testPartialAsPitchSource() {
     bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
   check(bounded, "the deepest index, two partials moving each other, stays "
                  "finite and bounded");
+}
+
+/// A partial that moves its own phase by its own last two samples, as the
+/// DX7's feedback operator does. A sine fed back into its own phase,
+/// sin(t + b sin(...)), has its n-th harmonic at 2 J_n(n b) / (n b), so it
+/// stays in tune and turns towards a sawtooth as the index nears 1.
+void testPartialFeedback() {
+  section("A partial moving its own phase");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, and feeding itself back at index 0.5,
+  // which is 50 on the knob.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto fedBack = plain;
+  fedBack.osc[1].pmSource = 1;
+  fedBack.osc[1].pmDepthCents = 50.0f;
+
+  const auto alone = play(plain);
+  const auto fb = play(fedBack);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // 2 J1(0.5) / 0.5, 2 J2(1) / 1 and 2 J3(1.5) / 1.5.
+  constexpr double kH1 = 0.9690470, kH2 = 0.2298070, kH3 = 0.0812757;
+  const auto h1 = binMagnitude(fb, 440.0, sr) / tone;
+  const auto h2 = binMagnitude(fb, 880.0, sr) / tone;
+  const auto h3 = binMagnitude(fb, 1320.0, sr) / tone;
+
+  check(std::abs(h1 - kH1) < 0.02 && std::abs(h2 - kH2) < 0.02 &&
+            std::abs(h3 - kH3) < 0.02,
+        "at index 0.5 its harmonics are 2 J_n(n b) / (n b) (" +
+            std::to_string(h1) + ", " + std::to_string(h2) + ", " +
+            std::to_string(h3) + ")");
+
+  check(binMagnitude(fb, 660.0, sr) < 0.01 * tone &&
+            binMagnitude(fb, 450.0, sr) < 0.01 * tone,
+        "and nothing falls between them, so it stays in tune");
+
+  // At index nothing it plays sample for sample as it does alone.
+  auto none = fedBack;
+  none.osc[1].pmDepthCents = 0.0f;
+  const auto still = play(none);
+  bool same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(still[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < still[(size_t)n]);
+  check(same, "at index nothing, feeding itself back changes nothing");
+
+  // The deepest index on A1 is held just under 1, which is nearly a
+  // sawtooth: the second harmonic over a third of the first, where a
+  // sawtooth has a half, and the tenth still there. Finite and bounded.
+  auto low = makeFlatParams(0.0f);
+  low.osc[0].volume = 0.5f;
+  low.osc[0].pmSource = 0;
+  low.osc[0].pmDepthCents = 1200.0f;
+  const auto deep = play(low, 33);
+  bool bounded = true;
+  for (const auto v : deep)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  const auto first = binMagnitude(deep, 55.0, sr);
+  check(bounded && binMagnitude(deep, 110.0, sr) > 0.3 * first &&
+            binMagnitude(deep, 550.0, sr) > 0.03 * first &&
+            binMagnitude(deep, 82.5, sr) < 0.01 * first,
+        "the deepest index on a low note turns towards a sawtooth, in tune");
+
+  // Partial 12 on A5 at 10.56 kHz. Its third harmonic would fold down to
+  // 16.32 kHz, so the index is held to where that is 60 dB down.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highFed = high;
+  highFed.osc[11].pmSource = 11;
+  highFed.osc[11].pmDepthCents = 1200.0f;
+  const auto highTone = binMagnitude(play(high, 81), 10560.0, sr);
+  check(binMagnitude(play(highFed, 81), 16320.0, sr) < 0.002 * highTone,
+        "near the top of the band the index is held so nothing folds");
+
+  // On the lo-fi rate nothing is held, and past index 1 it turns to noise,
+  // still finite and bounded.
+  auto lofi = low;
+  lofi.lofi.rateHz = 8000.0;
+  bounded = true;
+  for (const auto v : play(lofi, 33))
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "on the lo-fi rate the deepest index stays finite and "
+                 "bounded");
+
+  // Muted, it still feeds itself back for a partial that follows it: partial
+  // 3 ringed by partial 2 rings with partial 2's second harmonic too.
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  auto ringed = plain;
+  ringed.osc[1].audible = false;
+  ringed.osc[2].volume = 0.5f;
+  ringed.osc[2].amSource = 1;
+  ringed.osc[2].amDepth = 1.0f;
+  auto ringedFed = ringed;
+  ringedFed.osc[1].pmSource = 1;
+  ringedFed.osc[1].pmDepthCents = 50.0f;
+  check(binMagnitude(play(ringed), third + 880.0, sr) < 0.01 * tone &&
+            binMagnitude(play(ringedFed), third + 880.0, sr) > 0.05 * tone,
+        "muted, it still passes its harmonics on");
 }
 
 /// A modulator the whole keyboard shares rather than one per note: a note
@@ -14519,6 +14627,7 @@ int main() {
   testModulation();
   testPartialAsAmpSource();
   testPartialAsPitchSource();
+  testPartialFeedback();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();

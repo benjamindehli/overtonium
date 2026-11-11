@@ -6484,6 +6484,60 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
         "and the depth reads as the modulation index (" +
             depthText().toStdString() + ")");
 
+  // Feedback, the channel's own partial, is offered in the pitch menu only,
+  // and in its "Set every channel to" submenu.
+  const auto feedbackIds = [](const juce::PopupMenu &m) {
+    std::pair<int, int> ids{0, 0};
+    for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
+      const auto &item = it.getItem();
+      if (item.text == "Feedback")
+        ids.first = item.itemID;
+      if (item.text == "Set every channel to" && item.subMenu != nullptr)
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          if (sub.getItem().text == "Feedback")
+            ids.second = sub.getItem().itemID;
+    }
+    return ids;
+  };
+
+  const auto [feedback, everyFeedback] = feedbackIds(pitch.buildMenu());
+  const auto ampFeedback = feedbackIds(button.buildMenu());
+  check(feedback != 0 && everyFeedback != 0 && ampFeedback.first == 0 &&
+            ampFeedback.second == 0,
+        "the pitch menu offers feedback, and the amplitude menu does not");
+
+  pitch.chooseFromMenu(feedback);
+
+  const auto storedPitch = [&](int channel) {
+    auto *param =
+        p.apvts.getParameter(oscParamId(ovt::params::pmShapeSuffix, channel));
+    return juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  };
+
+  check(storedPitch(2) == ovt::params::pitchSourceIndex(2) &&
+            pitch.feedsBack() && pitch.selectedPartial() == 2 &&
+            pitch.currentName() == "Feedback" &&
+            !strip.getPmRate().isEnabled() && depthText() == "Index 3.00",
+        "picking Feedback stores the channel's own partial, greys the rate "
+        "and reads the depth as the index");
+
+  bool setThisLive = false, feedbackTicked = false;
+  menu = pitch.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    if (it.getItem().text == "Set every channel to this")
+      setThisLive = it.getItem().isEnabled;
+    if (it.getItem().text == "Feedback")
+      feedbackTicked = it.getItem().isTicked;
+  }
+  check(setThisLive && feedbackTicked,
+        "Feedback is ticked, and setting every channel to this is offered");
+
+  pitch.chooseFromMenu(everyFeedback);
+  bool everyOwn = true;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    everyOwn = everyOwn && storedPitch(i) == ovt::params::pitchSourceIndex(i);
+  check(everyOwn, "setting every channel to Feedback gives each its own");
+
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
 

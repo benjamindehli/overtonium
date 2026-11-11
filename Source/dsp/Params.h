@@ -54,7 +54,9 @@ struct OscParams {
   /// vibrato, as FM synthesizers do, or -1 for the vibrato. It passes on what
   /// it passes on as an amplitude source, see amSource. pmDepthCents is then
   /// read as the modulation index, a hundredth of it, so 0 to 12. The rate is
-  /// not used. Naming itself turns the modulation off.
+  /// not used. Naming itself moves its phase by its own last two samples, as
+  /// the DX7's feedback operator does, which turns the sine towards a
+  /// sawtooth.
   int pmSource = -1;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing locks together.

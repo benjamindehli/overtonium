@@ -405,6 +405,11 @@ private:
     /// index ramps rather than steps.
     float lastPhaseDepth = 0.0f;
 
+    /// Its last two samples as a modulator, for a partial that moves its own
+    /// phase. The average of the two is what moves it, as on the DX7, which
+    /// keeps a deep index from hunting between two values every sample.
+    std::array<float, 2> fedBack{};
+
     /// What this partial passed on as a modulator was scaled by at the end of
     /// the last block: its velocity, aftertouch, KEYBOARD row, tremolo and
     /// half-pedal, everything its level has but the fader and the mute.
