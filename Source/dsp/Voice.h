@@ -410,6 +410,10 @@ private:
     /// keeps a deep index from hunting between two values every sample.
     std::array<float, 2> fedBack{};
 
+    /// The offset feeding its own phase back puts in the wave, followed so it
+    /// can be taken out. See Voice::render.
+    float fedMean = 0.0f;
+
     /// What this partial passed on as a modulator was scaled by at the end of
     /// the last block: its velocity, aftertouch, KEYBOARD row, tremolo and
     /// half-pedal, everything its level has but the fader and the mute.
