@@ -42,6 +42,10 @@ inline const char *glideModeName(GlideMode m) {
 /// See OscParams::pmSource.
 inline constexpr float kCentsPerIndex = 100.0f;
 
+/// What OscParams::amSource and pmSource hold for the noise channel as the
+/// source, the place after the 32 partials.
+inline constexpr int kNoiseSource = kNumHarmonics;
+
 /// A per-block snapshot of one channel strip. Plain data, since the DSP core
 /// does not use JUCE.
 struct OscParams {
@@ -50,8 +54,9 @@ struct OscParams {
   float pmRateHz = 4.0f;
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
-  /// The partial, 0 to 31, whose wave moves this one's phase in place of the
-  /// vibrato, as FM synthesizers do, or -1 for the vibrato. It passes on what
+  /// The partial, 0 to 31, or the noise channel at kNoiseSource, whose wave
+  /// moves this one's phase in place of the vibrato, as FM synthesizers do, or
+  /// -1 for the vibrato. It passes on what
   /// it passes on as an amplitude source, see amSource. pmDepthCents is then
   /// read as the modulation index, a hundredth of it, so 0 to 12. The rate is
   /// not used. Naming itself moves its phase by its own last two samples, as
@@ -88,8 +93,10 @@ struct OscParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
-  /// The partial, 0 to 31, whose wave multiplies this one in place of the
-  /// tremolo, or -1 for the tremolo. What it passes on has everything that
+  /// The partial, 0 to 31, or the noise channel at kNoiseSource, whose wave
+  /// multiplies this one in place of the tremolo, or -1 for the tremolo. The
+  /// noise channel passes on what comes out of it after COLOUR and STRING.
+  /// What it passes on has everything that
   /// sets its level but its fader and its mute: its envelope, velocity,
   /// aftertouch, KEYBOARD row and its own amplitude modulation, which along a
   /// chain is the partial before it, though not round a loop. amDepth goes
@@ -134,6 +141,9 @@ struct NoiseParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f;
+  /// The partial, 0 to 31, whose wave multiplies the channel in place of the
+  /// tremolo, or -1 for the tremolo. See OscParams::amSource.
+  int amSource = -1;
   float velAmount = 0.0f;
   float atAmount = 0.0f;
   float keyAmount = 0.0f;

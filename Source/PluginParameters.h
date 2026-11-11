@@ -256,21 +256,27 @@ juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
 
 /// What a harmonic channel's amplitude modulator can follow: the shapes in
-/// kAmpShapes, then each of the partials, "Partial 1" to "Partial 32". The
-/// noise channel offers the shapes alone.
+/// kAmpShapes, then each of the partials, "Partial 1" to "Partial 32", then
+/// the noise channel, "Noise".
 juce::StringArray ampSourceNames();
 
-/// The partial, 0 to 31, that a stored amplitude shape index stands for, or
-/// -1 for one of the shapes.
+/// What the noise channel's amplitude modulator can follow: the shapes and
+/// the partials, the same list without "Noise".
+juce::StringArray noiseAmpSourceNames();
+
+/// The source, 0 to 31 for a partial or kNoiseSource for the noise channel,
+/// that a stored amplitude shape index stands for, or -1 for one of the
+/// shapes.
 int ampSourcePartial(int index);
 
-/// The stored index that stands for partial @p index0.
+/// The stored index that stands for partial @p index0, or for the noise
+/// channel at kNoiseSource.
 inline int ampSourceIndex(int index0) {
   return (int)kAmpShapes.size() + index0;
 }
 
 /// The same for the pitch modulator: the shapes in kPitchShapes, then each of
-/// the partials.
+/// the partials, then the noise channel.
 juce::StringArray pitchSourceNames();
 int pitchSourcePartial(int index);
 

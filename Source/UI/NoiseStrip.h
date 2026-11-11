@@ -56,6 +56,10 @@ public:
   void setActivity(float envelope, float tremolo, float velGain, float keyGain,
                    float pressure, juce::Array<juce::Rectangle<int>> &into);
 
+  /// For tests: the amplitude modulator's shape and its rate.
+  ShapeButton &getAmShape() { return amShape; }
+  const juce::Slider &getAmRate() const { return amRate; }
+
 private:
   void updateLevelReadout();
 

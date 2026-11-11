@@ -388,6 +388,25 @@
                     </p>
 
                     <p>
+                        <strong>The noise channel as the source.</strong> Both shape menus also offer <strong>Noise</strong>, the noise channel as it
+                        comes out of COLOUR and STRING. For amplitude, noise multiplying a partial spreads it into a band of noise around its own
+                        pitch, so a little DEPTH gives a tone some breath and full depth leaves a whistle at the partial's pitch. For pitch, noise
+                        moving the phase makes the partial rough and unsteady, and deep enough it turns to noise. Noise has no peak, so the index is
+                        read against its level, and dark noise, which is quieter, moves it less than bright. With STRING up, the source is the string,
+                        which rings at the fundamental, so the new tones are whole multiples of the note and stay in tune, and they die away as the
+                        string does. The noise channel passes on what a partial passes on: its envelope, velocity, aftertouch, KEYBOARD row and its
+                        own AMP MOD, but not its fader or mute, so it can be pulled all the way down and still be the source. The drawing shows a
+                        times sign and the noise trace.
+                    </p>
+
+                    <p>
+                        <strong>A partial as the noise channel's source.</strong> The noise channel's own amplitude menu has the Partial submenu, with
+                        all 32. The partial's wave then multiplies the noise, which moves the noise up around the partial's pitch. Following the
+                        fundamental, the noise pulses at the note's pitch, which gives a voiced breath or a buzz that follows the key. The noise
+                        channel keeps its own fader, envelope and pan. A partial and the noise channel can follow each other, as two partials can.
+                    </p>
+
+                    <p>
                         The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so
                         each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard
                         as a click.
@@ -398,8 +417,8 @@
                         be weighted. Instead, the shape menu can set every channel at once. <strong>Set every channel to this</strong> copies the
                         channel's own shape to all the others, and <strong>Set every channel to</strong> lists every shape, so all the channels can
                         change to a new shape in one step without changing one of them first. Either one is a single step to undo. Neither offers
-                        another partial, since a channel cannot follow itself. Feedback is offered in the pitch menu, where every channel takes it
-                        from its own partial.
+                        another partial, since a channel cannot follow itself. Noise is offered in both, which sets every partial to follow the noise
+                        channel, and Feedback in the pitch menu, where every channel takes it from its own partial.
                     </p>
 
                     <p>
@@ -875,7 +894,8 @@
                         A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the
                         same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo
                         alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes
-                        the place of the tuning row, and a string takes the rest.
+                        the place of the tuning row, and a string takes the rest. It can be the source of a partial's amplitude or pitch modulation,
+                        and a partial can be the source of its amplitude modulation. See <a href="#modulators">the modulators</a>.
                     </p>
 
                     <p>

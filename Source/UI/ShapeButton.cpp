@@ -32,6 +32,10 @@ constexpr int kPartialFrom = 3000;
 /// Following its own partial, and setting every channel to follow its own.
 constexpr int kFeedback = 1002;
 constexpr int kEveryChannelFeedback = 1003;
+
+/// Following the noise channel, and setting every channel to.
+constexpr int kNoise = 1004;
+constexpr int kEveryChannelNoise = 1005;
 } // namespace
 
 void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
@@ -161,16 +165,21 @@ int ShapeButton::selectedPartial() const {
   if (partialOf < 0)
     return -1;
 
-  // The partials follow the shapes in the parameter's list.
+  // The partials follow the shapes in the parameter's list, and the noise
+  // channel follows them.
   auto partial = settings::choiceIndex(apvts, id) - (int)offered.size();
 
-  if (partial < 0 || partial >= kNumHarmonics)
+  if (partial < 0 || partial > kNoiseSource)
     partial = -1;
 
   // Following itself is feedback where that is offered. Elsewhere it turns
   // the modulation off, which the menu cannot ask for, so it reads as the
   // shape underneath.
   return partial == partialOf && !feedbackOffered ? -1 : partial;
+}
+
+bool ShapeButton::offersNoise() const {
+  return partialOf >= 0 && partialOf < kNoiseSource;
 }
 
 bool ShapeButton::feedsBack() const {
@@ -182,6 +191,9 @@ juce::String ShapeButton::currentName() const {
     return "Feedback";
 
   const auto partial = selectedPartial();
+
+  if (partial == kNoiseSource)
+    return "Noise";
 
   return partial >= 0 ? "Partial " + juce::String(partial + 1)
                       : names[selectedIndex()];
@@ -217,6 +229,26 @@ void ShapeButton::paintShape(juce::Graphics &g) {
   if (const auto partial = selectedPartial(); partial >= 0) {
     g.setColour(ink);
     g.setFont(makeFont(juce::jmin(11.0f, area.getHeight() * 0.8f), true));
+
+    // Following the noise channel: the times sign, then its mark, the
+    // trace that stands in for its number.
+    if (partial == kNoiseSource) {
+      const auto times = juce::String::fromUTF8("\xc3\x97");
+      const auto timesWidth =
+          juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), times);
+      const auto markWidth = area.getHeight() * 1.1f;
+      auto line = area.withSizeKeepingCentre(timesWidth + 2.0f + markWidth,
+                                             area.getHeight());
+
+      g.drawText(times, line.removeFromLeft(timesWidth),
+                 juce::Justification::centred, false);
+      line.removeFromLeft(2.0f);
+      drawNoiseTrace(
+          g, line.withSizeKeepingCentre(markWidth, area.getHeight() * 0.45f),
+          ink, 1.2f);
+      return;
+    }
+
     g.drawText(feedsBack() ? juce::String("FB")
                            : juce::String::fromUTF8("\xc3\x97") +
                                  juce::String(partial + 1),
@@ -248,8 +280,13 @@ juce::PopupMenu ShapeButton::buildMenu() const {
         partials.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
                          true, j == partial);
 
-    m.addSubMenu("Partial", partials, true, nullptr, partial >= 0 && !feedback);
+    m.addSubMenu("Partial", partials, true, nullptr,
+                 partial >= 0 && partial < kNoiseSource && !feedback);
   }
+
+  // The noise channel, on a partial's channel.
+  if (offersNoise())
+    m.addItem(kNoise, "Noise", true, partial == kNoiseSource);
 
   // Its own wave, where that is offered.
   if (feedbackOffered)
@@ -258,15 +295,20 @@ juce::PopupMenu ShapeButton::buildMenu() const {
   // LINK cannot reach this control, so the menu sets every channel instead,
   // either to this channel's shape or to any shape without choosing it here
   // first. Not to another partial, which no channel can follow as itself,
-  // but to feedback, which each channel takes from its own.
+  // but to feedback, which each channel takes from its own, and to the noise
+  // channel, which every partial can follow.
   m.addSeparator();
   m.addItem(kEveryChannel, "Set every channel to this",
-            partial < 0 || feedback);
+            partial < 0 || feedback ||
+                (partial == kNoiseSource && offersNoise()));
 
   juce::PopupMenu every;
 
   for (int i = 0; i < (int)offered.size(); ++i)
     every.addItem(kEveryChannelTo + i, names[i]);
+
+  if (offersNoise())
+    every.addItem(kEveryChannelNoise, "Noise");
 
   if (feedbackOffered)
     every.addItem(kEveryChannelFeedback, "Feedback");
@@ -327,6 +369,19 @@ void ShapeButton::applyToEveryChannel(int index) {
   params::moveAsOneStep(moves);
 }
 
+void ShapeButton::applyNoiseToEveryChannel() {
+  std::vector<params::Move> moves;
+
+  // The noise channel cannot follow itself, so it is left out.
+  for (int i = 0; i < kNumHarmonics; ++i)
+    if (auto *param = apvts.getParameter(params::oscParamId(sharedSuffix, i)))
+      moves.emplace_back(
+          param,
+          param->convertTo0to1((float)((int)offered.size() + kNoiseSource)));
+
+  params::moveAsOneStep(moves);
+}
+
 void ShapeButton::applyFeedbackToEveryChannel() {
   std::vector<params::Move> moves;
 
@@ -363,6 +418,8 @@ void ShapeButton::chooseFromMenu(int result) {
   if (result == kEveryChannel) {
     if (feedsBack())
       applyFeedbackToEveryChannel();
+    else if (selectedPartial() == kNoiseSource && offersNoise())
+      applyNoiseToEveryChannel();
     else if (selectedPartial() < 0)
       applyToEveryChannel(selectedIndex());
 
@@ -372,6 +429,21 @@ void ShapeButton::chooseFromMenu(int result) {
   if (result == kEveryChannelFeedback) {
     if (feedbackOffered)
       applyFeedbackToEveryChannel();
+
+    return;
+  }
+
+  if (result == kEveryChannelNoise) {
+    if (offersNoise())
+      applyNoiseToEveryChannel();
+
+    return;
+  }
+
+  if (result == kNoise) {
+    if (offersNoise() && attachment != nullptr)
+      attachment->setValueAsCompleteGesture(
+          (float)((int)offered.size() + kNoiseSource));
 
     return;
   }

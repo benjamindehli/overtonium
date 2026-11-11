@@ -36,7 +36,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
       colour(kNoiseColour),
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
-              params::ampShapeNames()),
+              params::ampShapeNames(), kNoiseSource),
       muteButton(state, "M", params::noiseParamId(params::muteSuffix),
                  params::muteSuffix),
       soloButton(state, "S", params::noiseParamId(params::soloSuffix),
@@ -77,6 +77,12 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(release, params::releaseSuffix, colour, "Release");
   setUpKnob(amRate, params::amRateSuffix, colour, "Tremolo rate");
   setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
+
+  // A partial as the source sets its own rate, so the knob greys out.
+  amShape.onChange = [this] {
+    amRate.setEnabled(amShape.selectedPartial() < 0);
+  };
+  amShape.onChange();
   setUpKnob(velocity, params::velSuffix, colour,
             "How much key velocity scales the noise. Negative inverts it.");
   setUpKnob(keyboard, params::keySuffix, colour,
@@ -329,29 +335,8 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   constexpr float stroke = 1.6f;
   const auto area = outline.getBounds().reduced(0.0f, stroke * 0.5f);
 
-  // A fixed sequence, so the trace stays the same on every repaint.
-  static constexpr float kTrace[] = {0.1f,  -0.5f, 0.75f,  -0.2f, 0.4f,
-                                     -1.0f, 0.9f,  -0.35f, 0.2f,  -0.7f,
-                                     1.0f,  -0.4f, 0.55f,  -0.1f};
-  constexpr int steps = (int)std::size(kTrace) - 1;
-
-  juce::Path trace;
-
-  for (int i = 0; i <= steps; ++i) {
-    const juce::Point<float> p(
-        area.getX() + area.getWidth() * (float)i / (float)steps,
-        area.getCentreY() - kTrace[i] * area.getHeight() * 0.5f);
-
-    if (i == 0)
-      trace.startNewSubPath(p);
-    else
-      trace.lineTo(p);
-  }
-
   // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  g.setColour(hovered ? colours::accent : colours::text);
-  g.strokePath(trace, juce::PathStrokeType(stroke, juce::PathStrokeType::curved,
-                                           juce::PathStrokeType::rounded));
+  drawNoiseTrace(g, area, hovered ? colours::accent : colours::text, stroke);
 }
 
 void NoiseStrip::resized() {
