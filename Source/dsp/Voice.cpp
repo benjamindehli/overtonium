@@ -628,7 +628,7 @@ void Voice::render(float *left, float *right, int numSamples,
   const auto amFrom = [&p](int at) {
     const int from =
         at == kNoiseSource ? p.noise.amSource : p.osc[(size_t)at].amSource;
-    return from >= 0 && from < kPlaces && from != at ? from : -1;
+    return from >= 0 && from <= kNoiseSource && from != at ? from : -1;
   };
 
   const auto pmFrom = [&p](int at) {
@@ -636,7 +636,7 @@ void Voice::render(float *left, float *right, int numSamples,
       return -1;
 
     const int from = p.osc[(size_t)at].pmSource;
-    return from >= 0 && from < kPlaces && from != at ? from : -1;
+    return from >= 0 && from <= kNoiseSource && from != at ? from : -1;
   };
 
   std::array<bool, kPlaces> isSource{};
