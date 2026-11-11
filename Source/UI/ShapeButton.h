@@ -18,9 +18,12 @@ public:
   /// @param suffix  the same control on every other channel, for the entry
   ///                 that sets them all
   /// @param ownPartial  the channel's partial, 0 to 31, for a modulator that
-  ///                 can follow another partial, or -1 for one that offers the
-  ///                 shapes alone. The parameter then lists the partials after
-  ///                 the shapes. See params::ampSourceNames.
+  ///                 can follow another partial or the noise channel,
+  ///                 kNoiseSource for the noise channel's, which can follow
+  ///                 any partial, or -1 for one that offers the shapes alone.
+  ///                 The parameter then lists the partials after the shapes,
+  ///                 and the noise channel after them on a partial's. See
+  ///                 params::ampSourceNames.
   /// @param offersFeedback  whether it can follow its own partial too, which
   ///                 the pitch modulator can as feedback. See
   ///                 OscParams::pmSource.
@@ -45,8 +48,9 @@ public:
   /// The shape that is selected.
   LfoShape selectedShape() const;
 
-  /// The partial, 0 to 31, this modulator follows, or -1 when it traces one
-  /// of the shapes. Its own partial when it feeds itself back.
+  /// The partial, 0 to 31, this modulator follows, kNoiseSource when it
+  /// follows the noise channel, or -1 when it traces one of the shapes. Its
+  /// own partial when it feeds itself back.
   int selectedPartial() const;
 
   /// Whether it follows its own partial, as feedback.
@@ -81,6 +85,14 @@ private:
   /// Sets every channel to follow its own partial, as feedback, as one step
   /// in the undo history.
   void applyFeedbackToEveryChannel();
+
+  /// Sets every partial's channel to follow the noise channel, as one step
+  /// in the undo history.
+  void applyNoiseToEveryChannel();
+
+  /// Whether it offers the noise channel as a source, which a partial's
+  /// does.
+  bool offersNoise() const;
 
   /// Everything paint draws, before it is kept as a picture.
   void paintShape(juce::Graphics &);

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <iterator>
 #include <limits>
 #include <vector>
 
@@ -221,6 +222,32 @@ void drawToolIcon(juce::Graphics &g, juce::Rectangle<float> area,
 
   g.strokePath(contour, juce::PathStrokeType(1.5f, juce::PathStrokeType::curved,
                                              juce::PathStrokeType::rounded));
+}
+
+void drawNoiseTrace(juce::Graphics &g, juce::Rectangle<float> area,
+                    juce::Colour colour, float stroke) {
+  // A fixed sequence, so the trace stays the same on every repaint.
+  static constexpr float kTrace[] = {0.1f,  -0.5f, 0.75f,  -0.2f, 0.4f,
+                                     -1.0f, 0.9f,  -0.35f, 0.2f,  -0.7f,
+                                     1.0f,  -0.4f, 0.55f,  -0.1f};
+  constexpr int steps = (int)std::size(kTrace) - 1;
+
+  juce::Path trace;
+
+  for (int i = 0; i <= steps; ++i) {
+    const juce::Point<float> p(
+        area.getX() + area.getWidth() * (float)i / (float)steps,
+        area.getCentreY() - kTrace[i] * area.getHeight() * 0.5f);
+
+    if (i == 0)
+      trace.startNewSubPath(p);
+    else
+      trace.lineTo(p);
+  }
+
+  g.setColour(colour);
+  g.strokePath(trace, juce::PathStrokeType(stroke, juce::PathStrokeType::curved,
+                                           juce::PathStrokeType::rounded));
 }
 
 juce::Colour bandColour(float t) {
@@ -813,16 +840,16 @@ juce::String rowHelp(Row r) {
            fold;
   case Row::PmShape:
     return "The shape the vibrato traces. Click the drawing on a channel to "
-           "choose one, or choose another partial, whose wave then moves this "
-           "one's phase, as an FM synthesizer does. Feedback moves it by its "
-           "own wave.";
+           "choose one, or choose another partial or the noise channel, whose "
+           "wave then moves this one's phase, as an FM synthesizer does. "
+           "Feedback moves it by its own wave.";
   case Row::PmRate:
     return "How fast the vibrato moves, from 0.01 to 30 Hz. Not used while a "
-           "partial or feedback is the source.";
+           "partial, the noise channel or feedback is the source.";
   case Row::PmDepth:
     return "How far the vibrato moves the partial, up to 1200 cents. With a "
-           "partial or feedback as the source, the modulation index, from 0 to "
-           "12.";
+           "partial, the noise channel or feedback as the source, the "
+           "modulation index, from 0 to 12.";
   case Row::Drift:
     return "A slow random wander in pitch, different for every partial, up to "
            "25 cents.";
@@ -862,14 +889,16 @@ juce::String rowHelp(Row r) {
            fold;
   case Row::AmShape:
     return "The shape the tremolo traces. Click the drawing on a channel to "
-           "choose one, or choose another partial, whose wave then multiplies "
-           "this one.";
+           "choose one, or choose another partial or the noise channel, whose "
+           "wave then multiplies this one. The noise channel can follow a "
+           "partial the same way.";
   case Row::AmRate:
     return "How fast the tremolo moves, from 0.01 to 30 Hz. Not used while a "
-           "partial is the source.";
+           "partial or the noise channel is the source.";
   case Row::AmDepth:
     return "How far the tremolo lowers the level, up to 100%. With a partial "
-           "as the source, how much of the product is heard, up to ring "
+           "or the noise channel as the source, how much of the product is "
+           "heard, up to ring "
            "modulation.";
   case Row::OutputHeading:
     return "How each partial answers the keys, where it sits and how loud it "

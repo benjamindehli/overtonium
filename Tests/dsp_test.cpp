@@ -11140,6 +11140,143 @@ void testPartialFeedback() {
         "muted, it still passes its harmonics on");
 }
 
+/// The noise channel as the source of a partial's amplitude or phase, and as
+/// a partial's target. Noise multiplying a partial spreads it into a band of
+/// noise around its pitch. The string, pitched at the fundamental, moves a
+/// partial in tune as a partial would.
+void testNoiseAsSource() {
+  section("The noise channel as a source and a target");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  const auto bounded = [](const std::vector<float> &x) {
+    bool ok = true;
+    for (const auto v : x)
+      ok = ok && std::isfinite(v) && std::abs(v) < 2.0f;
+    return ok;
+  };
+
+  // The power in a band, read every 10 Hz across it.
+  const auto band = [&](const std::vector<float> &x, double lo, double hi) {
+    double sum = 0.0;
+    for (double f = lo; f <= hi; f += 10.0) {
+      const auto m = binMagnitude(x, f, sr);
+      sum += m * m;
+    }
+    return sum;
+  };
+
+  // Partial 2 alone, 440 Hz on A3. The noise channel's fader is down and its
+  // colour dark, so it is heard only through what it does to the partial.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+  plain.noise.colour = 0.0f;
+
+  const auto alone = play(plain);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // At full depth, the partial is the noise moved up to its pitch: the tone
+  // itself is gone, and what is left lies around 440 Hz, not far above it.
+  auto ringed = plain;
+  ringed.osc[1].amSource = kNoiseSource;
+  ringed.osc[1].amDepth = 1.0f;
+  const auto breath = play(ringed);
+  check(bounded(breath) && binMagnitude(breath, 440.0, sr) < 0.1 * tone &&
+            band(breath, 400.0, 480.0) > 10.0 * band(breath, 4000.0, 4080.0),
+        "noise as the amplitude source spreads a partial into a band around "
+        "its pitch");
+
+  // Muted, it does the same, since a source is taken before its fader and
+  // mute.
+  auto muted = ringed;
+  muted.noise.audible = false;
+  check(binMagnitude(play(muted), 440.0, sr) < 0.1 * tone,
+        "a muted noise channel still modulates");
+
+  // At no depth it changes nothing, sample for sample.
+  auto none = ringed;
+  none.osc[1].amDepth = 0.0f;
+  check(sameSamples(play(none), alone),
+        "at no depth, noise as the source changes nothing");
+
+  // Moving the phase by flat noise blurs the tone, and stays bounded. Noise
+  // has no peak, so the index is read against its level, which dark noise
+  // keeps lower.
+  auto rough = plain;
+  rough.noise.colour = 0.5f;
+  rough.osc[1].pmSource = kNoiseSource;
+  rough.osc[1].pmDepthCents = 300.0f;
+  const auto blurred = play(rough);
+  check(bounded(blurred) && binMagnitude(blurred, 440.0, sr) < 0.7 * tone,
+        "noise as the pitch source blurs the partial, bounded");
+
+  // The string rings at the fundamental, 220 Hz, so moving partial 2 by it
+  // gives tones at whole multiples of the note, and none between.
+  auto strung = plain;
+  strung.noise.stringAmount = 1.0f;
+  strung.osc[1].pmSource = kNoiseSource;
+  strung.osc[1].pmDepthCents = 100.0f;
+  const auto plucked = play(strung);
+  check(bounded(plucked) && binMagnitude(plucked, 660.0, sr) > 0.05 * tone &&
+            binMagnitude(plucked, 550.0, sr) < 0.01 * tone,
+        "the string as the pitch source moves a partial in tune");
+
+  // The noise channel as the target: dark noise multiplied by partial 8,
+  // 1760 Hz, whose fader is down, moves up to 1760 Hz. The noise alone has
+  // more low than high, and moved up it has more high than low.
+  auto target = makeFlatParams(0.0f);
+  target.noise.colour = 0.0f;
+  target.noise.volume = 0.5f;
+  const auto hiss = play(target);
+  auto pitched = target;
+  pitched.noise.amSource = 7;
+  pitched.noise.amDepth = 1.0f;
+  const auto voiced = play(pitched);
+  check(band(hiss, 1720.0, 1800.0) < 0.5 * band(hiss, 100.0, 180.0) &&
+            band(voiced, 1720.0, 1800.0) > 1.5 * band(voiced, 100.0, 180.0),
+        "a partial as the noise channel's source moves the noise to its "
+        "pitch");
+
+  // The noise channel and a partial following each other stay bounded.
+  auto loop = pitched;
+  loop.noise.amSource = 0;
+  loop.osc[0].volume = 0.5f;
+  loop.osc[0].amSource = kNoiseSource;
+  loop.osc[0].amDepth = 1.0f;
+  check(bounded(play(loop)), "noise and a partial following each other stay "
+                             "bounded");
+
+  // A partial follows the noise, which follows another partial: the noise
+  // plays between them, so the last hears the product in the same block.
+  auto chain = plain;
+  chain.osc[1].amSource = kNoiseSource;
+  chain.osc[1].amDepth = 1.0f;
+  chain.noise.amSource = 0;
+  chain.noise.amDepth = 1.0f;
+  check(bounded(play(chain)), "a chain through the noise channel stays "
+                              "bounded");
+}
+
 /// A modulator the whole keyboard shares rather than one per note: a note
 /// arriving late joins it wherever it has got to. On, the note opens where the
 /// circuit had got to, and off, at the start of its own. The shared one runs
@@ -14665,6 +14802,7 @@ int main() {
   testPartialAsAmpSource();
   testPartialAsPitchSource();
   testPartialFeedback();
+  testNoiseAsSource();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();

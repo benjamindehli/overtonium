@@ -237,24 +237,25 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
 
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
     pitchShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 40;
+        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 41;
     ampShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 39;
+        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 40;
   }
 
   check(pitchShapes == ovt::kNumHarmonics,
-        "every channel's pitch modulator offers 8 shapes and 32 partials (" +
+        "every channel's pitch modulator offers 8 shapes, 32 partials and "
+        "the noise channel (" +
             std::to_string(pitchShapes) + " of " +
             std::to_string(ovt::kNumHarmonics) + ")");
 
-  check(
-      ampShapes == ovt::kNumHarmonics,
-      "every channel's amplitude modulator offers 7 shapes and 32 partials (" +
-          std::to_string(ampShapes) + " of " +
-          std::to_string(ovt::kNumHarmonics) + ")");
+  check(ampShapes == ovt::kNumHarmonics,
+        "every channel's amplitude modulator offers 7 shapes, 32 partials "
+        "and the noise channel (" +
+            std::to_string(ampShapes) + " of " +
+            std::to_string(ovt::kNumHarmonics) + ")");
 
-  check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 7,
-        "and the noise channel's the 7 shapes alone");
+  check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 39,
+        "and the noise channel's the 7 shapes and the 32 partials");
 
   // The amplitude has one shape fewer on purpose, since a unipolar square has
   // no second direction to go in.
@@ -6537,6 +6538,152 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
     everyOwn = everyOwn && storedPitch(i) == ovt::params::pitchSourceIndex(i);
   check(everyOwn, "setting every channel to Feedback gives each its own");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// The noise channel as a source in a partial's two menus, and the partials
+/// as sources in the noise channel's amplitude menu.
+void testNoiseAsSource(OvertoniumProcessor &p) {
+  section("The noise channel as a source and a target");
+
+  using ovt::kNoiseSource;
+  using ovt::params::amShapeSuffix;
+  using ovt::params::oscParamId;
+  using ovt::params::pmShapeSuffix;
+
+  check(ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(
+            kNoiseSource)] == "Noise" &&
+            ovt::params::pitchSourceNames()[ovt::params::pitchSourceIndex(
+                kNoiseSource)] == "Noise" &&
+            ovt::params::ampSourcePartial(
+                ovt::params::ampSourceIndex(kNoiseSource)) == kNoiseSource,
+        "Noise follows the partials in both stored lists and reads back");
+  check(ovt::params::noiseAmpSourceNames().size() == 39 &&
+            !ovt::params::noiseAmpSourceNames().contains("Noise"),
+        "and the noise channel's list has the partials but not itself");
+
+  struct NoLink final : ovt::ui::LinkTarget {
+    bool isLinkEnabled() const override { return false; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu(const juce::String &) override {}
+    bool scrollParameters(int) override { return false; }
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct NoHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  NoLink link;
+  NoHover hover;
+  juce::Component popupParent;
+
+  const auto stored = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  };
+
+  // The ids of an entry, and of the same entry under "Set every channel to".
+  const auto idsOf = [](const juce::PopupMenu &m, const juce::String &text) {
+    std::pair<int, int> ids{0, 0};
+    for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
+      const auto &item = it.getItem();
+      if (item.text == text && item.subMenu == nullptr)
+        ids.first = item.itemID;
+      if (item.text == "Set every channel to" && item.subMenu != nullptr)
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          if (sub.getItem().text == text)
+            ids.second = sub.getItem().itemID;
+    }
+    return ids;
+  };
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 2);
+  auto &amp = strip.getAmShape();
+  auto &pitch = strip.getPmShape();
+
+  const auto [ampNoise, everyAmpNoise] = idsOf(amp.buildMenu(), "Noise");
+  const auto [pitchNoise, everyPitchNoise] = idsOf(pitch.buildMenu(), "Noise");
+  check(ampNoise != 0 && everyAmpNoise != 0 && pitchNoise != 0 &&
+            everyPitchNoise != 0,
+        "a partial's two menus offer Noise, and to set every channel to it");
+
+  amp.chooseFromMenu(ampNoise);
+  check(stored(oscParamId(amShapeSuffix, 2)) ==
+                ovt::params::ampSourceIndex(kNoiseSource) &&
+            amp.selectedPartial() == kNoiseSource &&
+            amp.currentName() == "Noise" && !strip.getAmRate().isEnabled(),
+        "picking Noise for amplitude stores it, names it and greys the rate");
+
+  pitch.chooseFromMenu(pitchNoise);
+  check(stored(oscParamId(pmShapeSuffix, 2)) ==
+                ovt::params::pitchSourceIndex(kNoiseSource) &&
+            !strip.getPmRate().isEnabled() &&
+            strip.getPmDepth().getTextFromValue(300.0) == "Index 3.00",
+        "and for pitch, where the depth reads as the index");
+
+  {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    check(out.osc[2].amSource == kNoiseSource &&
+              out.osc[2].pmSource == kNoiseSource,
+          "the snapshot names the noise channel as both sources");
+  }
+
+  bool setThisLive = false;
+  auto menu = amp.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Set every channel to this")
+      setThisLive = it.getItem().isEnabled;
+  check(setThisLive, "with Noise chosen, every channel can be set to it");
+
+  amp.chooseFromMenu(everyAmpNoise);
+  bool everyNoise = true;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    everyNoise = everyNoise && stored(oscParamId(amShapeSuffix, i)) ==
+                                   ovt::params::ampSourceIndex(kNoiseSource);
+  check(everyNoise && stored(ovt::params::noiseParamId(amShapeSuffix)) == 0,
+        "setting every channel to Noise moves every partial, not the noise "
+        "channel");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  // The noise channel's own menu offers every partial, and not itself.
+  ovt::ui::NoiseStrip noise(p.apvts, hover, popupParent);
+  auto &noiseShape = noise.getAmShape();
+  int offered = 0, partialOne = 0;
+  menu = noiseShape.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Partial" && it.getItem().subMenu != nullptr)
+      for (juce::PopupMenu::MenuItemIterator sub(*it.getItem().subMenu);
+           sub.next();) {
+        ++offered;
+        if (sub.getItem().text == "Partial 1")
+          partialOne = sub.getItem().itemID;
+      }
+
+  const auto noiseIds = idsOf(menu, "Noise");
+  check(offered == 32 && noiseIds.first == 0 && noiseIds.second == 0 &&
+            noise.getAmRate().isEnabled(),
+        "the noise channel's menu offers all 32 partials and not itself (" +
+            std::to_string(offered) + ")");
+
+  noiseShape.chooseFromMenu(partialOne);
+  {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    check(stored(ovt::params::noiseParamId(amShapeSuffix)) ==
+                  ovt::params::ampSourceIndex(0) &&
+              noiseShape.selectedPartial() == 0 &&
+              !noise.getAmRate().isEnabled() && out.noise.amSource == 0,
+          "picking Partial 1 there stores it, greys the rate and reaches the "
+          "snapshot");
+  }
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
@@ -14403,6 +14550,7 @@ int main(int argc, char **argv) {
   testShapeButtonFollowsTheParameter(processor);
   testSetEveryChannelTo(processor);
   testAmpFromAPartial(processor);
+  testNoiseAsSource(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);

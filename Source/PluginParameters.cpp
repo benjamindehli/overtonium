@@ -630,20 +630,35 @@ juce::StringArray withPartials(juce::StringArray names) {
   return names;
 }
 
-/// The partial a stored index stands for, past @p shapes shapes, or -1.
+/// Then the noise channel, at kNoiseSource past the shapes.
+juce::StringArray withNoise(juce::StringArray names) {
+  names.add("Noise");
+  return names;
+}
+
+/// The partial or the noise channel a stored index stands for, past @p shapes
+/// shapes, or -1.
 int partialPast(int index, size_t shapes) {
   const auto partial = index - (int)shapes;
-  return partial >= 0 && partial < kNumHarmonics ? partial : -1;
+  return partial >= 0 && partial <= kNoiseSource ? partial : -1;
 }
 } // namespace
 
-juce::StringArray ampSourceNames() { return withPartials(ampShapeNames()); }
+juce::StringArray ampSourceNames() {
+  return withNoise(withPartials(ampShapeNames()));
+}
+
+juce::StringArray noiseAmpSourceNames() {
+  return withPartials(ampShapeNames());
+}
 
 int ampSourcePartial(int index) {
   return partialPast(index, kAmpShapes.size());
 }
 
-juce::StringArray pitchSourceNames() { return withPartials(pitchShapeNames()); }
+juce::StringArray pitchSourceNames() {
+  return withNoise(withPartials(pitchShapeNames()));
+}
 
 int pitchSourcePartial(int index) {
   return partialPast(index, kPitchShapes.size());
@@ -1056,7 +1071,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{noiseParamId(amShapeSuffix), 1}, "Noise Amp Mod Shape",
-      ampShapeNames(), 0));
+      noiseAmpSourceNames(), 0));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
@@ -1717,7 +1732,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (row.field != nullptr)
         n.*row.field = (noise.*row.cached)->load();
 
-    n.amShape = ampShapeAt((int)noise.amShape->load());
+    const auto noiseAmIndex = (int)noise.amShape->load();
+    n.amShape = ampShapeAt(noiseAmIndex);
+    // A partial, never the noise channel itself, which its list leaves out.
+    n.amSource = std::min(ampSourcePartial(noiseAmIndex), kNumHarmonics - 1);
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;

@@ -329,9 +329,15 @@ public:
 
 private:
   /// Adds the noise channel and its string into the buffers.
+  ///
+  /// @param source  whether a partial follows it, so it writes its ring even
+  ///                while unheard
+  /// @param passesRing  whether what a partial does to it is passed on, which
+  ///                round a loop it is not. See OscParams::amSource.
+  /// @param foldAliases  on the lo-fi rate, where folding is wanted
   void renderNoise(float *left, float *right, int len, const SynthParams &,
-                   float pressure, const SharedModulation &shared,
-                   int block) noexcept;
+                   float pressure, const SharedModulation &shared, int block,
+                   bool source, bool passesRing, bool foldAliases) noexcept;
 
   /// Adds the leaking wheels on Wheel. foldAliases is true on the lo-fi rate,
   /// where the Nyquist fade is skipped.
@@ -443,6 +449,17 @@ private:
     KeyboardCache keyboard;
     float lastGain = 0.0f;
     bool gainPrimed = false;
+
+    /// The pitch of its string in the last block, which a partial it
+    /// modulates reads for the Nyquist guard, or nothing while the string is
+    /// off, since noise has no pitch to fold out of tune. See
+    /// Partial::lastFreq.
+    double lastFreq = 0.0;
+
+    /// The same two as a partial's. See Partial::lastRingDepth and
+    /// Partial::lastSourceGain.
+    float lastRingDepth = 0.0f;
+    float lastSourceGain = -1.0f;
   };
 
   std::array<Partial, kNumHarmonics> partials{};
@@ -457,7 +474,9 @@ private:
   /// that has not still holds the sample a block earlier, so a modulator
   /// played after the partial it modulates, as in a loop of two, arrives a
   /// block late rather than not at all. See OscParams::amSource.
-  std::array<std::array<float, kControlBlock>, kNumHarmonics> ringSource{};
+  ///
+  /// The noise channel has the last ring, at kNoiseSource.
+  std::array<std::array<float, kControlBlock>, kNumHarmonics + 1> ringSource{};
   int ringAt = 0;
 
   static_assert((kControlBlock & (kControlBlock - 1)) == 0,

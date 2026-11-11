@@ -84,6 +84,11 @@ void drawTuningForkIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 /// Three strokes merging into one: several notes hearing one modulator. For
 /// the gutter switch that shares a modulator between all notes.
 void drawSharedIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+/// The noise channel's mark, a jagged trace across `area`, where a numbered
+/// channel has its number. The same fixed sequence wherever it is drawn.
+void drawNoiseTrace(juce::Graphics &, juce::Rectangle<float> area, juce::Colour,
+                    float stroke);
+
 /// The arrow, alone for the plain pointer and with a mark beside it for the
 /// other two. Drawn rather than taken from the cursor images, whose offsets
 /// from their hotspots differ.
