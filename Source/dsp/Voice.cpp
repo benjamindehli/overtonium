@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <cmath>
-#include <limits>
 
 #include "Character.h"
 #include "Exact.h"
@@ -66,42 +65,30 @@ inline std::uint64_t phaseOffset(float turns32) noexcept {
   return (std::uint64_t)(std::int64_t)turns32 << 32;
 }
 
-/// How far down a harmonic has to be at the top of the band for a partial that
-/// moves its own phase: 60 dB, as a natural log.
-constexpr double kFeedbackFloor = 6.907755278982137; // ln 1000
+/// A partial that moves its own phase, by the average of its last two
+/// samples as the DX7 does, goes from a sine towards a sawtooth as the index
+/// rises to about 1.5, and from about 2 turns to noise.
+constexpr double kFeedbackNoise = 2.0;
 
-/// A partial whose phase follows its own wave, sin(t + b sin(...)), has its
-/// n-th harmonic at 2 J_n(n b) / (n b). For an index b under 1 that falls
-/// about as e^(-n r), and this is r, from the Bessel functions' large-order
-/// form. It grows without end as b goes to nothing and is nothing at 1, past
-/// which the wave has no single value and turns to noise.
-inline double feedbackFalloff(double index) noexcept {
-  if (index <= 0.0)
-    return std::numeric_limits<double>::infinity();
-
-  if (index >= 1.0)
+/// The deepest index at which a partial moving its own phase, with `period`
+/// samples to a cycle, folds nothing back over 55 dB under its harmonics.
+/// Fitted just under that loop measured at twelve pitches from 4.5 to 873
+/// samples a cycle: about 0.06 an extra sample on short cycles, and 0.18 an
+/// octave of longer ones. 0.16 at a quarter of the sample rate, 1.1 at a
+/// 27th, 2 at an 870th.
+inline double feedbackIndexFor(double period) noexcept {
+  if (period <= 1.8)
     return 0.0;
 
-  const double s = std::sqrt(1.0 - index * index);
-  return std::log((1.0 + s) / index) - s;
+  return std::min(0.06 * (period - 1.8),
+                  0.97 + 0.18 * std::log2(period / 18.0));
 }
 
-/// The deepest index whose harmonic `harmonic`, the one at the top of the
-/// band, is kFeedbackFloor down. Found by halving, since the falloff only
-/// shrinks as the index grows.
-inline double feedbackIndexFor(double harmonic) noexcept {
-  if (harmonic <= 1.0)
-    return 0.0;
-
-  const double need = kFeedbackFloor / harmonic;
-  double lo = 0.0, hi = 1.0;
-
-  for (int i = 0; i < 30; ++i) {
-    const double mid = 0.5 * (lo + hi);
-    (feedbackFalloff(mid) > need ? lo : hi) = mid;
-  }
-
-  return lo;
+/// The other way round: how many samples a cycle needs for `index` to fold
+/// nothing back, which is about how many harmonics fit under Nyquist at it.
+inline double feedbackPeriodFor(double index) noexcept {
+  return index <= 0.97 ? index / 0.06 + 1.8
+                       : 18.0 * std::exp2((index - 0.97) / 0.18);
 }
 } // namespace
 
@@ -282,6 +269,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       pt.lastRingDepth = 0.0f;
       pt.lastPhaseDepth = 0.0f;
       pt.fedBack = {};
+      pt.fedMean = 0.0f;
       pt.lastSourceGain = -1.0f;
     }
 
@@ -476,6 +464,7 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.lastRingDepth = src.lastRingDepth;
     pt.lastPhaseDepth = src.lastPhaseDepth;
     pt.fedBack = src.fedBack;
+    pt.fedMean = src.fedMean;
     pt.lastSourceGain = src.lastSourceGain;
   }
 
@@ -894,10 +883,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // pair under the top of the band, unless folding is wanted.
       //
       // A partial that moves its own phase makes its own harmonics instead,
-      // and keeps them under the top of the band the same way, with its
-      // harmonic there 60 dB down. That holds the index under 1, where the
-      // wave goes from a sine towards a sawtooth. Past 1 it turns to noise,
-      // which only the lo-fi rate reaches.
+      // more of them the deeper it goes and the further they fold, so the
+      // index is held to what folds nothing back that could be heard. Past
+      // kFeedbackNoise it is noise, which folding does not put out of tune,
+      // so it goes as deep as the knob asks.
       double phaseIndex = 0.0;
 
       if (phaseFrom >= 0) {
@@ -911,9 +900,9 @@ void Voice::render(float *left, float *right, int numSamples,
       } else if (feedback) {
         phaseIndex = (double)(op.pmDepthCents / kCentsPerIndex);
 
-        if (!foldAliases)
-          phaseIndex = std::min(
-              phaseIndex, feedbackIndexFor(kPhaseModTop * sampleRate / freq));
+        if (!foldAliases && phaseIndex < kFeedbackNoise)
+          phaseIndex =
+              std::min(phaseIndex, feedbackIndexFor(sampleRate / freq));
       }
 
       // In 2^-32 of a turn per unit of the wave, which the loop below shifts
@@ -924,16 +913,28 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.lastPhaseDepth = phaseEnd;
 
       // The highest the moved partial reaches, which the table is chosen for.
-      // Moving itself, its harmonics reach as far as they take to fall 60 dB.
+      // Moving itself, its harmonics reach as far as the index needs room for.
       const double reach =
           phaseFrom >= 0
               ? freq + phaseIndex * partials[(size_t)phaseFrom].lastFreq
           : feedback && phaseIndex > 0.0
-              ? (phaseIndex < 1.0
-                     ? freq *
-                           (1.0 + kFeedbackFloor / feedbackFalloff(phaseIndex))
-                     : sampleRate)
+              ? freq * 0.5 * feedbackPeriodFor(phaseIndex)
               : freq;
+
+      // Moving its own phase a sample and a half late makes the wave lean to
+      // one side, which puts in an offset that grows with the index and the
+      // pitch, as on a DX7, whose output is AC-coupled. A one-pole follows it,
+      // an eighth of the partial's frequency up so the fundamental keeps all
+      // but 0.07 dB, and the wave loses it before anything hears it or it is
+      // fed back. Not at index nothing, which stays a plain sine.
+      const bool centred = feedback && (phaseStart > 0.0f || phaseEnd > 0.0f);
+      const float centreCoef =
+          centred ? (float)(1.0 - std::exp(-6.283185307179586 * freq / 8.0 /
+                                           sampleRate))
+                  : 0.0f;
+
+      if (!centred)
+        pt.fedMean = 0.0f;
 
       // ---- which oscillator this is ----------------------------------------
       //
@@ -1114,7 +1115,14 @@ void Voice::render(float *left, float *right, int numSamples,
               moved += movedInc;
             }
 
-            float v = wave.at(read) * pt.env.tick() * passed;
+            float w = wave.at(read);
+
+            if (centred) {
+              pt.fedMean += (w - pt.fedMean) * centreCoef;
+              w -= pt.fedMean;
+            }
+
+            float v = w * pt.env.tick() * passed;
 
             if (from != nullptr) {
               v *= 1.0f - depth + depth * from[k];
@@ -1136,6 +1144,7 @@ void Voice::render(float *left, float *right, int numSamples,
           // Unheard and moving nothing else, so its own phase starts again
           // from still when it comes back.
           pt.fedBack = {};
+          pt.fedMean = 0.0f;
 
           // Stepped as the loop below steps it, so a partial that comes back
           // audible is where it would have been had it played throughout.
@@ -1194,6 +1203,7 @@ void Voice::render(float *left, float *right, int numSamples,
         float moved = phaseStart;
         const float movedInc = (phaseEnd - phaseStart) / (float)len;
         auto fed = pt.fedBack;
+        float fedMean = pt.fedMean;
 
         for (int n = 0; n < len; ++n) {
           const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
@@ -1217,6 +1227,11 @@ void Voice::render(float *left, float *right, int numSamples,
             const float was = previous->at(read);
             w = was + (w - was) * mix;
             mix += mixInc;
+          }
+
+          if (centred) {
+            fedMean += (w - fedMean) * centreCoef;
+            w -= fedMean;
           }
 
           const float shaped = w * env.tick();
@@ -1253,6 +1268,7 @@ void Voice::render(float *left, float *right, int numSamples,
         }
 
         pt.fedBack = fed;
+        pt.fedMean = fedMean;
       } else if (previous == nullptr || previous == &wave) {
         for (int n = 0; n < len; ++n) {
           const float s = wave.at(ph) * env.tick() * g;

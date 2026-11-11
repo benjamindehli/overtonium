@@ -10992,7 +10992,8 @@ void testPartialAsPitchSource() {
 /// A partial that moves its own phase by its own last two samples, as the
 /// DX7's feedback operator does. A sine fed back into its own phase,
 /// sin(t + b sin(...)), has its n-th harmonic at 2 J_n(n b) / (n b), so it
-/// stays in tune and turns towards a sawtooth as the index nears 1.
+/// stays in tune and turns towards a sawtooth as the index rises, and from
+/// about 2 turns to noise.
 void testPartialFeedback() {
   section("A partial moving its own phase");
 
@@ -11049,13 +11050,13 @@ void testPartialFeedback() {
            !(alone[(size_t)n] < still[(size_t)n]);
   check(same, "at index nothing, feeding itself back changes nothing");
 
-  // The deepest index on A1 is held just under 1, which is nearly a
-  // sawtooth: the second harmonic over a third of the first, where a
-  // sawtooth has a half, and the tenth still there. Finite and bounded.
+  // Index 1.5 on A1, which is not held there, is nearly a sawtooth: the
+  // second harmonic over a third of the first, where a sawtooth has a half,
+  // and the tenth still there. Finite and bounded.
   auto low = makeFlatParams(0.0f);
   low.osc[0].volume = 0.5f;
   low.osc[0].pmSource = 0;
-  low.osc[0].pmDepthCents = 1200.0f;
+  low.osc[0].pmDepthCents = 150.0f;
   const auto deep = play(low, 33);
   bool bounded = true;
   for (const auto v : deep)
@@ -11064,22 +11065,58 @@ void testPartialFeedback() {
   check(bounded && binMagnitude(deep, 110.0, sr) > 0.3 * first &&
             binMagnitude(deep, 550.0, sr) > 0.03 * first &&
             binMagnitude(deep, 82.5, sr) < 0.01 * first,
-        "the deepest index on a low note turns towards a sawtooth, in tune");
+        "index 1.5 on a low note is nearly a sawtooth, in tune");
+
+  // The wave leans to one side, which would put in an offset. None is left.
+  // Averaged over the last 19200 samples, 22 cycles of 55 Hz and 704 of
+  // 1760 Hz, so no part cycle is left over to read as one.
+  constexpr size_t kWhole = 19200;
+  double sum = 0.0, peak = 0.0;
+  for (size_t n = (size_t)N - kWhole; n < (size_t)N; ++n) {
+    sum += deep[n];
+    peak = std::max(peak, (double)std::abs(deep[n]));
+  }
+  const auto offset = std::abs(sum / (double)kWhole);
+
+  auto highNote = fedBack;
+  highNote.osc[1].pmDepthCents = 100.0f;
+  const auto lean = play(highNote, 81); // 1760 Hz, at index 1
+  double leanSum = 0.0, leanPeak = 0.0;
+  for (size_t n = (size_t)N - kWhole; n < (size_t)N; ++n) {
+    leanSum += lean[n];
+    leanPeak = std::max(leanPeak, (double)std::abs(lean[n]));
+  }
+  const auto leanOffset = std::abs(leanSum / (double)kWhole);
+  check(offset < 0.001 * peak && leanOffset < 0.001 * leanPeak,
+        "it leaves no offset, low or high (" + std::to_string(offset / peak) +
+            ", " + std::to_string(leanOffset / leanPeak) + " of the peak)");
 
   // Partial 12 on A5 at 10.56 kHz. Its third harmonic would fold down to
-  // 16.32 kHz, so the index is held to where that is 60 dB down.
+  // 16.32 kHz, so index 1.5 is held to where that stays far down.
   auto high = makeFlatParams(0.0f);
   high.osc[11].volume = 0.5f;
   auto highFed = high;
   highFed.osc[11].pmSource = 11;
-  highFed.osc[11].pmDepthCents = 1200.0f;
+  highFed.osc[11].pmDepthCents = 150.0f;
   const auto highTone = binMagnitude(play(high, 81), 10560.0, sr);
   check(binMagnitude(play(highFed, 81), 16320.0, sr) < 0.002 * highTone,
         "near the top of the band the index is held so nothing folds");
 
-  // On the lo-fi rate nothing is held, and past index 1 it turns to noise,
-  // still finite and bounded.
+  // Past index 2 it is noise, which the knob reaches at every pitch, still
+  // finite and bounded. Noise lands between the harmonics.
+  auto noisy = fedBack;
+  noisy.osc[1].pmDepthCents = 600.0f;
+  const auto hiss = play(noisy);
+  bounded = true;
+  for (const auto v : hiss)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded && binMagnitude(hiss, 660.0, sr) > 0.01 * tone,
+        "past index 2 it turns to noise, finite and bounded");
+
+  // On the lo-fi rate nothing is held, and the deepest index stays finite
+  // and bounded.
   auto lofi = low;
+  lofi.osc[0].pmDepthCents = 1200.0f;
   lofi.lofi.rateHz = 8000.0;
   bounded = true;
   for (const auto v : play(lofi, 33))

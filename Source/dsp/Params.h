@@ -56,7 +56,7 @@ struct OscParams {
   /// read as the modulation index, a hundredth of it, so 0 to 12. The rate is
   /// not used. Naming itself moves its phase by its own last two samples, as
   /// the DX7's feedback operator does, which turns the sine towards a
-  /// sawtooth.
+  /// sawtooth and, past an index of 2, to noise.
   int pmSource = -1;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing locks together.
