@@ -17,9 +17,13 @@ public:
   ///                pitch and amplitude. Indexes match the parameter's.
   /// @param suffix  the same control on every other channel, for the entry
   ///                 that sets them all
+  /// @param ownPartial  the channel's partial, 0 to 31, for an amplitude
+  ///                 modulator that can follow another partial, or -1 for one
+  ///                 that offers the shapes alone. See params::ampSourceNames.
   ShapeButton(juce::AudioProcessorValueTreeState &state,
               const juce::String &parameterId, const char *suffix,
-              juce::Span<const LfoShape> shapes, juce::StringArray shapeNames);
+              juce::Span<const LfoShape> shapes, juce::StringArray shapeNames,
+              int ownPartial = -1);
 
   void paint(juce::Graphics &) override;
   void mouseDown(const juce::MouseEvent &) override;
@@ -36,6 +40,14 @@ public:
 
   /// The shape that is selected.
   LfoShape selectedShape() const;
+
+  /// The partial, 0 to 31, this modulator follows, or -1 when it traces one
+  /// of the shapes.
+  int selectedPartial() const;
+
+  /// Called when the parameter moves, from wherever it is moved. The strip
+  /// uses it to grey the rate, which a partial has no use for.
+  std::function<void()> onChange;
 
   /// Reported to a screen reader, since a glyph has no text of its own.
   juce::String currentName() const;
@@ -72,6 +84,7 @@ private:
 
   juce::String id;
   const char *sharedSuffix;
+  int partialOf = -1;
   juce::Span<const LfoShape> offered;
   juce::StringArray names;
   bool hovered = false;

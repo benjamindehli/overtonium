@@ -204,7 +204,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
               params::pitchShapeNames()),
       amShape(state, params::oscParamId(params::amShapeSuffix, index0),
               params::amShapeSuffix, params::kAmpShapes,
-              params::ampShapeNames()),
+              params::ampShapeNames(), index0),
       muteButton(state, "M", params::oscParamId(params::muteSuffix, index0),
                  params::muteSuffix),
       soloButton(state, "S", params::oscParamId(params::soloSuffix, index0),
@@ -261,6 +261,12 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(release, Role::Release, colour);
   setUpKnob(amRate, Role::AmRate, colour);
   setUpKnob(amDepth, Role::AmDepth, colour);
+
+  // A partial as the source sets its own rate, so the knob greys out.
+  amShape.onChange = [this] {
+    amRate.setEnabled(amShape.selectedPartial() < 0);
+  };
+  amShape.onChange();
   setUpKnob(velocity, Role::Velocity, colour);
   setUpKnob(keyboard, Role::Keyboard, colour);
   setUpKnob(aftertouch, Role::Aftertouch, colour);

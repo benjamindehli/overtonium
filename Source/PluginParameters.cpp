@@ -621,6 +621,20 @@ juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
 juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
 juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
 
+juce::StringArray ampSourceNames() {
+  auto out = ampShapeNames();
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    out.add("Partial " + juce::String(i + 1));
+
+  return out;
+}
+
+int ampSourcePartial(int index) {
+  const auto partial = index - (int)kAmpShapes.size();
+  return partial >= 0 && partial < kNumHarmonics ? partial : -1;
+}
+
 namespace {
 /// The shape a stored index means, clamped so an index from a later build
 /// stays in range.
@@ -940,7 +954,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(amShapeSuffix, i), 1}, p + "Amp Mod Shape",
-        ampShapeNames(), 0));
+        ampSourceNames(), 0));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
@@ -1613,7 +1627,11 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
         o.*row.field = (c.*row.cached)->load();
 
     o.pmShape = pitchShapeAt((int)c.pmShape->load());
-    o.amShape = ampShapeAt((int)c.amShape->load());
+    // A partial as the source leaves the shape at the last of the shapes,
+    // whose LFO still steps underneath, unheard.
+    const auto amIndex = (int)c.amShape->load();
+    o.amShape = ampShapeAt(amIndex);
+    o.amSource = ampSourcePartial(amIndex);
 
     const bool muted = c.mute->load() > 0.5f;
     const bool soloed = c.solo->load() > 0.5f;

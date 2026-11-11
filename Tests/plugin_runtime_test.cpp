@@ -239,7 +239,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
     pitchShapes +=
         entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 8;
     ampShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 7;
+        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 39;
   }
 
   check(pitchShapes == ovt::kNumHarmonics,
@@ -247,13 +247,14 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
             std::to_string(pitchShapes) + " of " +
             std::to_string(ovt::kNumHarmonics) + ")");
 
-  check(ampShapes == ovt::kNumHarmonics,
-        "every channel's amplitude modulator offers 7 (" +
-            std::to_string(ampShapes) + " of " +
-            std::to_string(ovt::kNumHarmonics) + ")");
+  check(
+      ampShapes == ovt::kNumHarmonics,
+      "every channel's amplitude modulator offers 7 shapes and 32 partials (" +
+          std::to_string(ampShapes) + " of " +
+          std::to_string(ovt::kNumHarmonics) + ")");
 
   check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 7,
-        "and so does the noise channel's");
+        "and the noise channel's the 7 shapes alone");
 
   // The amplitude has one shape fewer on purpose, since a unipolar square has
   // no second direction to go in.
@@ -6310,6 +6311,144 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 /// without choosing it on one channel first, and either entry comes back in one
 /// undo step. Driven through the ids the menu carries, since opening it needs a
 /// window.
+void testAmpFromAPartial(OvertoniumProcessor &p) {
+  section("A partial as the amplitude source");
+
+  using ovt::params::amShapeSuffix;
+  using ovt::params::oscParamId;
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto id = oscParamId(amShapeSuffix, 2);
+  const auto stored = [&] {
+    return juce::roundToInt(p.apvts.getParameter(id)->convertFrom0to1(
+        p.apvts.getParameter(id)->getValue()));
+  };
+
+  check(ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(0)] ==
+                "Partial 1" &&
+            ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(31)] ==
+                "Partial 32",
+        "the partials follow the shapes in the stored list, 1 to 32");
+  check(ovt::params::ampSourcePartial(0) == -1 &&
+            ovt::params::ampSourcePartial(ovt::params::ampSourceIndex(4)) == 4,
+        "and a stored index reads back as a shape or a partial");
+
+  struct NoLink final : ovt::ui::LinkTarget {
+    bool isLinkEnabled() const override { return false; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu(const juce::String &) override {}
+    bool scrollParameters(int) override { return false; }
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct NoHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  NoLink link;
+  NoHover hover;
+  juce::Component popupParent;
+
+  // Channel 3, whose menu offers every partial but the third.
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 2);
+  auto &button = strip.getAmShape();
+
+  const juce::PopupMenu *partials = nullptr;
+  bool ticked = true;
+  int shapes = 0;
+  int setThis = 0;
+  bool setThisEnabled = false;
+  auto menu = button.buildMenu();
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.text == "Partial" && item.subMenu != nullptr) {
+      partials = item.subMenu.get();
+      ticked = item.isTicked;
+    } else if (item.text == "Set every channel to this") {
+      setThis = item.itemID;
+      setThisEnabled = item.isEnabled;
+    } else if (item.subMenu == nullptr && !item.isSeparator &&
+               item.itemID > 0 && item.itemID < 1000) {
+      ++shapes;
+    }
+  }
+
+  check(shapes == (int)ovt::params::kAmpShapes.size(),
+        "the menu lists the seven shapes as before");
+  check(partials != nullptr && !ticked,
+        "then a Partial submenu, not ticked while a shape is chosen");
+
+  if (partials == nullptr)
+    return;
+
+  juce::StringArray offered;
+  int third = 0;
+  for (juce::PopupMenu::MenuItemIterator it(*partials); it.next();) {
+    offered.add(it.getItem().text);
+    if (it.getItem().text == "Partial 5")
+      third = it.getItem().itemID;
+  }
+
+  check(offered.size() == 31 && !offered.contains("Partial 3") &&
+            offered[0] == "Partial 1" && offered[30] == "Partial 32",
+        "which lists every partial but the channel's own (" +
+            std::to_string(offered.size()) + ")");
+
+  check(strip.getAmRate().isEnabled(), "the rate is live on a shape");
+
+  button.chooseFromMenu(third);
+
+  check(stored() == ovt::params::ampSourceIndex(4) &&
+            button.selectedPartial() == 4 &&
+            button.currentName() == "Partial 5",
+        "picking Partial 5 stores it and names it");
+  check(!strip.getAmRate().isEnabled(),
+        "and greys the rate, which a partial has no use for");
+
+  bool tickedNow = false, fiveTicked = false;
+  bool everyEnabled = true;
+  menu = button.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+    if (item.text == "Partial" && item.subMenu != nullptr) {
+      tickedNow = item.isTicked;
+      for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+        if (sub.getItem().text == "Partial 5")
+          fiveTicked = sub.getItem().isTicked;
+    }
+    if (item.text == "Set every channel to this")
+      everyEnabled = item.isEnabled;
+  }
+
+  check(tickedNow && fiveTicked, "the submenu and Partial 5 are ticked");
+  check(setThisEnabled && !everyEnabled,
+        "and setting every channel to this is offered for a shape only");
+
+  // The entry does nothing even if asked, so no channel follows itself.
+  button.chooseFromMenu(setThis);
+  check(stored() == ovt::params::ampSourceIndex(4) &&
+            juce::roundToInt(
+                p.apvts.getParameter(oscParamId(amShapeSuffix, 4))
+                    ->convertFrom0to1(
+                        p.apvts.getParameter(oscParamId(amShapeSuffix, 4))
+                            ->getValue())) == 0,
+        "and choosing it anyway changes nothing");
+
+  // Back to a shape from the host, as automation would.
+  p.apvts.getParameter(id)->setValueNotifyingHost(0.0f);
+  check(button.selectedPartial() == -1 && strip.getAmRate().isEnabled(),
+        "a shape set from outside lights the rate again");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
 void testSetEveryChannelTo(OvertoniumProcessor &p) {
   section("Set every channel to a shape");
 
@@ -14171,6 +14310,7 @@ int main(int argc, char **argv) {
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
   testSetEveryChannelTo(processor);
+  testAmpFromAPartial(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);

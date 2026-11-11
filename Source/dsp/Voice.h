@@ -391,6 +391,20 @@ private:
     /// cents, on VCO. Kept from note to note, since it is the oscillator that
     /// wanders and not the note. See kVcoWanderCents.
     double wanderCents = 0.0;
+
+    /// Its frequency in the last block it played, which a partial it
+    /// modulates reads for the Nyquist guard. See OscParams::amSource.
+    double lastFreq = 0.0;
+
+    /// How deep another partial's wave was multiplying this one at the end of
+    /// the last block, so the depth ramps rather than steps.
+    float lastRingDepth = 0.0f;
+
+    /// What this partial passed on as a modulator was scaled by at the end of
+    /// the last block: its velocity, aftertouch, KEYBOARD row, tremolo and
+    /// half-pedal, everything its level has but the fader and the mute.
+    /// Below zero until a note's first block sets it.
+    float lastSourceGain = -1.0f;
   };
 
   /// The noise channel, with its own envelope and random stream, so each note
@@ -419,6 +433,21 @@ private:
 
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
+
+  /// What each partial that modulates another one gave over the last
+  /// kControlBlock samples: its wave through its envelope and everything else
+  /// that sets its level but the fader and the mute, so a muted or faded
+  /// partial can still modulate. One ring per partial,
+  /// all read and written at ringAt plus the sample's place in the block. A
+  /// partial that has played this block has written there already, and one
+  /// that has not still holds the sample a block earlier, so a modulator
+  /// played after the partial it modulates, as in a loop of two, arrives a
+  /// block late rather than not at all. See OscParams::amSource.
+  std::array<std::array<float, kControlBlock>, kNumHarmonics> ringSource{};
+  int ringAt = 0;
+
+  static_assert((kControlBlock & (kControlBlock - 1)) == 0,
+                "the rings wrap with a mask");
 
   /// Read by the strip lamps, not by anything that makes sound. Each is a
   /// value the render loop already has, so capturing it is only a store.

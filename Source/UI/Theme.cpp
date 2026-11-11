@@ -857,11 +857,15 @@ juce::String rowHelp(Row r) {
            fold;
   case Row::AmShape:
     return "The shape the tremolo traces. Click the drawing on a channel to "
-           "choose one.";
+           "choose one, or choose another partial, whose wave then multiplies "
+           "this one.";
   case Row::AmRate:
-    return "How fast the tremolo moves, from 0.01 to 30 Hz.";
+    return "How fast the tremolo moves, from 0.01 to 30 Hz. Not used while a "
+           "partial is the source.";
   case Row::AmDepth:
-    return "How far the tremolo lowers the level, up to 100%.";
+    return "How far the tremolo lowers the level, up to 100%. With a partial "
+           "as the source, how much of the product is heard, up to ring "
+           "modulation.";
   case Row::OutputHeading:
     return "How each partial answers the keys, where it sits and how loud it "
            "is." +

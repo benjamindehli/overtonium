@@ -220,8 +220,14 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
     // The lamp reads the pitch of the note this partial now plays, so a reused
     // voice does not open with the sag of a bend it never made. Only when the
     // partial had stopped, since one still ringing is a continuous tone.
-    if (fresh)
+    if (fresh) {
       pt.semisPrimed = false;
+
+      // Nothing of the last note is left for a partial it modulates to read.
+      ringSource[(size_t)i].fill(0.0f);
+      pt.lastRingDepth = 0.0f;
+      pt.lastSourceGain = -1.0f;
+    }
 
     // Drawn on every note whatever the character, so the stream does not
     // depend on which one is chosen.
@@ -409,7 +415,14 @@ void Voice::takeOver(const Voice &from) noexcept {
     pt.lastGain = src.lastGain;
     pt.gainPrimed = src.gainPrimed;
     pt.phase = 0.0;
+
+    pt.lastFreq = src.lastFreq;
+    pt.lastRingDepth = src.lastRingDepth;
+    pt.lastSourceGain = src.lastSourceGain;
   }
+
+  ringSource = from.ringSource;
+  ringAt = from.ringAt;
 
   noise.env = from.noise.env;
   noise.ampLfo = from.noise.ampLfo;
@@ -543,6 +556,54 @@ void Voice::render(float *left, float *right, int numSamples,
   // added to for the resonator. See getPartialOctaves.
   const double baseOctave = std::log2(std::max(1.0e-3, baseFreq));
 
+  // Which partials another one takes its amplitude from, and the order they
+  // play in: those first, so the partials they modulate read this block's
+  // samples, then the rest. With none, the order is 1 to 32.
+  std::array<bool, kNumHarmonics> isSource{};
+  bool anySource = false;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    const auto from = p.osc[(size_t)i].amSource;
+
+    if (from >= 0 && from < kNumHarmonics && from != i) {
+      isSource[(size_t)from] = true;
+      anySource = true;
+    }
+  }
+
+  // A partial passes on what another partial does to it, so a chain
+  // multiplies all the way along. Round a loop it would multiply itself by
+  // itself each time round and die away, so a partial in a loop passes on
+  // its own wave alone.
+  std::array<bool, kNumHarmonics> inLoop{};
+
+  if (anySource)
+    for (int i = 0; i < kNumHarmonics; ++i) {
+      int at = p.osc[(size_t)i].amSource;
+
+      for (int steps = 0;
+           steps < kNumHarmonics && at >= 0 && at < kNumHarmonics && at != i;
+           ++steps) {
+        const int next = p.osc[(size_t)at].amSource;
+        at = next == at ? -1 : next;
+      }
+
+      inLoop[(size_t)i] = at == i && p.osc[(size_t)i].amSource != i;
+    }
+
+  std::array<int, kNumHarmonics> order{};
+  {
+    size_t next = 0;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      if (isSource[(size_t)i])
+        order[next++] = i;
+
+    for (int i = 0; i < kNumHarmonics; ++i)
+      if (!isSource[(size_t)i])
+        order[next++] = i;
+  }
+
   for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
 
@@ -554,9 +615,17 @@ void Voice::render(float *left, float *right, int numSamples,
     // are sized from it. The leaks are not in phase, so their powers add.
     double notePower = 0.0;
 
-    for (int i = 0; i < kNumHarmonics; ++i) {
+    for (const int i : order) {
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
+      const bool source = isSource[(size_t)i];
+
+      // The partial this one takes its amplitude from, if any. See
+      // OscParams::amSource.
+      const int ringFrom =
+          op.amSource >= 0 && op.amSource < kNumHarmonics && op.amSource != i
+              ? op.amSource
+              : -1;
 
       // Scaled by what the note-on made of the velocity, so turning either knob
       // under a sounding note keeps that proportion. The delay is only read at
@@ -574,8 +643,16 @@ void Voice::render(float *left, float *right, int numSamples,
       // ramp below. It can end the note.
       const float pedal = pt.env.advancePedal(len);
 
-      if (!pt.env.isActive())
+      if (!pt.env.isActive()) {
+        // Silent, so a partial it modulates is multiplied by nothing.
+        if (source)
+          for (int n = 0; n < len; ++n)
+            ringSource[(size_t)i]
+                      [(size_t)((ringAt + n) & (kControlBlock - 1))] = 0.0f;
+
+        pt.lastRingDepth = 0.0f;
         continue;
+      }
 
       // ---- pitch ------------------------------------------------------------
       const double pmPhaseInc = (double)op.pmRateHz / sampleRate;
@@ -706,13 +783,40 @@ void Voice::render(float *left, float *right, int numSamples,
       const auto sharedAmp = shared.amp != nullptr;
       const auto at = (size_t)(i * shared.stride + block);
 
+      // A partial modulated by another has no tremolo of its own. The other
+      // partial's wave does that, sample by sample, below. One that names
+      // itself has no modulation at all.
+      const bool noTremolo = op.amSource >= 0;
+
       const float amStart =
-          tremoloGain(sharedAmp ? shared.amp[at] : ownStart, op.amDepth);
+          noTremolo
+              ? 1.0f
+              : tremoloGain(sharedAmp ? shared.amp[at] : ownStart, op.amDepth);
 
       const float amEnd =
-          tremoloGain(sharedAmp ? shared.amp[at + 1] : ownEnd, op.amDepth);
+          noTremolo ? 1.0f
+                    : tremoloGain(sharedAmp ? shared.amp[at + 1] : ownEnd,
+                                  op.amDepth);
 
       const float nyq = foldAliases ? 1.0f : nyquistGain(freq, sampleRate);
+
+      // How deep the other partial's wave multiplies this one by the end of
+      // the block. Multiplying two partials makes their sum and their
+      // difference, so the depth fades out as the sum nears Nyquist, as a
+      // partial does, unless folding is wanted.
+      pt.lastFreq = freq;
+
+      const float ringEnd =
+          ringFrom < 0
+              ? 0.0f
+              : op.amDepth *
+                    (foldAliases
+                         ? 1.0f
+                         : nyquistGain(freq +
+                                           partials[(size_t)ringFrom].lastFreq,
+                                       sampleRate));
+      const float ringStart = pt.lastRingDepth;
+      pt.lastRingDepth = ringEnd;
 
       // ---- which oscillator this is ----------------------------------------
       //
@@ -779,6 +883,28 @@ void Voice::render(float *left, float *right, int numSamples,
       // already have in the envelope's level.
       const float gHeard = gEnd * pedal;
 
+      // What this partial passes on as a modulator is scaled by: the level
+      // above as if the fader were up, so velocity, aftertouch and the
+      // KEYBOARD row count and the fader and mute do not, then its own
+      // tremolo and the half-pedal. Its own envelope goes in per sample.
+      float sourceStart = 0.0f, sourceEnd = 0.0f;
+
+      if (source) {
+        const float expression =
+            std::clamp(pt.velGain +
+                           std::clamp(op.atAmount, -1.0f, 1.0f) * pressure,
+                       0.0f, 1.0f) *
+            keyGain * pedal;
+
+        sourceEnd = expression * amEnd;
+
+        if (pt.lastSourceGain < 0.0f)
+          pt.lastSourceGain = expression * amStart;
+
+        sourceStart = pt.lastSourceGain;
+        pt.lastSourceGain = sourceEnd;
+      }
+
       if (!pt.gainPrimed) {
         pt.lastGain = base * amStart * pedal;
         pt.gainPrimed = true;
@@ -816,8 +942,8 @@ void Voice::render(float *left, float *right, int numSamples,
           afterKeyOff ? -pt.env.getLevel() : pt.env.getLevel();
 
       // What the tremolo has taken off, so a partial with no tremolo reads
-      // zero.
-      partialTremolos[(size_t)i] = 1.0f - amEnd;
+      // zero. Modulated by another partial, how deep that goes.
+      partialTremolos[(size_t)i] = ringFrom >= 0 ? ringEnd : 1.0f - amEnd;
       // Where the partial is against its note: the modulator, the drift and
       // whatever of a glide is still to travel. Pitch bend is left out, since
       // it moves every partial alike.
@@ -833,14 +959,49 @@ void Voice::render(float *left, float *right, int numSamples,
       if ((g <= 1.0e-7f && gHeard <= 1.0e-7f) || pt.env.isSilentlyHolding()) {
         // Inaudible right now: muted, faded out above Nyquist, fader at zero,
         // or decayed to a sustain of nothing. Keep the envelope and phase
-        // moving so it picks up in the right place, but skip the oscillator.
-        for (int n = 0; n < len; ++n)
-          pt.env.tick();
+        // moving so it picks up in the right place, but skip the oscillator,
+        // unless another partial takes its amplitude from this one, which
+        // still needs its wave.
+        if (source) {
+          auto &mine = ringSource[(size_t)i];
+          std::uint64_t ph = toFixedPhase(pt.phase);
+          const std::uint64_t step = toFixedStep(inc);
 
-        // Stepped as the loop below steps it, so a partial that comes back
-        // audible is where it would have been had it played throughout.
-        pt.phase = fromFixedPhase(toFixedPhase(pt.phase) +
-                                  toFixedStep(inc) * (std::uint64_t)len);
+          float passed = sourceStart;
+          const float passedInc = (sourceEnd - sourceStart) / (float)len;
+
+          // Modulated itself, so what it passes on is too, unless that would
+          // go round a loop.
+          const float *const from = ringFrom >= 0 && !inLoop[(size_t)i]
+                                        ? ringSource[(size_t)ringFrom].data()
+                                        : nullptr;
+          float depth = ringStart;
+          const float depthInc = (ringEnd - ringStart) / (float)len;
+
+          for (int n = 0; n < len; ++n) {
+            const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
+            float v = wave.at(ph) * pt.env.tick() * passed;
+
+            if (from != nullptr) {
+              v *= 1.0f - depth + depth * from[k];
+              depth += depthInc;
+            }
+
+            mine[k] = v;
+            passed += passedInc;
+            ph += step;
+          }
+
+          pt.phase = fromFixedPhase(ph);
+        } else {
+          for (int n = 0; n < len; ++n)
+            pt.env.tick();
+
+          // Stepped as the loop below steps it, so a partial that comes back
+          // audible is where it would have been had it played throughout.
+          pt.phase = fromFixedPhase(toFixedPhase(pt.phase) +
+                                    toFixedStep(inc) * (std::uint64_t)len);
+        }
 
         // Whatever it would have been reading, so that coming back audible
         // does not cross-fade from a table it has not been heard on.
@@ -869,7 +1030,63 @@ void Voice::render(float *left, float *right, int numSamples,
       // place would store and reload its level every sample. Same samples.
       Envelope env = pt.env;
 
-      if (previous == nullptr || previous == &wave) {
+      if (source || ringFrom >= 0) {
+        // Modulating or modulated, which the plain loops below leave out to
+        // stay as quick as they are. One loop for both, with the cross-fade
+        // when the table changes.
+        const bool crossing = previous != nullptr && previous != &wave;
+        const float mixInc = crossing ? 1.0f / (float)len : 0.0f;
+        float mix = 0.0f;
+
+        float depth = ringStart;
+        const float depthInc = (ringEnd - ringStart) / (float)len;
+
+        float passed = sourceStart;
+        const float passedInc = (sourceEnd - sourceStart) / (float)len;
+        const bool passesRing = !inLoop[(size_t)i];
+
+        const float *const from =
+            ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
+        float *const mine = source ? ringSource[(size_t)i].data() : nullptr;
+
+        for (int n = 0; n < len; ++n) {
+          float w = wave.at(ph);
+
+          if (crossing) {
+            const float was = previous->at(ph);
+            w = was + (w - was) * mix;
+            mix += mixInc;
+          }
+
+          const float shaped = w * env.tick();
+          const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
+
+          // Depth one is the product alone, which is ring modulation.
+          float ring = 1.0f;
+
+          if (from != nullptr) {
+            ring = 1.0f - depth + depth * from[k];
+            depth += depthInc;
+          }
+
+          const float s = shaped * g * ring;
+
+          // What is passed on has this partial's own modulation in it, and
+          // its expression, but not the fader or the mute, so a muted
+          // partial modulates as strongly as a loud one. Round a loop, its
+          // wave alone.
+          if (mine != nullptr) {
+            mine[k] = shaped * (passesRing ? ring : 1.0f) * passed;
+            passed += passedInc;
+          }
+
+          l[n] += s * pl;
+          r[n] += s * pr;
+
+          ph += step;
+          g += gInc;
+        }
+      } else if (previous == nullptr || previous == &wave) {
         for (int n = 0; n < len; ++n) {
           const float s = wave.at(ph) * env.tick() * g;
 
@@ -900,6 +1117,10 @@ void Voice::render(float *left, float *right, int numSamples,
       pt.env = env;
       pt.phase = fromFixedPhase(ph);
     }
+
+    // Every partial has written its block, so the rings move on by it.
+    if (anySource)
+      ringAt = (ringAt + len) & (kControlBlock - 1);
 
     // Where the key itself sits, which is what the leaking wheels are placed
     // against: the note, the bends, the retune and the first partial's glide,

@@ -144,6 +144,10 @@ public:
   /// The lamp on the OUTPUT rule, for reading back what it shows.
   const SplitLamp &getOutputLamp() const noexcept { return outputLamp; }
 
+  /// The amplitude modulator's shape and rate, for the tests.
+  ShapeButton &getAmShape() noexcept { return amShape; }
+  const juce::Slider &getAmRate() const noexcept { return amRate; }
+
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
   /// Full deflection is always params::kPitchNeedleFullScaleCents.

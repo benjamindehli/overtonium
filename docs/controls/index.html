@@ -65,7 +65,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-04",
+                "dateModified": "2026-11-10",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/controls/#breadcrumb"
                 }
@@ -229,8 +229,8 @@
                                 </tr>
                                 <tr>
                                     <td>AMP MOD shape, rate, depth</td>
-                                    <td>Seven shapes, 0.01 to 30 Hz, 0 to 100%</td>
-                                    <td>Per-partial tremolo</td>
+                                    <td>Seven shapes or another partial, 0.01 to 30 Hz, 0 to 100%</td>
+                                    <td>Per-partial tremolo, or another partial's wave multiplying this one</td>
                                 </tr>
                                 <tr>
                                     <td>VELOCITY</td>
@@ -338,6 +338,26 @@
                     </p>
 
                     <p>
+                        <strong>Another partial as the source.</strong> The Partial submenu under the amplitude shapes lets a channel follow another
+                        partial instead of a tremolo. That partial's wave multiplies this one sample by sample, which makes the sum and the difference
+                        of their two frequencies. On A3, partial 2 following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every
+                        partial is a whole multiple of the note, so the two new frequencies are too, and the result stays in tune. DEPTH goes from
+                        none of it at 0% to the product alone at 100%, which is ring modulation, with the partial's own tone gone. In between, the
+                        tone is still there with the two new ones beside it. RATE is greyed out, since the source sets the rate. The drawing shows a
+                        times sign and the source's number.
+                    </p>
+
+                    <p>
+                        The source passes on everything that sets its level except its fader and its mute: its envelope, its velocity, aftertouch and
+                        KEYBOARD row, and its own AMP MOD. A partial can be muted or pulled all the way down and still modulate, and a source with a
+                        tremolo puts that tremolo into what it rings. Along a chain, where the source follows a partial in turn, the products multiply
+                        all the way along. When the sum of the two frequencies comes near the top of the audio band, the depth fades out, so the sum
+                        cannot fold back down as a tone out of tune. Two partials can follow each other. One of them then hears the other a control
+                        block late, about two thirds of a millisecond, and round a loop like that each passes on its own wave alone, since a product
+                        fed back into itself dies away.
+                    </p>
+
+                    <p>
                         The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so
                         each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard
                         as a click.
@@ -347,7 +367,8 @@
                         LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot
                         be weighted. Instead, the shape menu can set every channel at once. <strong>Set every channel to this</strong> copies the
                         channel's own shape to all the others, and <strong>Set every channel to</strong> lists every shape, so all the channels can
-                        change to a new shape in one step without changing one of them first. Either one is a single step to undo.
+                        change to a new shape in one step without changing one of them first. Either one is a single step to undo. Both offer the
+                        shapes only, since a channel cannot follow itself.
                     </p>
 
                     <p>
@@ -751,7 +772,7 @@
                                     <td>AMP MOD</td>
                                     <td>
                                         how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater
-                                        depth
+                                        depth. With a partial as the source, how deep the modulation goes
                                     </td>
                                 </tr>
                                 <tr>

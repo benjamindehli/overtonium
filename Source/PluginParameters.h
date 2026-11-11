@@ -255,6 +255,20 @@ inline const std::array<LfoShape, 7> kAmpShapes{
 juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
 
+/// What a harmonic channel's amplitude modulator can follow: the shapes in
+/// kAmpShapes, then each of the partials, "Partial 1" to "Partial 32". The
+/// noise channel offers the shapes alone.
+juce::StringArray ampSourceNames();
+
+/// The partial, 0 to 31, that a stored amplitude shape index stands for, or
+/// -1 for one of the shapes.
+int ampSourcePartial(int index);
+
+/// The stored index that stands for partial @p index0.
+inline int ampSourceIndex(int index0) {
+  return (int)kAmpShapes.size() + index0;
+}
+
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
 
