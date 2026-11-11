@@ -295,7 +295,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-04
+Last changed: 2026-11-10
 
 # Overtonium controls
 
@@ -319,7 +319,7 @@ Hold the pointer over a row's name in the gutter to see what the row does. The t
 | GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the partials can arrive one at a time. The L and T switches beside the caption, and the knob's right-click menu, set whether it glides always or only legato, and at a fixed rate or in a fixed time. See [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope that runs when the key is released |
-| AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
+| AMP MOD shape, rate, depth | Seven shapes or another partial, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo, or another partial's wave multiplying this one |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it. The dB switch beside the caption picks the curve |
 | KEYBOARD | -200 to +200% | How the level follows the key played. Up to 100% it tilts around middle C, and past 100% the turn moves away from middle C |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
@@ -342,9 +342,13 @@ Both per-partial modulators have a shape as well as a rate and a depth. You pick
 
 **Amplitude has only one square.** A tremolo only ever lowers the level set by the fader, so a unipolar shape has no second direction to go in. The one square switches across the whole depth. For the same reason, every amplitude shape starts a quarter of a cycle ahead. A note begins at full level and then dips, instead of starting half attenuated.
 
+**Another partial as the source.** The Partial submenu under the amplitude shapes lets a channel follow another partial instead of a tremolo. That partial's wave multiplies this one sample by sample, which makes the sum and the difference of their two frequencies. On A3, partial 2 following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every partial is a whole multiple of the note, so the two new frequencies are too, and the result stays in tune. DEPTH goes from none of it at 0% to the product alone at 100%, which is ring modulation, with the partial's own tone gone. In between, the tone is still there with the two new ones beside it. RATE is greyed out, since the source sets the rate. The drawing shows a times sign and the source's number.
+
+The source passes on everything that sets its level except its fader and its mute: its envelope, its velocity, aftertouch and KEYBOARD row, and its own AMP MOD. A partial can be muted or pulled all the way down and still modulate, and a source with a tremolo puts that tremolo into what it rings. Along a chain, where the source follows a partial in turn, the products multiply all the way along. When the sum of the two frequencies comes near the top of the audio band, the depth fades out, so the sum cannot fold back down as a tone out of tune. Two partials can follow each other. One of them then hears the other a control block late, about two thirds of a millisecond, and round a loop like that each passes on its own wave alone, since a product fed back into itself dies away.
+
 The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard as a click.
 
-LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo.
+LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo. Both offer the shapes only, since a channel cannot follow itself.
 
 **Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/), Tape Pluck and Soft Trio ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
@@ -465,7 +469,7 @@ Each of the rules that divide a strip into groups has a lamp. It shows what the 
 | PITCH MOD | a needle on a track, flat to the left and sharp to the right, showing where modulation, drift and any glide still in progress have put the partial |
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
-| AMP MOD | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth |
+| AMP MOD | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth. With a partial as the source, how deep the modulation goes |
 | OUTPUT | one long lamp in three parts, one for each row below it: the left shows how much of the partial velocity has left, the middle how much the keyboard row has left on the key being played, and the right what pressure on the key is adding |
 
 The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has one long lamp in three parts, one for each row below it and in the same order. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. KEYBOARD reads the same way, for the key being played, and follows a glide across. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
@@ -596,7 +600,7 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-11-07
+Last changed: 2026-11-10
 
 # Playing Overtonium
 
@@ -796,7 +800,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `H1 Release to H32 Release` | `h01_release to h32_release` | 1.0 ms to 20.00 s | 400 ms |
 | `H1 Amp Mod Rate to H32 Amp Mod Rate` | `h01_amRate to h32_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth` | `h01_amDepth to h32_amDepth` | 0 % to 100 % | 0 % |
-| `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
+| `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random, Partial 1, Partial 2, Partial 3, Partial 4, Partial 5, Partial 6, Partial 7, Partial 8, Partial 9, Partial 10, Partial 11, Partial 12, Partial 13, Partial 14, Partial 15, Partial 16, Partial 17, Partial 18, Partial 19, Partial 20, Partial 21, Partial 22, Partial 23, Partial 24, Partial 25, Partial 26, Partial 27, Partial 28, Partial 29, Partial 30, Partial 31, Partial 32 | Sine |
 | `H1 Velocity to H32 Velocity` | `h01_vel to h32_vel` | -100 % to +100 % | 0 % |
 | `H1 Aftertouch to H32 Aftertouch` | `h01_aftertouch to h32_aftertouch` | -100 % to +100 % | 0 % |
 | `H1 Mute to H32 Mute` | `h01_mute to h32_mute` | Off or on | Off |

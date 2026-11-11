@@ -75,6 +75,15 @@ struct OscParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
+  /// The partial, 0 to 31, whose wave multiplies this one in place of the
+  /// tremolo, or -1 for the tremolo. What it passes on has everything that
+  /// sets its level but its fader and its mute: its envelope, velocity,
+  /// aftertouch, KEYBOARD row and its own amplitude modulation, which along a
+  /// chain is the partial before it, though not round a loop. amDepth goes
+  /// from none of it at 0 to the product
+  /// alone, ring modulation, at 1. The rate is not used. Naming itself turns
+  /// the modulation off.
+  int amSource = -1;
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
   /// harder is louder, negative means softer is louder. Zero by default, so
   /// velocity is something a patch asks for. See GlobalParams::velocityCurve.

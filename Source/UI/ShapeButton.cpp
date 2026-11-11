@@ -25,6 +25,9 @@ constexpr int kInPhase = 1001;
 
 /// The first id of the "Set every channel to" submenu, one per shape after it.
 constexpr int kEveryChannelTo = 2000;
+
+/// The first id of the "Partial" submenu, one per partial after it.
+constexpr int kPartialFrom = 3000;
 } // namespace
 
 void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
@@ -124,14 +127,19 @@ void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
 ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
                          const juce::String &parameterId, const char *suffix,
                          juce::Span<const LfoShape> shapes,
-                         juce::StringArray shapeNames)
-    : apvts(state), id(parameterId), sharedSuffix(suffix), offered(shapes),
-      names(std::move(shapeNames)) {
+                         juce::StringArray shapeNames, int ownPartial)
+    : apvts(state), id(parameterId), sharedSuffix(suffix),
+      partialOf(ownPartial), offered(shapes), names(std::move(shapeNames)) {
   setWantsKeyboardFocus(false);
 
   if (auto *param = apvts.getParameter(id))
-    attachment = std::make_unique<juce::ParameterAttachment>(
-        *param, [this](float) { repaint(); });
+    attachment =
+        std::make_unique<juce::ParameterAttachment>(*param, [this](float) {
+          repaint();
+
+          if (onChange != nullptr)
+            onChange();
+        });
 }
 
 int ShapeButton::selectedIndex() const {
@@ -143,11 +151,31 @@ LfoShape ShapeButton::selectedShape() const {
   return offered[(size_t)selectedIndex()];
 }
 
-juce::String ShapeButton::currentName() const { return names[selectedIndex()]; }
+int ShapeButton::selectedPartial() const {
+  if (partialOf < 0)
+    return -1;
+
+  const auto partial =
+      params::ampSourcePartial(settings::choiceIndex(apvts, id));
+
+  // Following itself turns the modulation off, which the menu cannot ask for,
+  // so it reads as the shape underneath.
+  return partial == partialOf ? -1 : partial;
+}
+
+juce::String ShapeButton::currentName() const {
+  const auto partial = selectedPartial();
+
+  return partial >= 0 ? "Partial " + juce::String(partial + 1)
+                      : names[selectedIndex()];
+}
 
 void ShapeButton::paint(juce::Graphics &g) {
   LookKey key;
-  key.add(selectedIndex()).add(hovered).add(getProperties());
+  key.add(selectedIndex())
+      .add(selectedPartial())
+      .add(hovered)
+      .add(getProperties());
 
   looks.paint(g, *this, key,
               [this](juce::Graphics &into) { paintShape(into); });
@@ -164,28 +192,53 @@ void ShapeButton::paintShape(juce::Graphics &g) {
   if ((bool)getProperties().getWithDefault("unlit", false))
     return;
 
+  const auto ink = colours::accent.withAlpha(hovered ? 1.0f : 0.88f);
+
+  // Following a partial, which has no shape to draw: a times sign and the
+  // partial's number, since its wave multiplies this one.
+  if (const auto partial = selectedPartial(); partial >= 0) {
+    g.setColour(ink);
+    g.setFont(makeFont(juce::jmin(11.0f, area.getHeight() * 0.8f), true));
+    g.drawText(juce::String::fromUTF8("\xc3\x97") + juce::String(partial + 1),
+               area, juce::Justification::centred, false);
+    return;
+  }
+
   // The same accent the tuning digits light in.
-  drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
+  drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(), ink);
 }
 
 juce::PopupMenu ShapeButton::buildMenu() const {
   juce::PopupMenu m;
 
-  const auto current = selectedIndex();
+  const auto partial = selectedPartial();
+  const auto current = partial >= 0 ? -1 : selectedIndex();
 
-  for (int i = 0; i < names.size(); ++i)
+  for (int i = 0; i < (int)offered.size(); ++i)
     m.addItem(i + 1, names[i], true, i == current);
+
+  // Another partial's wave, on a channel that can follow one. Every partial
+  // but this one.
+  if (partialOf >= 0) {
+    juce::PopupMenu partials;
+
+    for (int j = 0; j < kNumHarmonics; ++j)
+      if (j != partialOf)
+        partials.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
+                         true, j == partial);
+
+    m.addSubMenu("Partial", partials, true, nullptr, partial >= 0);
+  }
 
   // LINK cannot reach this control, so the menu sets every channel instead,
   // either to this channel's shape or to any shape without choosing it here
-  // first.
+  // first. Not to a partial, which no channel can follow as itself.
   m.addSeparator();
-  m.addItem(kEveryChannel, "Set every channel to this");
+  m.addItem(kEveryChannel, "Set every channel to this", partial < 0);
 
   juce::PopupMenu every;
 
-  for (int i = 0; i < names.size(); ++i)
+  for (int i = 0; i < (int)offered.size(); ++i)
     every.addItem(kEveryChannelTo + i, names[i]);
 
   m.addSubMenu("Set every channel to", every);
@@ -265,14 +318,30 @@ void ShapeButton::chooseFromMenu(int result) {
   if (result <= 0)
     return;
 
-  if (result == kEveryChannel)
-    return applyToEveryChannel(selectedIndex());
+  if (result == kEveryChannel) {
+    if (selectedPartial() < 0)
+      applyToEveryChannel(selectedIndex());
+
+    return;
+  }
 
   if (result == kInPhase)
     return setInPhase(!inPhase());
 
-  if (result >= kEveryChannelTo && result < kEveryChannelTo + names.size())
+  if (result >= kEveryChannelTo &&
+      result < kEveryChannelTo + (int)offered.size())
     return applyToEveryChannel(result - kEveryChannelTo);
+
+  if (result >= kPartialFrom && result < kPartialFrom + kNumHarmonics) {
+    if (partialOf >= 0 && attachment != nullptr)
+      attachment->setValueAsCompleteGesture(
+          (float)params::ampSourceIndex(result - kPartialFrom));
+
+    return;
+  }
+
+  if (result - 1 >= (int)offered.size())
+    return;
 
   if (attachment != nullptr)
     attachment->setValueAsCompleteGesture((float)(result - 1));

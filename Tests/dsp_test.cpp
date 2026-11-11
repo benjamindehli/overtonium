@@ -10677,6 +10677,198 @@ void testModulation() {
   check(finite, "modulated output is finite");
 }
 
+/// Another partial's wave as the amplitude modulator: multiplied in sample by
+/// sample, so two partials make their sum and their difference. Everything
+/// that sets the source's level counts but its fader and its mute.
+void testPartialAsAmpSource() {
+  section("A partial as the amplitude source");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57,
+                        float velocity = 1.0f) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, velocity, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, against partial 2 times partial 1, whose
+  // fader is down, so all of partial 1 that is heard is what it does to 2.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto ringed = plain;
+  ringed.osc[1].amSource = 0;
+  ringed.osc[1].amDepth = 1.0f;
+
+  const auto alone = play(plain);
+  const auto product = play(ringed);
+
+  const auto tone = binMagnitude(alone, 440.0, sr);
+  const auto below = binMagnitude(product, 220.0, sr);
+  const auto above = binMagnitude(product, 660.0, sr);
+  const auto left = binMagnitude(product, 440.0, sr);
+
+  check(std::abs(below / tone - 0.5) < 0.05 &&
+            std::abs(above / tone - 0.5) < 0.05,
+        "at full depth 440 Hz times 220 Hz is 220 Hz and 660 Hz, each half "
+        "the tone (" +
+            std::to_string(below / tone) + ", " + std::to_string(above / tone) +
+            ")");
+  check(left < 0.01 * tone, "and none of 440 Hz itself is left");
+
+  // Half depth keeps half the tone and adds half the sidebands.
+  auto half = ringed;
+  half.osc[1].amDepth = 0.5f;
+  const auto mixed = play(half);
+  check(std::abs(binMagnitude(mixed, 440.0, sr) / tone - 0.5) < 0.05 &&
+            std::abs(binMagnitude(mixed, 660.0, sr) / tone - 0.25) < 0.05,
+        "at half depth half the tone is left, with a quarter in each sideband");
+
+  // A muted source modulates as strongly as one that is heard.
+  auto muted = ringed;
+  muted.osc[0].volume = 0.5f;
+  muted.osc[0].audible = false;
+  check(std::abs(binMagnitude(play(muted), 660.0, sr) - above) < 0.01 * tone,
+        "a muted partial still modulates");
+
+  // Its envelope does count: a source that has decayed to nothing leaves
+  // nothing of the one it multiplies at full depth.
+  auto decayed = ringed;
+  decayed.osc[0].sustain = 0.0f;
+  decayed.osc[0].decay = 0.01f;
+  const auto gone = play(decayed);
+  check(binMagnitude(gone, 660.0, sr) < 0.05 * tone,
+        "a source that has decayed takes the partial it multiplies with it");
+
+  // What sets the source's level other than its fader scales what it passes
+  // on, so the sidebands follow it while the partial they ring does not.
+  // Velocity first, on the source only, struck at half.
+  auto byVelocity = ringed;
+  byVelocity.osc[0].velAmount = 1.0f;
+  const auto velGain = velocityGain(1.0f, 0.5f, VelocityCurve::Classic);
+  const auto softer = binMagnitude(play(byVelocity, 57, 0.5f), 660.0, sr);
+  check(std::abs(softer / above - (double)velGain) < 0.03,
+        "the source's velocity scales the sidebands (" +
+            std::to_string(softer / above) + " against " +
+            std::to_string(velGain) + ")");
+
+  // Aftertouch, held at full before the note, turning the source down by half.
+  auto byPressure = ringed;
+  byPressure.osc[0].atAmount = -0.5f;
+  byPressure.global.aftertouch = 1.0f;
+  const auto pressed = binMagnitude(play(byPressure), 660.0, sr);
+  check(std::abs(pressed / above - 0.5) < 0.03,
+        "its aftertouch does too (" + std::to_string(pressed / above) + ")");
+
+  // The KEYBOARD row, on A3, below the middle of the keyboard.
+  auto byKey = ringed;
+  byKey.osc[0].keyAmount = 1.0f;
+  const auto keyGain = keyboardGain(1.0f, 57.0);
+  const auto keyed = binMagnitude(play(byKey), 660.0, sr);
+  check(keyGain < 0.95f && std::abs(keyed / above - (double)keyGain) < 0.03,
+        "and so does its KEYBOARD row (" + std::to_string(keyed / above) +
+            " against " + std::to_string(keyGain) + ")");
+
+  // Its own tremolo, a 5 Hz sine at full depth, which halves the source on
+  // average and puts sidebands 5 Hz either side of each new tone.
+  auto byTremolo = ringed;
+  byTremolo.osc[0].amRateHz = 5.0f;
+  byTremolo.osc[0].amDepth = 1.0f;
+  const auto trembling = play(byTremolo);
+  check(std::abs(binMagnitude(trembling, 660.0, sr) / above - 0.5) < 0.05 &&
+            binMagnitude(trembling, 665.0, sr) > 0.2 * above,
+        "and its own tremolo moves the sidebands");
+
+  // None of it reaches the partial being modulated itself: its tone at no
+  // depth is the same whatever the source's velocity.
+  auto quietSource = byVelocity;
+  quietSource.osc[1].amDepth = 0.0f;
+  check(std::abs(binMagnitude(play(quietSource, 57, 0.5f), 440.0, sr) / tone -
+                 1.0) < 0.01,
+        "while the partial it modulates keeps its own level");
+
+  // At depth nothing, a partial as the source changes nothing, sample for
+  // sample, since the multiply is by exactly one.
+  auto none = ringed;
+  none.osc[1].amDepth = 0.0f;
+  const auto untouched = play(none);
+  bool same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(untouched[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < untouched[(size_t)n]);
+  check(same, "at no depth, a partial as the source changes nothing");
+
+  // A partial that names itself, which only a host could ask for, has no
+  // modulation at all.
+  auto itself = plain;
+  itself.osc[1].amSource = 1;
+  itself.osc[1].amDepth = 1.0f;
+  const auto self = play(itself);
+  same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(self[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < self[(size_t)n]);
+  check(same, "a partial that names itself is not modulated");
+
+  // Played before its source, as in a loop of two, it still rings, a block
+  // late, and the pair stays finite and bounded.
+  auto loop = plain;
+  loop.osc[0].volume = 0.5f;
+  loop.osc[0].amSource = 1;
+  loop.osc[0].amDepth = 1.0f;
+  loop.osc[1].amSource = 0;
+  loop.osc[1].amDepth = 1.0f;
+  const auto looped = play(loop);
+  bool bounded = true;
+  for (const auto v : looped)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "two partials that modulate each other stay bounded");
+  check(binMagnitude(looped, 660.0, sr) > 0.3 * tone,
+        "and each rings the other");
+
+  // Along a chain the product is passed on: partial 3 following partial 2,
+  // which follows partial 1, is all three multiplied. 659 Hz times 440 Hz
+  // alone has a tone at 1099 Hz, which partial 1 splits again either side.
+  auto pair = plain;
+  pair.osc[1].volume = 0.0f;
+  pair.osc[2].volume = 0.5f;
+  pair.osc[2].amSource = 1;
+  pair.osc[2].amDepth = 1.0f;
+  auto chain = pair;
+  chain.osc[1].amSource = 0;
+  chain.osc[1].amDepth = 1.0f;
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  const auto paired = binMagnitude(play(pair), third + 440.0, sr);
+  const auto chained = play(chain);
+  check(paired > 0.3 * tone &&
+            binMagnitude(chained, third + 440.0, sr) < 0.05 * paired &&
+            binMagnitude(chained, third + 660.0, sr) > 0.3 * paired,
+        "a chain passes each partial's product on to the next");
+
+  // Partials 12 and 16 on A5, at 10.56 kHz and 14.08 kHz. Their sum is past
+  // Nyquist, so the depth fades out rather than fold the sum back down, and
+  // the difference goes with it.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highRinged = high;
+  highRinged.osc[11].amSource = 15;
+  highRinged.osc[11].amDepth = 1.0f;
+  const auto highAlone = play(high, 81);
+  const auto highProduct = play(highRinged, 81);
+  const auto highTone = binMagnitude(highAlone, 10560.0, sr);
+  check(binMagnitude(highProduct, 48000.0 - 24640.0, sr) < 0.01 * highTone &&
+            binMagnitude(highProduct, 3520.0, sr) < 0.01 * highTone &&
+            binMagnitude(highProduct, 10560.0, sr) > 0.95 * highTone,
+        "a sum past Nyquist fades the modulation out instead of folding");
+}
+
 /// A modulator the whole keyboard shares rather than one per note: a note
 /// arriving late joins it wherever it has got to. On, the note opens where the
 /// circuit had got to, and off, at the start of its own. The shared one runs
@@ -14199,6 +14391,7 @@ int main() {
   testLfoShapes();
   testEveryAmpShapeIsClickFree();
   testModulation();
+  testPartialAsAmpSource();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();
