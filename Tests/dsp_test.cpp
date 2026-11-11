@@ -10869,6 +10869,132 @@ void testPartialAsAmpSource() {
         "a sum past Nyquist fades the modulation out instead of folding");
 }
 
+/// Another partial's wave moving a partial's phase, as FM synthesizers do. A
+/// sine moved by a sine has its tones at the partial's frequency plus and
+/// minus whole multiples of the source's, each as strong as the Bessel
+/// function of that order at the index says.
+void testPartialAsPitchSource() {
+  section("A partial as the pitch source");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, and moved by partial 1 at 220 Hz, whose
+  // fader is down. Index 1 is 100 on the knob.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto moved = plain;
+  moved.osc[1].pmSource = 0;
+  moved.osc[1].pmDepthCents = 100.0f;
+
+  const auto alone = play(plain);
+  const auto fm = play(moved);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // J0, J1 and J2 at an index of 1.
+  constexpr double kJ0 = 0.7651976866, kJ1 = 0.4400505857, kJ2 = 0.1149034849;
+  const auto at440 = binMagnitude(fm, 440.0, sr) / tone;
+  const auto at660 = binMagnitude(fm, 660.0, sr) / tone;
+  const auto at880 = binMagnitude(fm, 880.0, sr) / tone;
+
+  check(std::abs(at440 - kJ0) < 0.02 && std::abs(at660 - kJ1) < 0.02 &&
+            std::abs(at880 - kJ2) < 0.02,
+        "at index 1 the tones at 440, 660 and 880 Hz are J0, J1 and J2 (" +
+            std::to_string(at440) + ", " + std::to_string(at660) + ", " +
+            std::to_string(at880) + ")");
+
+  check(binMagnitude(fm, 450.0, sr) < 0.01 * tone &&
+            binMagnitude(fm, 1100.0, sr) / tone < 0.03,
+        "and nothing falls between them or far above, so it stays in tune");
+
+  // A muted source moves the phase as much as one that is heard.
+  auto muted = moved;
+  muted.osc[0].volume = 0.5f;
+  muted.osc[0].audible = false;
+  check(std::abs(binMagnitude(play(muted), 660.0, sr) / tone - kJ1) < 0.02,
+        "a muted partial still moves the phase");
+
+  // At index nothing, a partial as the source changes nothing, sample for
+  // sample. Nor does naming itself, which turns off the vibrato as well.
+  auto none = moved;
+  none.osc[1].pmDepthCents = 0.0f;
+  check(sameSamples(play(none), alone),
+        "at index nothing, a partial as the source changes nothing");
+
+  auto itself = plain;
+  itself.osc[1].pmSource = 1;
+  itself.osc[1].pmDepthCents = 600.0f;
+  check(sameSamples(play(itself), alone),
+        "a partial that names itself is not moved, and has no vibrato");
+
+  // What a partial passes on has its own phase movement in it: partial 3
+  // ringed by partial 2 rings with partial 2's new tones as well.
+  auto ringedByPlain = plain;
+  ringedByPlain.osc[1].volume = 0.0f;
+  ringedByPlain.osc[2].volume = 0.5f;
+  ringedByPlain.osc[2].amSource = 1;
+  ringedByPlain.osc[2].amDepth = 1.0f;
+  auto ringedByFm = ringedByPlain;
+  ringedByFm.osc[1].pmSource = 0;
+  ringedByFm.osc[1].pmDepthCents = 100.0f;
+
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  check(binMagnitude(play(ringedByPlain), third + 660.0, sr) < 0.01 * tone &&
+            binMagnitude(play(ringedByFm), third + 660.0, sr) > 0.1 * tone,
+        "a moved partial passes its new tones on");
+
+  // Partial 12 on A5 at 10.56 kHz, moved by partial 16 at 14.08 kHz. Even one
+  // pair of tones would pass the top of the band, so the index falls to
+  // nothing and the partial plays as it does alone.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highMoved = high;
+  highMoved.osc[11].pmSource = 15;
+  highMoved.osc[11].pmDepthCents = 1200.0f;
+  const auto highAlone = play(high, 81);
+  const auto highFm = play(highMoved, 81);
+  check(std::abs(binMagnitude(highFm, 10560.0, sr) /
+                     binMagnitude(highAlone, 10560.0, sr) -
+                 1.0) < 0.01 &&
+            binMagnitude(highFm, 48000.0 - 24640.0, sr) <
+                0.01 * binMagnitude(highAlone, 10560.0, sr),
+        "past the top of the band the index falls to nothing");
+
+  // The deepest index on a low note, and two partials moving each other,
+  // stay finite and bounded.
+  auto deep = plain;
+  deep.osc[0].volume = 0.5f;
+  deep.osc[0].pmSource = 1;
+  deep.osc[0].pmDepthCents = 1200.0f;
+  deep.osc[1].pmSource = 0;
+  deep.osc[1].pmDepthCents = 1200.0f;
+  bool bounded = true;
+  for (const auto v : play(deep, 36))
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "the deepest index, two partials moving each other, stays "
+                 "finite and bounded");
+}
+
 /// A modulator the whole keyboard shares rather than one per note: a note
 /// arriving late joins it wherever it has got to. On, the note opens where the
 /// circuit had got to, and off, at the start of its own. The shared one runs
@@ -14392,6 +14518,7 @@ int main() {
   testEveryAmpShapeIsClickFree();
   testModulation();
   testPartialAsAmpSource();
+  testPartialAsPitchSource();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();

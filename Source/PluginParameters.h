@@ -269,6 +269,15 @@ inline int ampSourceIndex(int index0) {
   return (int)kAmpShapes.size() + index0;
 }
 
+/// The same for the pitch modulator: the shapes in kPitchShapes, then each of
+/// the partials.
+juce::StringArray pitchSourceNames();
+int pitchSourcePartial(int index);
+
+inline int pitchSourceIndex(int index0) {
+  return (int)kPitchShapes.size() + index0;
+}
+
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
 

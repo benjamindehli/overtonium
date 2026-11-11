@@ -295,7 +295,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-10
+Last changed: 2026-11-11
 
 # Overtonium controls
 
@@ -314,7 +314,7 @@ Hold the pointer over a row's name in the gutter to see what the row does. The t
 | Control | Range | What it does |
 |---|---|---|
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the readout stays at 0.0 |
-| PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
+| PITCH MOD shape, rate, depth | Eight shapes or another partial, 0.01 to 30 Hz, 0 to 1200 cents or an index of 0 to 12 | Per-partial vibrato, or another partial's wave moving this one's phase |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
 | GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the partials can arrive one at a time. The L and T switches beside the caption, and the knob's right-click menu, set whether it glides always or only legato, and at a fixed rate or in a fixed time. See [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial |
@@ -345,6 +345,10 @@ Both per-partial modulators have a shape as well as a rate and a depth. You pick
 **Another partial as the source.** The Partial submenu under the amplitude shapes lets a channel follow another partial instead of a tremolo. That partial's wave multiplies this one sample by sample, which makes the sum and the difference of their two frequencies. On A3, partial 2 following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every partial is a whole multiple of the note, so the two new frequencies are too, and the result stays in tune. DEPTH goes from none of it at 0% to the product alone at 100%, which is ring modulation, with the partial's own tone gone. In between, the tone is still there with the two new ones beside it. RATE is greyed out, since the source sets the rate. The drawing shows a times sign and the source's number.
 
 The source passes on everything that sets its level except its fader and its mute: its envelope, its velocity, aftertouch and KEYBOARD row, and its own AMP MOD. A partial can be muted or pulled all the way down and still modulate, and a source with a tremolo puts that tremolo into what it rings. Along a chain, where the source follows a partial in turn, the products multiply all the way along. When the sum of the two frequencies comes near the top of the audio band, the depth fades out, so the sum cannot fold back down as a tone out of tune. Two partials can follow each other. One of them then hears the other a control block late, about two thirds of a millisecond, and round a loop like that each passes on its own wave alone, since a product fed back into itself dies away.
+
+**A partial as the pitch source.** The pitch shapes have the same Partial submenu. There, the other partial's wave moves this one's phase sample by sample, which is how FM synthesizers make their tones. It spreads the partial into pairs of tones either side of it, one source frequency apart. On A3, partial 2 moved by partial 1 keeps 440 Hz and gains 660 Hz and 880 Hz above it, and 220 Hz below. Every one of them is a whole multiple of the note, so the result stays in tune however deep it goes. DEPTH is then the modulation index, from 0 to 12, rather than cents, and the popup says so. Around 1 the tone gains a few warm pairs, and higher it turns bright and metallic, the way an index does on an FM synthesizer. RATE is greyed out, and the source passes on the same things it passes on for amplitude.
+
+The pairs reach about the index plus one source frequencies above the partial. When that would pass the top of the audio band, the index is held back, so nothing folds down out of tune, and a partial already near the top barely moves. A partial whose phase is moved passes its new tones on to any partial that follows it, so partials can be stacked as an FM synthesizer stacks its operators. Host automation still shows the depth in cents, a hundred to each step of the index.
 
 The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard as a click.
 
@@ -600,7 +604,7 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-11-10
+Last changed: 2026-11-11
 
 # Playing Overtonium
 
@@ -787,7 +791,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `H1 Tune to H32 Tune` | `h01_tune to h32_tune` | Equal temp. to Just | Just |
 | `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
-| `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
+| `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random, Partial 1, Partial 2, Partial 3, Partial 4, Partial 5, Partial 6, Partial 7, Partial 8, Partial 9, Partial 10, Partial 11, Partial 12, Partial 13, Partial 14, Partial 15, Partial 16, Partial 17, Partial 18, Partial 19, Partial 20, Partial 21, Partial 22, Partial 23, Partial 24, Partial 25, Partial 26, Partial 27, Partial 28, Partial 29, Partial 30, Partial 31, Partial 32 | Sine |
 | `H1 Glide to H32 Glide` | `h01_glide to h32_glide` | Off to 5.00 s | Off |
 | `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |

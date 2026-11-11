@@ -65,7 +65,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-10",
+                "dateModified": "2026-11-11",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/controls/#breadcrumb"
                 }
@@ -199,8 +199,8 @@
                                 </tr>
                                 <tr>
                                     <td>PITCH MOD shape, rate, depth</td>
-                                    <td>Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents</td>
-                                    <td>Per-partial vibrato</td>
+                                    <td>Eight shapes or another partial, 0.01 to 30 Hz, 0 to 1200 cents or an index of 0 to 12</td>
+                                    <td>Per-partial vibrato, or another partial's wave moving this one's phase</td>
                                 </tr>
                                 <tr>
                                     <td>DRIFT</td>
@@ -355,6 +355,23 @@
                         cannot fold back down as a tone out of tune. Two partials can follow each other. One of them then hears the other a control
                         block late, about two thirds of a millisecond, and round a loop like that each passes on its own wave alone, since a product
                         fed back into itself dies away.
+                    </p>
+
+                    <p>
+                        <strong>A partial as the pitch source.</strong> The pitch shapes have the same Partial submenu. There, the other partial's
+                        wave moves this one's phase sample by sample, which is how FM synthesizers make their tones. It spreads the partial into pairs
+                        of tones either side of it, one source frequency apart. On A3, partial 2 moved by partial 1 keeps 440 Hz and gains 660 Hz and
+                        880 Hz above it, and 220 Hz below. Every one of them is a whole multiple of the note, so the result stays in tune however deep
+                        it goes. DEPTH is then the modulation index, from 0 to 12, rather than cents, and the popup says so. Around 1 the tone gains a
+                        few warm pairs, and higher it turns bright and metallic, the way an index does on an FM synthesizer. RATE is greyed out, and
+                        the source passes on the same things it passes on for amplitude.
+                    </p>
+
+                    <p>
+                        The pairs reach about the index plus one source frequencies above the partial. When that would pass the top of the audio band,
+                        the index is held back, so nothing folds down out of tune, and a partial already near the top barely moves. A partial whose
+                        phase is moved passes its new tones on to any partial that follows it, so partials can be stacked as an FM synthesizer stacks
+                        its operators. Host automation still shows the depth in cents, a hundred to each step of the index.
                     </p>
 
                     <p>

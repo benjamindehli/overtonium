@@ -49,6 +49,20 @@ constexpr float kBulbDepth = 0.25f;
 inline float tremoloGain(float shape, float depth) noexcept {
   return std::clamp(1.0f - depth * 0.5f * (1.0f - shape), 0.0f, 1.0f);
 }
+
+/// How high a partial whose phase another one moves may reach, as a share of
+/// the sample rate, so its highest pair of tones stays under Nyquist with room
+/// for the fade the tables already have.
+constexpr double kPhaseModTop = 0.45;
+
+constexpr double kRadiansToTurns = 0.15915494309189535; // 1 / 2 pi
+
+/// A phase offset in 2^-32 of a turn, as the loops work it out, moved up into
+/// the 64-bit fixed-point phase. Negative offsets wrap round, as the phase
+/// does. Truncated, which at 2^-32 of a turn is far below hearing.
+inline std::uint64_t phaseOffset(float turns32) noexcept {
+  return (std::uint64_t)(std::int64_t)turns32 << 32;
+}
 } // namespace
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
@@ -226,6 +240,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       // Nothing of the last note is left for a partial it modulates to read.
       ringSource[(size_t)i].fill(0.0f);
       pt.lastRingDepth = 0.0f;
+      pt.lastPhaseDepth = 0.0f;
       pt.lastSourceGain = -1.0f;
     }
 
@@ -418,6 +433,7 @@ void Voice::takeOver(const Voice &from) noexcept {
 
     pt.lastFreq = src.lastFreq;
     pt.lastRingDepth = src.lastRingDepth;
+    pt.lastPhaseDepth = src.lastPhaseDepth;
     pt.lastSourceGain = src.lastSourceGain;
   }
 
@@ -562,14 +578,13 @@ void Voice::render(float *left, float *right, int numSamples,
   std::array<bool, kNumHarmonics> isSource{};
   bool anySource = false;
 
-  for (int i = 0; i < kNumHarmonics; ++i) {
-    const auto from = p.osc[(size_t)i].amSource;
-
-    if (from >= 0 && from < kNumHarmonics && from != i) {
-      isSource[(size_t)from] = true;
-      anySource = true;
-    }
-  }
+  for (int i = 0; i < kNumHarmonics; ++i)
+    for (const auto from :
+         {p.osc[(size_t)i].amSource, p.osc[(size_t)i].pmSource})
+      if (from >= 0 && from < kNumHarmonics && from != i) {
+        isSource[(size_t)from] = true;
+        anySource = true;
+      }
 
   // A partial passes on what another partial does to it, so a chain
   // multiplies all the way along. Round a loop it would multiply itself by
@@ -627,6 +642,12 @@ void Voice::render(float *left, float *right, int numSamples,
               ? op.amSource
               : -1;
 
+      // And the one that moves its phase. See OscParams::pmSource.
+      const int phaseFrom =
+          op.pmSource >= 0 && op.pmSource < kNumHarmonics && op.pmSource != i
+              ? op.pmSource
+              : -1;
+
       // Scaled by what the note-on made of the velocity, so turning either knob
       // under a sounding note keeps that proportion. The delay is only read at
       // the next note-on, and is scaled here to keep the two calls agreeing.
@@ -668,7 +689,9 @@ void Voice::render(float *left, float *right, int numSamples,
               ? shared.pitch[(size_t)(i * shared.stride + block)]
               : pt.pitchLfo.value(op.pmShape);
 
-      const double pmCents = op.pmDepthCents > 0.0f
+      // A partial whose phase another one moves has no vibrato of its own,
+      // and neither does one that names itself.
+      const double pmCents = op.pmDepthCents > 0.0f && op.pmSource < 0
                                  ? (double)(pmShapeValue * op.pmDepthCents)
                                  : 0.0;
 
@@ -818,6 +841,37 @@ void Voice::render(float *left, float *right, int numSamples,
       const float ringStart = pt.lastRingDepth;
       pt.lastRingDepth = ringEnd;
 
+      // How far the other partial's wave moves this one's phase, as the
+      // modulation index FM synthesizers use, in radians at the wave's peak.
+      // Phase modulation spreads a partial into pairs of tones either side of
+      // it, one source frequency apart, and nearly all of it lies within the
+      // index plus one pairs. So the index is held to what keeps the highest
+      // pair under the top of the band, unless folding is wanted.
+      double phaseIndex = 0.0;
+
+      if (phaseFrom >= 0) {
+        phaseIndex = (double)(op.pmDepthCents / kCentsPerIndex);
+
+        const double by = partials[(size_t)phaseFrom].lastFreq;
+
+        if (!foldAliases && by > 0.0)
+          phaseIndex = std::clamp((kPhaseModTop * sampleRate - freq) / by - 1.0,
+                                  0.0, phaseIndex);
+      }
+
+      // In 2^-32 of a turn per unit of the wave, which the loop below shifts
+      // up into the fixed-point phase.
+      const float phaseEnd =
+          (float)(phaseIndex * kRadiansToTurns * 4294967296.0);
+      const float phaseStart = pt.lastPhaseDepth;
+      pt.lastPhaseDepth = phaseEnd;
+
+      // The highest the moved partial reaches, which the table is chosen for.
+      const double reach =
+          phaseFrom >= 0
+              ? freq + phaseIndex * partials[(size_t)phaseFrom].lastFreq
+              : freq;
+
       // ---- which oscillator this is ----------------------------------------
       //
       // The table is chosen by how much room this partial has under Nyquist at
@@ -832,11 +886,11 @@ void Voice::render(float *left, float *right, int numSamples,
                                    ? baseFreq * std::exp2(keySemis / 12.0)
                                    : freq;
 
-      const auto &wave =
-          characters.table(p.global.character, shapeFreq,
-                           foldAliases ? kMostCharacterHarmonics
-                                       : highestHarmonicUnder(freq, sampleRate),
-                           unit.drive[(size_t)i]);
+      const auto &wave = characters.table(
+          p.global.character, shapeFreq,
+          foldAliases ? kMostCharacterHarmonics
+                      : highestHarmonicUnder(reach, sampleRate),
+          unit.drive[(size_t)i]);
 
       // ---- what the lamp has not caught up with ----------------------------
       //
@@ -978,9 +1032,22 @@ void Voice::render(float *left, float *right, int numSamples,
           float depth = ringStart;
           const float depthInc = (ringEnd - ringStart) / (float)len;
 
+          // Its phase moved by another partial, so what it passes on is too.
+          const float *const mover =
+              phaseFrom >= 0 ? ringSource[(size_t)phaseFrom].data() : nullptr;
+          float moved = phaseStart;
+          const float movedInc = (phaseEnd - phaseStart) / (float)len;
+
           for (int n = 0; n < len; ++n) {
             const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
-            float v = wave.at(ph) * pt.env.tick() * passed;
+            std::uint64_t read = ph;
+
+            if (mover != nullptr) {
+              read += phaseOffset(moved * mover[k]);
+              moved += movedInc;
+            }
+
+            float v = wave.at(read) * pt.env.tick() * passed;
 
             if (from != nullptr) {
               v *= 1.0f - depth + depth * from[k];
@@ -1030,10 +1097,10 @@ void Voice::render(float *left, float *right, int numSamples,
       // place would store and reload its level every sample. Same samples.
       Envelope env = pt.env;
 
-      if (source || ringFrom >= 0) {
+      if (source || ringFrom >= 0 || phaseFrom >= 0) {
         // Modulating or modulated, which the plain loops below leave out to
-        // stay as quick as they are. One loop for both, with the cross-fade
-        // when the table changes.
+        // stay as quick as they are. One loop for all of it, with the
+        // cross-fade when the table changes.
         const bool crossing = previous != nullptr && previous != &wave;
         const float mixInc = crossing ? 1.0f / (float)len : 0.0f;
         float mix = 0.0f;
@@ -1049,17 +1116,33 @@ void Voice::render(float *left, float *right, int numSamples,
             ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
         float *const mine = source ? ringSource[(size_t)i].data() : nullptr;
 
+        const float *const mover =
+            phaseFrom >= 0 ? ringSource[(size_t)phaseFrom].data() : nullptr;
+        float moved = phaseStart;
+        const float movedInc = (phaseEnd - phaseStart) / (float)len;
+
         for (int n = 0; n < len; ++n) {
-          float w = wave.at(ph);
+          const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
+
+          // Where the table is read: the partial's own phase, moved by the
+          // other partial's wave. The phase itself runs on untouched, so the
+          // partial stays at its pitch.
+          std::uint64_t read = ph;
+
+          if (mover != nullptr) {
+            read += phaseOffset(moved * mover[k]);
+            moved += movedInc;
+          }
+
+          float w = wave.at(read);
 
           if (crossing) {
-            const float was = previous->at(ph);
+            const float was = previous->at(read);
             w = was + (w - was) * mix;
             mix += mixInc;
           }
 
           const float shaped = w * env.tick();
-          const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
 
           // Depth one is the product alone, which is ring modulation.
           float ring = 1.0f;

@@ -155,8 +155,11 @@ int ShapeButton::selectedPartial() const {
   if (partialOf < 0)
     return -1;
 
-  const auto partial =
-      params::ampSourcePartial(settings::choiceIndex(apvts, id));
+  // The partials follow the shapes in the parameter's list.
+  auto partial = settings::choiceIndex(apvts, id) - (int)offered.size();
+
+  if (partial < 0 || partial >= kNumHarmonics)
+    partial = -1;
 
   // Following itself turns the modulation off, which the menu cannot ask for,
   // so it reads as the shape underneath.
@@ -335,7 +338,7 @@ void ShapeButton::chooseFromMenu(int result) {
   if (result >= kPartialFrom && result < kPartialFrom + kNumHarmonics) {
     if (partialOf >= 0 && attachment != nullptr)
       attachment->setValueAsCompleteGesture(
-          (float)params::ampSourceIndex(result - kPartialFrom));
+          (float)((int)offered.size() + result - kPartialFrom));
 
     return;
   }

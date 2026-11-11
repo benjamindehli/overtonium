@@ -201,7 +201,7 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
       colour(intervalColour(harmonic(index0).pitchClass)),
       pmShape(state, params::oscParamId(params::pmShapeSuffix, index0),
               params::pmShapeSuffix, params::kPitchShapes,
-              params::pitchShapeNames()),
+              params::pitchShapeNames(), index0),
       amShape(state, params::oscParamId(params::amShapeSuffix, index0),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames(), index0),
@@ -267,6 +267,21 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
     amRate.setEnabled(amShape.selectedPartial() < 0);
   };
   amShape.onChange();
+
+  pmShape.onChange = [this] {
+    pmRate.setEnabled(pmShape.selectedPartial() < 0);
+  };
+  pmShape.onChange();
+
+  // With a partial moving the phase, DEPTH is the modulation index, which is
+  // what its popup shows. The host still shows the cents it stores.
+  pmDepth.textFromValueFunction =
+      [this, cents = pmDepth.textFromValueFunction](double value) {
+        if (pmShape.selectedPartial() >= 0)
+          return "Index " + juce::String(value / (double)kCentsPerIndex, 2);
+
+        return cents != nullptr ? cents(value) : juce::String(value);
+      };
   setUpKnob(velocity, Role::Velocity, colour);
   setUpKnob(keyboard, Role::Keyboard, colour);
   setUpKnob(aftertouch, Role::Aftertouch, colour);
