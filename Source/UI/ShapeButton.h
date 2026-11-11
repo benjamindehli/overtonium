@@ -17,9 +17,10 @@ public:
   ///                pitch and amplitude. Indexes match the parameter's.
   /// @param suffix  the same control on every other channel, for the entry
   ///                 that sets them all
-  /// @param ownPartial  the channel's partial, 0 to 31, for an amplitude
-  ///                 modulator that can follow another partial, or -1 for one
-  ///                 that offers the shapes alone. See params::ampSourceNames.
+  /// @param ownPartial  the channel's partial, 0 to 31, for a modulator that
+  ///                 can follow another partial, or -1 for one that offers the
+  ///                 shapes alone. The parameter then lists the partials after
+  ///                 the shapes. See params::ampSourceNames.
   ShapeButton(juce::AudioProcessorValueTreeState &state,
               const juce::String &parameterId, const char *suffix,
               juce::Span<const LfoShape> shapes, juce::StringArray shapeNames,
@@ -46,7 +47,8 @@ public:
   int selectedPartial() const;
 
   /// Called when the parameter moves, from wherever it is moved. The strip
-  /// uses it to grey the rate, which a partial has no use for.
+  /// uses it to grey the rate, which a partial has no use for, and to show
+  /// the pitch depth as an index.
   std::function<void()> onChange;
 
   /// Reported to a screen reader, since a glyph has no text of its own.

@@ -621,18 +621,32 @@ juce::StringArray namesOf(const std::array<LfoShape, N> &shapes) {
 juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
 juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
 
-juce::StringArray ampSourceNames() {
-  auto out = ampShapeNames();
-
+namespace {
+/// A modulator's shapes, then each of the partials.
+juce::StringArray withPartials(juce::StringArray names) {
   for (int i = 0; i < kNumHarmonics; ++i)
-    out.add("Partial " + juce::String(i + 1));
+    names.add("Partial " + juce::String(i + 1));
 
-  return out;
+  return names;
 }
 
-int ampSourcePartial(int index) {
-  const auto partial = index - (int)kAmpShapes.size();
+/// The partial a stored index stands for, past @p shapes shapes, or -1.
+int partialPast(int index, size_t shapes) {
+  const auto partial = index - (int)shapes;
   return partial >= 0 && partial < kNumHarmonics ? partial : -1;
+}
+} // namespace
+
+juce::StringArray ampSourceNames() { return withPartials(ampShapeNames()); }
+
+int ampSourcePartial(int index) {
+  return partialPast(index, kAmpShapes.size());
+}
+
+juce::StringArray pitchSourceNames() { return withPartials(pitchShapeNames()); }
+
+int pitchSourcePartial(int index) {
+  return partialPast(index, kPitchShapes.size());
 }
 
 namespace {
@@ -885,7 +899,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
-        p + "Pitch Mod Shape", pitchShapeNames(), 0));
+        p + "Pitch Mod Shape", pitchSourceNames(), 0));
 
     // How long this partial takes to reach a new note, or how long an octave
     // takes under Rate. Off by default. Declared where the removed start phase
@@ -1626,7 +1640,9 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (row.field != nullptr)
         o.*row.field = (c.*row.cached)->load();
 
-    o.pmShape = pitchShapeAt((int)c.pmShape->load());
+    const auto pmIndex = (int)c.pmShape->load();
+    o.pmShape = pitchShapeAt(pmIndex);
+    o.pmSource = pitchSourcePartial(pmIndex);
     // A partial as the source leaves the shape at the last of the shapes,
     // whose LFO still steps underneath, unheard.
     const auto amIndex = (int)c.amShape->load();

@@ -237,13 +237,13 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
 
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
     pitchShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 8;
+        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 40;
     ampShapes +=
         entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 39;
   }
 
   check(pitchShapes == ovt::kNumHarmonics,
-        "every channel's pitch modulator offers 8 shapes (" +
+        "every channel's pitch modulator offers 8 shapes and 32 partials (" +
             std::to_string(pitchShapes) + " of " +
             std::to_string(ovt::kNumHarmonics) + ")");
 
@@ -6445,6 +6445,44 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   p.apvts.getParameter(id)->setValueNotifyingHost(0.0f);
   check(button.selectedPartial() == -1 && strip.getAmRate().isEnabled(),
         "a shape set from outside lights the rate again");
+
+  // The pitch modulator has the same submenu after its eight shapes.
+  auto &pitch = strip.getPmShape();
+  const auto pitchId = oscParamId(ovt::params::pmShapeSuffix, 2);
+  int pitchPartials = 0, partialOne = 0;
+  menu = pitch.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Partial" && it.getItem().subMenu != nullptr)
+      for (juce::PopupMenu::MenuItemIterator sub(*it.getItem().subMenu);
+           sub.next();) {
+        ++pitchPartials;
+        if (sub.getItem().text == "Partial 1")
+          partialOne = sub.getItem().itemID;
+      }
+
+  check(pitchPartials == 31,
+        "the pitch modulator offers the other 31 partials too");
+
+  const auto depthText = [&] {
+    return strip.getPmDepth().getTextFromValue(300.0);
+  };
+
+  check(strip.getPmRate().isEnabled() && depthText().endsWith("ct"),
+        "its rate is live and its depth reads in cents on a shape (" +
+            depthText().toStdString() + ")");
+
+  pitch.chooseFromMenu(partialOne);
+
+  const auto pitchStored =
+      juce::roundToInt(p.apvts.getParameter(pitchId)->convertFrom0to1(
+          p.apvts.getParameter(pitchId)->getValue()));
+
+  check(pitchStored == ovt::params::pitchSourceIndex(0) &&
+            pitch.selectedPartial() == 0 && !strip.getPmRate().isEnabled(),
+        "picking Partial 1 stores it and greys the pitch rate");
+  check(depthText() == "Index 3.00",
+        "and the depth reads as the modulation index (" +
+            depthText().toStdString() + ")");
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }

@@ -37,6 +37,11 @@ inline const char *glideModeName(GlideMode m) {
   return m == GlideMode::Time ? "Fixed time" : "Fixed rate";
 }
 
+/// How a pitch modulator's depth reads while a partial is its source: the
+/// modulation index, a hundredth of the cents the knob stores, so 0 to 12.
+/// See OscParams::pmSource.
+inline constexpr float kCentsPerIndex = 100.0f;
+
 /// A per-block snapshot of one channel strip. Plain data, since the DSP core
 /// does not use JUCE.
 struct OscParams {
@@ -45,6 +50,12 @@ struct OscParams {
   float pmRateHz = 4.0f;
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
+  /// The partial, 0 to 31, whose wave moves this one's phase in place of the
+  /// vibrato, as FM synthesizers do, or -1 for the vibrato. It passes on what
+  /// it passes on as an amplitude source, see amSource. pmDepthCents is then
+  /// read as the modulation index, a hundredth of it, so 0 to 12. The rate is
+  /// not used. Naming itself turns the modulation off.
+  int pmSource = -1;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing locks together.
   float driftCents = 0.0f;

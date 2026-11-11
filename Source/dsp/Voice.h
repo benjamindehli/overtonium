@@ -400,6 +400,11 @@ private:
     /// the last block, so the depth ramps rather than steps.
     float lastRingDepth = 0.0f;
 
+    /// How far another partial's wave was moving this one's phase at the end
+    /// of the last block, in 2^-32 of a turn per unit of the wave, so the
+    /// index ramps rather than steps.
+    float lastPhaseDepth = 0.0f;
+
     /// What this partial passed on as a modulator was scaled by at the end of
     /// the last block: its velocity, aftertouch, KEYBOARD row, tremolo and
     /// half-pedal, everything its level has but the fader and the mute.
