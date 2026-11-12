@@ -160,7 +160,7 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
 
   colourReadout.setJustificationType(juce::Justification::centred);
   colourReadout.setFont(makeFont(10.0f));
-  colourReadout.setColour(juce::Label::textColourId, colours::textDim);
+  colourReadout.setColour(juce::Label::textColourId, captionText);
   colourReadout.setInterceptsMouseClicks(false, false);
   addAndMakeVisible(colourReadout);
   colourReadout.setText("colour", juce::dontSendNotification);
@@ -268,7 +268,7 @@ void NoiseStrip::paint(juce::Graphics &g) {
   // string's knobs carry their own names.
   static const char *const names[] = {"string", "decay", "damp", "point"};
 
-  g.setColour(colours::textDim);
+  g.setColour(captionText);
   g.setFont(makeFont(kStringCaptionFont));
 
   for (size_t i = 0; i < stringCaptions.size(); ++i)

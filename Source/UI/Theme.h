@@ -52,6 +52,11 @@ using dm::ui::strokeGlowing;
 using LinkableSlider = dm::ui::Slider;
 using OvertoniumLookAndFeel = dm::ui::LookAndFeel;
 
+/// The grey captions beside and under the knobs: the row names down the left
+/// and the noise channel's own knob names. Lighter than colours::textDim so
+/// they read easily against the dark channels.
+inline const juce::Colour captionText{0xff9aa2aa};
+
 /// Colour for an interval class, so the eye can group octaves, fifths and
 /// thirds across 32 strips. The twelve classes run in chromatic order along a
 /// band from blue through magenta and red to yellow.
