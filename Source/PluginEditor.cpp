@@ -339,7 +339,7 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
   // The header holds the tool button, which sits in front of this cap. See
   // resized.
   paintChannelBackground(*this, g, getLocalBounds(),
-                         colours::panel.darker(0.25f));
+                         colours::panel.darker(0.37f));
 
   // The right-edge divider too, so the cap does not cover the top of it.
   g.setColour(colours::outline);
@@ -348,7 +348,7 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
 
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(*this, g, getLocalBounds(),
-                         colours::panel.darker(0.25f));
+                         colours::panel.darker(0.37f));
 
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
@@ -378,7 +378,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
     g.setColour(lit ? colours::accent
-                    : (heading ? colours::text : colours::textDim));
+                    : (heading ? colours::text : captionText));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark at the far left of the heading, pointing down when
@@ -406,7 +406,7 @@ void RowGutter::paint(juce::Graphics &g) {
                          cy + kAcross * 0.5f);
 
       // Lit with its own caption, since the two are one control.
-      g.setColour(lit ? colours::accent : colours::textDim);
+      g.setColour(lit ? colours::accent : captionText);
       g.fillPath(mark);
     }
   }
