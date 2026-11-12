@@ -61,8 +61,8 @@ endif()
 # ------------------------------------------------------------------------------------------
 include(FetchContent)
 FetchContent_Declare(dm_plugin_core
-    URL      https://github.com/benjamindehli/dehli-musikk-plugin-core/archive/e51c8eb536f84d749e434082fb5452105141aa69.tar.gz
-    URL_HASH SHA256=a40881bdf7e10f8252d0334350427f653abc0637432e0f03acb87ab4c5a97a2f)
+    URL      https://github.com/benjamindehli/dehli-musikk-plugin-core/archive/18cd09e125bfa28adca09f021c2752d269558c8a.tar.gz
+    URL_HASH SHA256=e5930ad24a480e6bedaa840f7a6c916a68917c2120fca739693b1275f3d1cdd9)
 FetchContent_MakeAvailable(dm_plugin_core)
 
 # ------------------------------------------------------------------------------------------
