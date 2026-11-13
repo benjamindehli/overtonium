@@ -11228,7 +11228,7 @@ void testModulationLoops() {
   // A link at nothing does not decide the order either. Partial 1 ringed by
   // partial 2 plays after it and hears it in the same block. A link back at
   // nothing would otherwise make a loop, which plays partial 1 first and
-  // hears partial 2 a block late.
+  // hears partial 2 a sample late.
   auto chain = makeFlatParams(0.0f);
   chain.osc[0].volume = 0.5f;
   chain.osc[0].amSource = 1;
@@ -11259,6 +11259,38 @@ void testModulationLoops() {
 
   check(sameSamples(play(noisy), play(pitchAtNothing)),
         "nor does a pitch link at no depth");
+
+  // Round a loop the first to play hears the other one sample late, as a
+  // DX7's feedback does, not a block late. Partial 1 ringed by partial 2,
+  // whose fader is down, against the same with a link back from partial 2 at
+  // next to nothing, which makes a loop: partial 1 then plays first each
+  // sample and reads partial 2's last one. Shifting partial 2 by one sample at
+  // 440 Hz changes the product by 2 sin(pi 440 / 48000) of its level, two
+  // samples by twice that, and a block by more than all of it.
+  auto chained = makeFlatParams(0.0f);
+  chained.osc[0].volume = 0.5f;
+  chained.osc[0].amSource = 1;
+  chained.osc[0].amDepth = 1.0f;
+
+  auto looped = chained;
+  looped.osc[1].amSource = 0;
+  looped.osc[1].amDepth = 1.0e-5f;
+
+  const auto inChain = play(chained);
+  const auto inLoop = play(looped);
+
+  std::vector<float> late((size_t)N);
+  for (size_t n = 0; n < (size_t)N; ++n)
+    late[n] = inLoop[n] - inChain[n];
+
+  const auto oneSample = 2.0 * std::sin(3.141592653589793 * 440.0 / sr);
+  const auto shifted =
+      rmsOf(late, 4800, (size_t)N) / rmsOf(inChain, 4800, (size_t)N);
+
+  check(std::abs(shifted / oneSample - 1.0) < 0.1,
+        "round a loop, the first to play hears the other one sample late (" +
+            std::to_string(shifted) + " against " + std::to_string(oneSample) +
+            " for one sample)");
 
   // A loop of two at full depth still sounds to the end rather than
   // multiplying itself away, and so does one at half depth, which now passes
