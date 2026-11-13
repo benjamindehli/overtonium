@@ -332,12 +332,15 @@ private:
   ///
   /// @param source  whether a partial follows it, so it writes its ring even
   ///                while unheard
-  /// @param passesRing  whether what a partial does to it is passed on, which
-  ///                round a loop it is not. See OscParams::amSource.
+  /// @param ringFrom  the partial whose wave multiplies it, or -1 for none or
+  ///                for a link at no depth. See NoiseParams::amSource.
+  /// @param backEnd  how much of that ring a loop keeps out of what it passes
+  ///                on, by the end of the block. See Voice::render.
   /// @param foldAliases  on the lo-fi rate, where folding is wanted
   void renderNoise(float *left, float *right, int len, const SynthParams &,
                    float pressure, const SharedModulation &shared, int block,
-                   bool source, bool passesRing, bool foldAliases) noexcept;
+                   bool source, int ringFrom, float backEnd,
+                   bool foldAliases) noexcept;
 
   /// Adds the leaking wheels on Wheel. foldAliases is true on the lo-fi rate,
   /// where the Nyquist fade is skipped.
@@ -406,6 +409,11 @@ private:
     /// the last block, so the depth ramps rather than steps.
     float lastRingDepth = 0.0f;
 
+    /// How much of that ring a loop was keeping out of what this partial
+    /// passes on at the end of the last block, so it ramps rather than steps.
+    /// See Voice::render.
+    float lastLoopBack = 0.0f;
+
     /// How far another partial's wave was moving this one's phase at the end
     /// of the last block, in 2^-32 of a turn per unit of the wave, so the
     /// index ramps rather than steps.
@@ -459,6 +467,7 @@ private:
     /// The same two as a partial's. See Partial::lastRingDepth and
     /// Partial::lastSourceGain.
     float lastRingDepth = 0.0f;
+    float lastLoopBack = 0.0f;
     float lastSourceGain = -1.0f;
   };
 

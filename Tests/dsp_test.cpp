@@ -11144,6 +11144,148 @@ void testPartialFeedback() {
 /// a partial's target. Noise multiplying a partial spreads it into a band of
 /// noise around its pitch. The string, pitched at the fundamental, moves a
 /// partial in tune as a partial would.
+void testModulationLoops() {
+  section("Links at no depth, and loops");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  const auto rmsOf = [](const std::vector<float> &x, size_t from, size_t to) {
+    double sum = 0.0;
+    for (size_t n = from; n < to; ++n)
+      sum += (double)x[n] * x[n];
+    return std::sqrt(sum / (double)std::max<size_t>(1, to - from));
+  };
+
+  // The patch this was found on: partial 1 feeding back into itself and
+  // taking its amplitude from partial 2, and partial 2 taking its pitch from
+  // partial 1, with some drift. Partial 2's amplitude link is at nothing, so
+  // pointing it at partial 1 must sound the same as pointing it nowhere.
+  auto patch = makeFlatParams(0.0f);
+  patch.osc[0].volume = 0.5f;
+  patch.osc[1].volume = 0.5f;
+  patch.osc[0].pmSource = 0;
+  patch.osc[0].pmDepthCents = 202.0f;
+  patch.osc[0].amSource = 1;
+  patch.osc[0].amDepth = 1.0f;
+  patch.osc[1].pmSource = 0;
+  patch.osc[1].pmDepthCents = 235.0f;
+  patch.osc[1].driftCents = 4.6f;
+
+  const auto unlinked = play(patch);
+
+  auto linked = patch;
+  linked.osc[1].amSource = 0;
+  const auto atNothing = play(linked);
+
+  check(sameSamples(unlinked, atNothing),
+        "an amplitude link at no depth that closes a loop changes nothing, "
+        "sample for sample");
+
+  // Just above nothing it is just above nothing, rather than a different
+  // sound. Before, any depth at all closed the loop and partial 1 stopped
+  // passing on its ring, which changed both partials at once. Measured on a
+  // tamer form of the same patch, since feedback past index 2 is noise, and
+  // noise moved by any amount at all is different noise.
+  auto tame = linked;
+  tame.osc[0].pmDepthCents = 80.0f;
+  tame.osc[1].pmDepthCents = 150.0f;
+  tame.osc[1].driftCents = 0.0f;
+  const auto tameAtNothing = play(tame);
+
+  auto barely = tame;
+  barely.osc[1].amDepth = 0.01f;
+  const auto slight = play(barely);
+
+  std::vector<float> apart((size_t)N);
+  for (size_t n = 0; n < (size_t)N; ++n)
+    apart[n] = slight[n] - tameAtNothing[n];
+
+  const auto change =
+      rmsOf(apart, 0, (size_t)N) / rmsOf(tameAtNothing, 0, (size_t)N);
+  check(change < 0.05, "at 1% depth the sound moves by a little (" +
+                           std::to_string(change) + " of its level)");
+
+  // A link at nothing does not decide the order either. Partial 1 ringed by
+  // partial 2 plays after it and hears it in the same block. A link back at
+  // nothing would otherwise make a loop, which plays partial 1 first and
+  // hears partial 2 a block late.
+  auto chain = makeFlatParams(0.0f);
+  chain.osc[0].volume = 0.5f;
+  chain.osc[0].amSource = 1;
+  chain.osc[0].amDepth = 1.0f;
+  chain.osc[1].volume = 0.5f;
+
+  auto chainBack = chain;
+  chainBack.osc[1].amSource = 0;
+
+  check(sameSamples(play(chain), play(chainBack)),
+        "a link back at no depth keeps the order of a chain");
+
+  // The same between a partial and the noise channel, both ways.
+  auto noisy = makeFlatParams(0.0f);
+  noisy.osc[1].volume = 0.5f;
+  noisy.osc[1].amSource = kNoiseSource;
+  noisy.osc[1].amDepth = 1.0f;
+  noisy.noise.volume = 0.3f;
+
+  auto noisyBack = noisy;
+  noisyBack.noise.amSource = 1;
+
+  check(sameSamples(play(noisy), play(noisyBack)),
+        "the noise channel's link at no depth changes nothing");
+
+  auto pitchAtNothing = noisy;
+  pitchAtNothing.osc[1].pmSource = kNoiseSource;
+
+  check(sameSamples(play(noisy), play(pitchAtNothing)),
+        "nor does a pitch link at no depth");
+
+  // A loop of two at full depth still sounds to the end rather than
+  // multiplying itself away, and so does one at half depth, which now passes
+  // on part of its ring.
+  for (const float depth : {1.0f, 0.5f}) {
+    auto loop = makeFlatParams(0.0f);
+    loop.osc[0].volume = 0.5f;
+    loop.osc[1].volume = 0.5f;
+    loop.osc[0].amSource = 1;
+    loop.osc[1].amSource = 0;
+    loop.osc[0].amDepth = depth;
+    loop.osc[1].amDepth = depth;
+
+    const auto out = play(loop);
+    const auto early = rmsOf(out, 2400, 12000);
+    const auto late = rmsOf(out, 36000, (size_t)N);
+
+    bool finite = true;
+    for (const auto v : out)
+      finite = finite && std::isfinite(v) && std::abs(v) < 2.0f;
+
+    check(finite && early > 0.01 && late > 0.5 * early,
+          "a loop of two at " + std::to_string((int)(depth * 100.0f)) +
+              "% keeps sounding (" + std::to_string(late / early) + ")");
+  }
+}
+
 void testNoiseAsSource() {
   section("The noise channel as a source and a target");
 
@@ -14803,6 +14945,7 @@ int main() {
   testPartialAsPitchSource();
   testPartialFeedback();
   testNoiseAsSource();
+  testModulationLoops();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();
