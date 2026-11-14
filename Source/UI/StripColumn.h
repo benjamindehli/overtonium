@@ -46,9 +46,13 @@ public:
   /// activity lamps on the heading rows paint opaque backdrops.
   void paintOverChildren(juce::Graphics &) override;
 
-  /// Turns the column's lights and screens off when another channel's solo is
-  /// silencing it. Its mute and solo stay lit.
-  void setSilencedByOthers(bool shouldDim);
+  /// Turns the column's lights and screens off when a mute or another
+  /// channel's solo is silencing it. Its mute and solo stay lit.
+  ///
+  /// A silenced channel that @p feedsHeard, modulating one that is heard,
+  /// keeps every light but its fader's and its level's, since its settings
+  /// still change the sound.
+  void setSilencedByOthers(bool shouldDim, bool feedsHeard = false);
 
   /// Whether the pointer is on this column, which is what lights it.
   bool isHovered() const noexcept { return hovered; }
@@ -101,6 +105,12 @@ protected:
   HoverTarget &hover;
 
   bool silenced = false;
+
+  /// Silenced, but modulating a channel that is heard.
+  bool feeding = false;
+
+  /// Whether the knobs, the shapes and the tuning go dark.
+  bool controlsDark() const noexcept { return silenced && !feeding; }
   Row highlighted = kNoRow;
 
   /// Folded groups, set by the editor. Every layout and hit test follows it.

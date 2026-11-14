@@ -7,6 +7,7 @@
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iterator>
 #include <utility>
@@ -1636,6 +1637,52 @@ static_assert(kNumMacroRows == 20,
               "macroField has a case per row and has to grow with the list");
 
 } // namespace
+
+Cache::ChannelFlags Cache::feedingHeard(const ChannelFlags &heard) const {
+  // Where each channel takes its modulation from, by amplitude and by pitch,
+  // or -1. Following itself is feedback, which feeds nothing else.
+  std::array<std::array<int, 2>, kNumHarmonics + 1> from{};
+
+  const auto live = [](int source, std::atomic<float> *depth, int at) {
+    return source >= 0 && source != at && depth->load() > 0.0f ? source : -1;
+  };
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    const auto &c = osc[(size_t)i];
+    from[(size_t)i] = {
+        live(ampSourcePartial((int)c.amShape->load()), c.amDepth, i),
+        live(pitchSourcePartial((int)c.pmShape->load()), c.pmDepth, i)};
+  }
+
+  // The noise channel's list holds the partials only, and it has no pitch.
+  from[kNoiseSource] = {
+      live(std::min(ampSourcePartial((int)noise.amShape->load()),
+                    kNumHarmonics - 1),
+           noise.amDepth, kNoiseSource),
+      -1};
+
+  // Back from every channel that is heard, until nothing more is reached.
+  ChannelFlags feeding{};
+
+  for (bool reached = true; reached;) {
+    reached = false;
+
+    for (size_t at = 0; at < from.size(); ++at) {
+      if (!heard[at] && !feeding[at])
+        continue;
+
+      for (const int source : from[at]) {
+        if (source < 0 || heard[(size_t)source] || feeding[(size_t)source])
+          continue;
+
+        feeding[(size_t)source] = true;
+        reached = true;
+      }
+    }
+  }
+
+  return feeding;
+}
 
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // Solo spans the noise channel too.

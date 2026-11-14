@@ -445,9 +445,10 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  // A channel silenced by another's solo has nothing sounding to report, so
-  // its cells go dark.
-  tuneReadout.setReading(text, !silenced);
+  // A channel silenced by a mute or another's solo has nothing sounding to
+  // report, so its cells go dark. One that modulates a channel that is heard
+  // still sets that sound's pitch, so it keeps them.
+  tuneReadout.setReading(text, !controlsDark());
 }
 
 void ChannelStrip::updateLevelReadout() {

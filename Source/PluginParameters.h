@@ -514,6 +514,14 @@ struct Cache {
 
   /// Whether legato is on, from its switch or the old Legato choice.
   bool legatoValue() const;
+
+  /// One flag for each partial and, at kNoiseSource, the noise channel.
+  using ChannelFlags = std::array<bool, kNumHarmonics + 1>;
+
+  /// The channels that are not heard themselves but modulate one that is,
+  /// directly or along a chain of others, given which channels are heard. A
+  /// link at no depth is no link, as in the voice.
+  ChannelFlags feedingHeard(const ChannelFlags &heard) const;
 };
 
 /// The voice count each polyphony choice allows, in parameter order. The

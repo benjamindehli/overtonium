@@ -6424,6 +6424,22 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   check(!ringLit(strip.getAmRate()) && ringLit(strip.getPmRate()),
         "and a mute or solo let go relights the rest but leaves the rate dark");
 
+  // Muted, but modulating a channel that is heard.
+  juce::Slider *stripFader = nullptr;
+  for (auto *s : descendantsOf<juce::Slider>(strip))
+    if (s->getSliderStyle() == juce::Slider::LinearVertical)
+      stripFader = s;
+
+  strip.setSilencedByOthers(true, true);
+  check(stripFader != nullptr && ringLit(strip.getPmRate()) &&
+            !ringLit(*stripFader) && !ringLit(strip.getAmRate()),
+        "a muted channel feeding one that is heard keeps its knobs lit, but "
+        "not its fader or the idle rate");
+  strip.setSilencedByOthers(true, false);
+  check(!ringLit(strip.getPmRate()),
+        "and they go dark once it feeds nothing that is heard");
+  strip.setSilencedByOthers(false);
+
   bool tickedNow = false, fiveTicked = false;
   bool everyEnabled = true;
   menu = button.buildMenu();
@@ -6549,6 +6565,64 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   for (int i = 0; i < ovt::kNumHarmonics; ++i)
     everyOwn = everyOwn && storedPitch(i) == ovt::params::pitchSourceIndex(i);
   check(everyOwn, "setting every channel to Feedback gives each its own");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// Which silenced channels still modulate one that is heard, and so keep
+/// their lights.
+void testFeedingHeard(OvertoniumProcessor &p) {
+  section("Channels that feed one that is heard");
+
+  using ovt::params::oscParamId;
+  using namespace ovt::params;
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    auto *param = p.apvts.getParameter(id);
+    param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // 2 rings from 1, 3 is moved by 2, 5 rings from the noise channel, and the
+  // noise channel rings from 6.
+  set(oscParamId(amShapeSuffix, 1), (float)ampSourceIndex(0));
+  set(oscParamId(amDepthSuffix, 1), 0.5f);
+  set(oscParamId(pmShapeSuffix, 2), (float)pitchSourceIndex(1));
+  set(oscParamId(pmDepthSuffix, 2), 300.0f);
+  set(oscParamId(amShapeSuffix, 4), (float)ampSourceIndex(ovt::kNoiseSource));
+  set(oscParamId(amDepthSuffix, 4), 0.5f);
+  set(noiseParamId(amShapeSuffix), (float)ampSourceIndex(5));
+  set(noiseParamId(amDepthSuffix), 0.5f);
+
+  Cache::ChannelFlags heard{};
+  heard.fill(false);
+  heard[2] = true;
+
+  auto feeding = p.parameters().feedingHeard(heard);
+  check(feeding[1] && feeding[0] && !feeding[2] && !feeding[3],
+        "with only 3 heard, 2 and 1 feed it along the chain");
+  check(!feeding[4] && !feeding[ovt::kNoiseSource] && !feeding[5],
+        "and the noise channel and 6, feeding only 5, do not");
+
+  heard[4] = true;
+  feeding = p.parameters().feedingHeard(heard);
+  check(feeding[ovt::kNoiseSource] && feeding[5],
+        "with 5 heard as well, so do the noise channel and 6 through it");
+
+  set(oscParamId(amDepthSuffix, 1), 0.0f);
+  feeding = p.parameters().feedingHeard(heard);
+  check(feeding[1] && !feeding[0],
+        "a link at no depth feeds nothing, as in the voice");
+
+  set(oscParamId(amShapeSuffix, 1), (float)ampSourceIndex(1));
+  set(oscParamId(amDepthSuffix, 1), 0.5f);
+  heard.fill(false);
+  feeding = p.parameters().feedingHeard(heard);
+  bool none = true;
+  for (const bool f : feeding)
+    none = none && !f;
+  check(none, "with nothing heard, nothing feeds");
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
 }
@@ -14562,6 +14636,7 @@ int main(int argc, char **argv) {
   testSetEveryChannelTo(processor);
   testAmpFromAPartial(processor);
   testNoiseAsSource(processor);
+  testFeedingHeard(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);

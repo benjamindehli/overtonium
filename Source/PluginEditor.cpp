@@ -2072,15 +2072,25 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics && !anySolo; ++i)
     anySolo = on(cache.osc[(size_t)i].solo);
 
+  ovt::params::Cache::ChannelFlags heard{};
+
   for (int i = 0; i < kNumHarmonics; ++i) {
     const auto &osc = cache.osc[(size_t)i];
-    const bool audible = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
-
-    strips[(size_t)i]->setSilencedByOthers(!audible);
+    heard[(size_t)i] = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
   }
 
-  noiseStrip.setSilencedByOthers(
-      on(cache.noise.mute) ? true : (anySolo && !on(cache.noise.solo)));
+  heard[kNoiseSource] =
+      on(cache.noise.mute) ? false : (!anySolo || on(cache.noise.solo));
+
+  // A silenced channel that still modulates one that is heard keeps its
+  // lights, since its settings still change the sound.
+  const auto feeding = cache.feedingHeard(heard);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    strips[(size_t)i]->setSilencedByOthers(!heard[(size_t)i],
+                                           feeding[(size_t)i]);
+
+  noiseStrip.setSilencedByOthers(!heard[kNoiseSource], feeding[kNoiseSource]);
 }
 
 // =============================================================================

@@ -201,6 +201,8 @@ Channels are coloured by interval class, in chromatic order along a narrow range
 
 A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings, both readouts and the macro columns beside its fader go dark, and its waveform screens switch off. The pointer on each knob and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
 
+A silenced channel that still modulates one you can hear, directly or along a chain, keeps its knobs, its tuning readout and its waveform screens lit, since its settings still change the sound. Only its fader and its level readout go dark, since only its own output is off. A link at no depth does not count.
+
 ### Folding the mixer down
 
 Clicking a section heading in the caption gutter folds that group of rows away on every channel at once. Clicking that section's rule on any strip does the same, so you do not have to move to the gutter and then find the partial you were working on again. Pointing at a rule shows the same hand pointer as a heading and lights that section's caption and its disclosure mark, so you can see what the click would fold before you click. The window shrinks by exactly the height of those rows. Pitch modulation, envelope, key off, amp mod and output can each be folded. The tuning at the top and the faders at the bottom always stay. A folded heading keeps its activity lamp, so a hidden group still shows whether it is doing anything. The fold state is saved with the session, not with the patch.

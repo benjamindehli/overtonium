@@ -130,11 +130,14 @@ void StripColumn::setHighlightedRow(Row row) {
   repaintRowHighlight(*this, rows, highlighted);
 }
 
-void StripColumn::setSilencedByOthers(bool shouldDim) {
-  if (silenced == shouldDim)
+void StripColumn::setSilencedByOthers(bool shouldDim, bool feedsHeard) {
+  const bool shouldFeed = shouldDim && feedsHeard;
+
+  if (silenced == shouldDim && feeding == shouldFeed)
     return;
 
   silenced = shouldDim;
+  feeding = shouldFeed;
 
   // Turns the controls' lights off rather than dimming the whole column, so
   // the mute and solo stay readable.
@@ -145,13 +148,17 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
         continue;
 
       // Sliders and the waveform displays carry colour of their own. The meters
-      // and the lamps get nothing to show on a silenced channel.
+      // and the lamps get nothing to show on a silenced channel. A channel
+      // feeding one that is heard keeps every light but its fader's, since
+      // only its own output is off.
       if (dynamic_cast<juce::Slider *>(child) != nullptr ||
           dynamic_cast<ShapeButton *>(child) != nullptr) {
+        const bool dark = child == &fader() ? silenced : controlsDark();
+
         // An idle knob stays dark when the channel comes back.
         child->getProperties().set(
-            "unlit", silenced || (bool)child->getProperties().getWithDefault(
-                                     "idle", false));
+            "unlit",
+            dark || (bool)child->getProperties().getWithDefault("idle", false));
         child->repaint();
       }
 
@@ -167,7 +174,7 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
 
 void StripColumn::setIdle(juce::Slider &knob, bool idle) {
   knob.getProperties().set("idle", idle);
-  knob.getProperties().set("unlit", silenced || idle);
+  knob.getProperties().set("unlit", controlsDark() || idle);
   knob.repaint();
 }
 
