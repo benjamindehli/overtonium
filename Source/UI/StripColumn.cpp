@@ -148,7 +148,10 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
       // and the lamps get nothing to show on a silenced channel.
       if (dynamic_cast<juce::Slider *>(child) != nullptr ||
           dynamic_cast<ShapeButton *>(child) != nullptr) {
-        child->getProperties().set("unlit", silenced);
+        // An idle knob stays dark when the channel comes back.
+        child->getProperties().set(
+            "unlit", silenced || (bool)child->getProperties().getWithDefault(
+                                     "idle", false));
         child->repaint();
       }
 
@@ -160,6 +163,12 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
 
   silenceChanged();
   repaint();
+}
+
+void StripColumn::setIdle(juce::Slider &knob, bool idle) {
+  knob.getProperties().set("idle", idle);
+  knob.getProperties().set("unlit", silenced || idle);
+  knob.repaint();
 }
 
 juce::Colour StripColumn::backdropAt(int y) const {

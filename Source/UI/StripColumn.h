@@ -75,6 +75,11 @@ protected:
   /// lamp that paints an opaque backdrop.
   juce::Colour backdropAt(int y) const;
 
+  /// Turns a knob's lights off while its setting has no effect, the way a
+  /// silenced channel's are. Unlike a disabled knob, it stays at full
+  /// strength and can still be turned.
+  void setIdle(juce::Slider &, bool idle);
+
   /// The level a fader's gain reads as, -inF at the bottom.
   static juce::String levelReading(float gain);
 

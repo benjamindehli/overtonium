@@ -262,14 +262,14 @@ ChannelStrip::ChannelStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amRate, Role::AmRate, colour);
   setUpKnob(amDepth, Role::AmDepth, colour);
 
-  // A partial as the source sets its own rate, so the knob greys out.
+  // A partial as the source sets its own rate, so the knob's lights go off.
   amShape.onChange = [this] {
-    amRate.setEnabled(amShape.selectedPartial() < 0);
+    setIdle(amRate, amShape.selectedPartial() >= 0);
   };
   amShape.onChange();
 
   pmShape.onChange = [this] {
-    pmRate.setEnabled(pmShape.selectedPartial() < 0);
+    setIdle(pmRate, pmShape.selectedPartial() >= 0);
   };
   pmShape.onChange();
 
