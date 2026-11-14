@@ -1638,10 +1638,8 @@ static_assert(kNumMacroRows == 20,
 
 } // namespace
 
-Cache::ChannelFlags Cache::feedingHeard(const ChannelFlags &heard) const {
-  // Where each channel takes its modulation from, by amplitude and by pitch,
-  // or -1. Following itself is feedback, which feeds nothing else.
-  std::array<std::array<int, 2>, kNumHarmonics + 1> from{};
+Cache::Sources Cache::modulationSources() const {
+  Sources from{};
 
   const auto live = [](int source, std::atomic<float> *depth, int at) {
     return source >= 0 && source != at && depth->load() > 0.0f ? source : -1;
@@ -1661,6 +1659,11 @@ Cache::ChannelFlags Cache::feedingHeard(const ChannelFlags &heard) const {
            noise.amDepth, kNoiseSource),
       -1};
 
+  return from;
+}
+
+Cache::ChannelFlags Cache::feedingHeard(const Sources &from,
+                                        const ChannelFlags &heard) {
   // Back from every channel that is heard, until nothing more is reached.
   ChannelFlags feeding{};
 

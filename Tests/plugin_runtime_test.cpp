@@ -6595,30 +6595,41 @@ void testFeedingHeard(OvertoniumProcessor &p) {
   set(noiseParamId(amShapeSuffix), (float)ampSourceIndex(5));
   set(noiseParamId(amDepthSuffix), 0.5f);
 
+  const auto sources = p.parameters().modulationSources();
+  check(sources[1][0] == 0 && sources[1][1] == -1 && sources[2][0] == -1 &&
+            sources[2][1] == 1 && sources[4][0] == ovt::kNoiseSource &&
+            sources[ovt::kNoiseSource][0] == 5 &&
+            sources[ovt::kNoiseSource][1] == -1 && sources[0][0] == -1,
+        "each channel's sources are read by amplitude and then by pitch, the "
+        "noise channel's among them, which mark the channels that modulate");
+
   Cache::ChannelFlags heard{};
   heard.fill(false);
   heard[2] = true;
 
-  auto feeding = p.parameters().feedingHeard(heard);
+  auto feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
   check(feeding[1] && feeding[0] && !feeding[2] && !feeding[3],
         "with only 3 heard, 2 and 1 feed it along the chain");
   check(!feeding[4] && !feeding[ovt::kNoiseSource] && !feeding[5],
         "and the noise channel and 6, feeding only 5, do not");
 
   heard[4] = true;
-  feeding = p.parameters().feedingHeard(heard);
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
   check(feeding[ovt::kNoiseSource] && feeding[5],
         "with 5 heard as well, so do the noise channel and 6 through it");
 
   set(oscParamId(amDepthSuffix, 1), 0.0f);
-  feeding = p.parameters().feedingHeard(heard);
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
   check(feeding[1] && !feeding[0],
         "a link at no depth feeds nothing, as in the voice");
 
   set(oscParamId(amShapeSuffix, 1), (float)ampSourceIndex(1));
   set(oscParamId(amDepthSuffix, 1), 0.5f);
+  check(p.parameters().modulationSources()[1][0] == -1,
+        "following itself for amplitude is no source");
+
   heard.fill(false);
-  feeding = p.parameters().feedingHeard(heard);
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
   bool none = true;
   for (const bool f : feeding)
     none = none && !f;

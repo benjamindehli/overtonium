@@ -335,8 +335,14 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   constexpr float stroke = 1.6f;
   const auto area = outline.getBounds().reduced(0.0f, stroke * 0.5f);
 
-  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  drawNoiseTrace(g, area, hovered ? colours::accent : colours::text, stroke);
+  // Accent when hovered, the same as a numbered channel, and its own colour
+  // when linked to the one that is. See ChannelStrip.
+  drawNoiseTrace(g, area,
+                 hovered  ? colours::accent
+                 : linked ? colour
+                          : colours::text,
+                 stroke);
+  paintModulationMark(g, area, colour);
 }
 
 void NoiseStrip::resized() {

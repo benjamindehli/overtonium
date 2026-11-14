@@ -659,13 +659,29 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
   const auto header = rows[rowIndex(Row::Header)];
 
   // Accent when the pointer is on this channel, and mixed towards the accent
-  // by how much of a LINK drag the channel would take.
-  g.setColour(hovered
-                  ? colours::accent
-                  : colours::text.interpolatedWith(colours::accent, linkReach));
-  g.setFont(makeFont(14.0f, true));
-  g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
-             false);
+  // by how much of a LINK drag the channel would take. A channel linked by
+  // modulation to the one under the pointer lights in its own colour, apart
+  // from both.
+  const auto ink =
+      hovered ? colours::accent
+      : linkReach <= 0.0f && linked
+          ? colour
+          : colours::text.interpolatedWith(colours::accent, linkReach);
+  const auto font = makeFont(14.0f, true);
+  const auto number = juce::String(info.harmonic);
+
+  g.setColour(ink);
+  g.setFont(font);
+  g.drawText(number, header, juce::Justification::centred, false);
+
+  // The number's ink, which the mark sits against.
+  juce::GlyphArrangement glyphs;
+  glyphs.addFittedText(font, number, (float)header.getX(), (float)header.getY(),
+                       (float)header.getWidth(), (float)header.getHeight(),
+                       juce::Justification::centred, 1);
+  juce::Path outline;
+  glyphs.createPath(outline);
+  paintModulationMark(g, outline.getBounds(), colour);
 
   // A bar under the number for a selected channel.
   if (selected) {

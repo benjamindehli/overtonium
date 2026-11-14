@@ -109,6 +109,7 @@ private:
   HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
+  void repaintHeader() override { headerCap.repaint(); }
 
   /// When the last click on this strip happened, so the same click arriving a
   /// second time cannot act twice. See mouseDown.

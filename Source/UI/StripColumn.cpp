@@ -93,6 +93,7 @@ void StripColumn::reportHover(const juce::MouseEvent &e) {
   if (inside != hovered) {
     hovered = inside;
     repaint();
+    hover.columnHoverChanged();
   }
 }
 
@@ -106,6 +107,7 @@ void StripColumn::clearHover() {
   if (hovered) {
     hovered = false;
     repaint();
+    hover.columnHoverChanged();
   }
 }
 
@@ -176,6 +178,41 @@ void StripColumn::setIdle(juce::Slider &knob, bool idle) {
   knob.getProperties().set("idle", idle);
   knob.getProperties().set("unlit", controlsDark() || idle);
   knob.repaint();
+}
+
+void StripColumn::setModulationMarks(bool modulatesOther,
+                                     bool linkedToHovered) {
+  if (modulates == modulatesOther && linked == linkedToHovered)
+    return;
+
+  modulates = modulatesOther;
+  linked = linkedToHovered;
+  repaintHeader();
+}
+
+void StripColumn::paintModulationMark(juce::Graphics &g,
+                                      juce::Rectangle<float> number,
+                                      juce::Colour colour) const {
+  // A small round lamp up at the number's top right, mounted in a hole like
+  // the lamps on the section rules, and lit while this channel modulates
+  // another. Unlit is the channel colour held down low, as theirs is.
+  constexpr float diameter = 5.0f;
+  const auto lamp = juce::Rectangle<float>(diameter, diameter)
+                        .withCentre({number.getRight() + 1.5f + diameter * 0.5f,
+                                     number.getY() + diameter * 0.5f - 0.5f});
+
+  paintRecess(g, lamp, diameter * 0.5f);
+
+  if (modulates) {
+    g.setColour(colour.withAlpha(0.10f));
+    g.fillEllipse(lamp.expanded(diameter * 0.42f));
+
+    g.setColour(colour.withAlpha(0.12f));
+    g.fillEllipse(lamp.expanded(diameter * 0.18f));
+  }
+
+  g.setColour(colour.withAlpha(modulates ? 1.0f : 0.16f));
+  g.fillEllipse(lamp);
 }
 
 juce::Colour StripColumn::backdropAt(int y) const {

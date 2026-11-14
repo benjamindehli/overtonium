@@ -437,6 +437,10 @@ struct HoverTarget {
   /// @param stripIndex  the partial under the pointer, or -1 for the noise
   ///                    channel, which sits outside the series.
   virtual void hoverChanged(int stripIndex, Row row) = 0;
+
+  /// Called when the pointer arrives on a column or leaves it, the noise
+  /// channel's included. See StripColumn::isHovered.
+  virtual void columnHoverChanged() {}
 };
 
 /// An opaque lid over a column's pinned header, so a control scrolled under
