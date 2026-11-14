@@ -25,9 +25,10 @@ bool ownRow(Row r) {
          r == Row::PmDepth || r == Row::Drift || r == Row::Glide;
 }
 
-/// A neutral grey, outside the interval palette, since noise is not part of
-/// the harmonic series.
-const juce::Colour kNoiseColour{0xff9aa4b0};
+/// A warm white, like an incandescent bulb, outside the interval palette since
+/// noise is not part of the harmonic series. Kept pale enough that it is not
+/// taken for one of the partials' oranges or yellows.
+const juce::Colour kNoiseColour{0xffc2b8a6};
 } // namespace
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
