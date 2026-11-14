@@ -445,9 +445,10 @@ void ChannelStrip::updateTuneReadout() {
         std::abs(cents) < 0.05 ? juce::String("0.0") : juce::String(cents, 1);
   }
 
-  // A channel silenced by another's solo has nothing sounding to report, so
-  // its cells go dark.
-  tuneReadout.setReading(text, !silenced);
+  // A channel silenced by a mute or another's solo has nothing sounding to
+  // report, so its cells go dark. One that modulates a channel that is heard
+  // still sets that sound's pitch, so it keeps them.
+  tuneReadout.setReading(text, !controlsDark());
 }
 
 void ChannelStrip::updateLevelReadout() {
@@ -466,6 +467,11 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   // dropped.
   const bool echoOfTheSameClick = e.eventTime == lastClick;
   lastClick = e.eventTime;
+
+  // A shape screen opens its menu on a plain click, and the menu takes the
+  // pointer away as the right-click one does, so the hover is let go now.
+  if (dynamic_cast<const ShapeButton *>(e.originalComponent) != nullptr)
+    clearHover();
 
   // The command key on the channel's number picks the channel, for the
   // Selected scope. Only on the number, since on a knob that key asks for fine
@@ -657,14 +663,30 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
 
   const auto header = rows[rowIndex(Row::Header)];
 
-  // Accent when the pointer is on this channel, and mixed towards the accent
-  // by how much of a LINK drag the channel would take.
-  g.setColour(hovered
-                  ? colours::accent
-                  : colours::text.interpolatedWith(colours::accent, linkReach));
-  g.setFont(makeFont(14.0f, true));
-  g.drawText(juce::String(info.harmonic), header, juce::Justification::centred,
-             false);
+  // Accent when the pointer is on this channel or on one in a loop with it,
+  // and mixed towards the accent by how much of a LINK drag the channel would
+  // take. A channel linked by modulation to the one under the pointer lights
+  // in its own colour, apart from both.
+  const auto ink =
+      hovered || looped ? colours::accent
+      : linkReach <= 0.0f && linked
+          ? colour
+          : colours::text.interpolatedWith(colours::accent, linkReach);
+  const auto font = makeFont(14.0f, true);
+  const auto number = juce::String(info.harmonic);
+
+  g.setColour(ink);
+  g.setFont(font);
+  g.drawText(number, header, juce::Justification::centred, false);
+
+  // The number's ink, which the mark sits against.
+  juce::GlyphArrangement glyphs;
+  glyphs.addFittedText(font, number, (float)header.getX(), (float)header.getY(),
+                       (float)header.getWidth(), (float)header.getHeight(),
+                       juce::Justification::centred, 1);
+  juce::Path outline;
+  glyphs.createPath(outline);
+  paintModulationMark(g, outline.getBounds(), colour);
 
   // A bar under the number for a selected channel.
   if (selected) {

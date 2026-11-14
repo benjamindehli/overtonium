@@ -2072,15 +2072,71 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics && !anySolo; ++i)
     anySolo = on(cache.osc[(size_t)i].solo);
 
+  ovt::params::Cache::ChannelFlags heard{};
+
   for (int i = 0; i < kNumHarmonics; ++i) {
     const auto &osc = cache.osc[(size_t)i];
-    const bool audible = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
-
-    strips[(size_t)i]->setSilencedByOthers(!audible);
+    heard[(size_t)i] = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
   }
 
-  noiseStrip.setSilencedByOthers(
-      on(cache.noise.mute) ? true : (anySolo && !on(cache.noise.solo)));
+  heard[kNoiseSource] =
+      on(cache.noise.mute) ? false : (!anySolo || on(cache.noise.solo));
+
+  // A silenced channel that still modulates one that is heard keeps its
+  // lights, since its settings still change the sound.
+  modulation = cache.modulationSources();
+  const auto feeding = ovt::params::Cache::feedingHeard(modulation, heard);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    strips[(size_t)i]->setSilencedByOthers(!heard[(size_t)i],
+                                           feeding[(size_t)i]);
+
+  noiseStrip.setSilencedByOthers(!heard[kNoiseSource], feeding[kNoiseSource]);
+
+  updateModulationMarks();
+}
+
+void OvertoniumEditor::columnHoverChanged() { updateModulationMarks(); }
+
+void OvertoniumEditor::updateModulationMarks() {
+  auto column = [this](int at) -> ovt::ui::StripColumn & {
+    if (at == kNoiseSource)
+      return noiseStrip;
+    return *strips[(size_t)at];
+  };
+
+  int pointed = -1;
+  for (int at = 0; at <= kNoiseSource && pointed < 0; ++at)
+    if (column(at).isHovered())
+      pointed = at;
+
+  ovt::params::Cache::ChannelFlags modulates{}, linked{};
+
+  for (int at = 0; at <= kNoiseSource; ++at) {
+    for (const int source : modulation[(size_t)at]) {
+      if (source < 0)
+        continue;
+
+      modulates[(size_t)source] = true;
+
+      // Either way: the one under the pointer and what it takes from, or what
+      // takes from it.
+      if (at == pointed)
+        linked[(size_t)source] = true;
+      if (source == pointed)
+        linked[(size_t)at] = true;
+    }
+  }
+
+  // The loops, and the one the channel under the pointer is in.
+  const auto loops = ovt::params::Cache::loopsOf(modulation);
+  const int pointedLoop = pointed >= 0 ? loops[(size_t)pointed] : -1;
+
+  for (int at = 0; at <= kNoiseSource; ++at) {
+    const int loop = loops[(size_t)at];
+    column(at).setModulationMarks(modulates[(size_t)at], linked[(size_t)at],
+                                  loop >= 0 && loop == pointedLoop);
+  }
 }
 
 // =============================================================================

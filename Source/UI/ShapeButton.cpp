@@ -26,7 +26,7 @@ constexpr int kInPhase = 1001;
 /// The first id of the "Set every channel to" submenu, one per shape after it.
 constexpr int kEveryChannelTo = 2000;
 
-/// The first id of the "Partial" submenu, one per partial after it.
+/// The first id of the partials in the "Channel" submenu, one per partial.
 constexpr int kPartialFrom = 3000;
 
 /// Following its own partial, and setting every channel to follow its own.
@@ -142,9 +142,15 @@ ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
       offered(shapes), names(std::move(shapeNames)) {
   setWantsKeyboardFocus(false);
 
+  // Drawn over the button, which still takes every click.
+  sourceDigits.setInterceptsMouseClicks(false, false);
+  addChildComponent(sourceDigits);
+  showSource();
+
   if (auto *param = apvts.getParameter(id))
     attachment =
         std::make_unique<juce::ParameterAttachment>(*param, [this](float) {
+          showSource();
           repaint();
 
           if (onChange != nullptr)
@@ -210,7 +216,37 @@ void ShapeButton::paint(juce::Graphics &g) {
               [this](juce::Graphics &into) { paintShape(into); });
 }
 
+void ShapeButton::resized() {
+  // The display's own recess sits a pixel inside its bounds, so this puts it
+  // where the button draws its screen.
+  sourceDigits.setBounds(getLocalBounds().reduced(2, 1));
+}
+
+void ShapeButton::showSource() {
+  const auto partial = selectedPartial();
+  const bool digits = partial >= 0 && partial != kNoiseSource;
+
+  sourceDigits.setVisible(digits);
+
+  if (!digits)
+    return;
+
+  // Seven bars have no B, so feedback shows as an F and an 8, which is how a
+  // B looks on them.
+  sourceDigits.setLampColour(intervalColour(harmonic(partial).pitchClass));
+  sourceDigits.setReading(
+      feedsBack() ? juce::String("F8") : juce::String(partial + 1),
+      !(bool)getProperties().getWithDefault("unlit", false));
+}
+
 void ShapeButton::paintShape(juce::Graphics &g) {
+  // Lit or dark with the rest of the channel, which only sets a property.
+  showSource();
+
+  // The source's number is a display of its own. See showSource.
+  if (sourceDigits.isVisible())
+    return;
+
   const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
 
   paintRecess(g, area, 2.0f);
@@ -223,36 +259,13 @@ void ShapeButton::paintShape(juce::Graphics &g) {
 
   const auto ink = colours::accent.withAlpha(hovered ? 1.0f : 0.88f);
 
-  // Following a partial, which has no shape to draw: a times sign and the
-  // partial's number, since its wave multiplies this one. Following its own,
-  // FB for feedback.
-  if (const auto partial = selectedPartial(); partial >= 0) {
-    g.setColour(ink);
-    g.setFont(makeFont(juce::jmin(11.0f, area.getHeight() * 0.8f), true));
-
-    // Following the noise channel: the times sign, then its mark, the
-    // trace that stands in for its number.
-    if (partial == kNoiseSource) {
-      const auto times = juce::String::fromUTF8("\xc3\x97");
-      const auto timesWidth =
-          juce::GlyphArrangement::getStringWidth(g.getCurrentFont(), times);
-      const auto markWidth = area.getHeight() * 1.1f;
-      auto line = area.withSizeKeepingCentre(timesWidth + 2.0f + markWidth,
-                                             area.getHeight());
-
-      g.drawText(times, line.removeFromLeft(timesWidth),
-                 juce::Justification::centred, false);
-      line.removeFromLeft(2.0f);
-      drawNoiseTrace(
-          g, line.withSizeKeepingCentre(markWidth, area.getHeight() * 0.45f),
-          ink, 1.2f);
-      return;
-    }
-
-    g.drawText(feedsBack() ? juce::String("FB")
-                           : juce::String::fromUTF8("\xc3\x97") +
-                                 juce::String(partial + 1),
-               area, juce::Justification::centred, false);
+  // Following the noise channel: its trace, the mark that stands in for its
+  // number at the head of its strip, in its colour.
+  if (selectedPartial() == kNoiseSource) {
+    const auto markWidth = area.getHeight() * 1.1f;
+    drawNoiseTrace(
+        g, area.withSizeKeepingCentre(markWidth, area.getHeight() * 0.45f),
+        noiseColour.withAlpha(hovered ? 1.0f : 0.88f), 1.2f);
     return;
   }
 
@@ -270,27 +283,31 @@ juce::PopupMenu ShapeButton::buildMenu() const {
   for (int i = 0; i < (int)offered.size(); ++i)
     m.addItem(i + 1, names[i], true, i == current);
 
-  // Another partial's wave, on a channel that can follow one. Every partial
-  // but this one.
+  // Another channel's wave, on a channel that can follow one: every partial,
+  // then the noise channel. A partial's own place in the list is Feedback
+  // where that is offered, and otherwise stays, unavailable, so the list
+  // always lines up with the channel numbers.
   if (partialOf >= 0) {
-    juce::PopupMenu partials;
+    juce::PopupMenu channels;
 
-    for (int j = 0; j < kNumHarmonics; ++j)
+    for (int j = 0; j < kNumHarmonics; ++j) {
       if (j != partialOf)
-        partials.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
+        channels.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
                          true, j == partial);
+      else if (feedbackOffered)
+        channels.addItem(kFeedback, "Feedback", true, feedback);
+      else
+        channels.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
+                         false, false);
+    }
 
-    m.addSubMenu("Partial", partials, true, nullptr,
-                 partial >= 0 && partial < kNoiseSource && !feedback);
+    if (offersNoise()) {
+      channels.addSeparator();
+      channels.addItem(kNoise, "Noise", true, partial == kNoiseSource);
+    }
+
+    m.addSubMenu("Channel", channels, true, nullptr, partial >= 0);
   }
-
-  // The noise channel, on a partial's channel.
-  if (offersNoise())
-    m.addItem(kNoise, "Noise", true, partial == kNoiseSource);
-
-  // Its own wave, where that is offered.
-  if (feedbackOffered)
-    m.addItem(kFeedback, "Feedback", true, feedback);
 
   // LINK cannot reach this control, so the menu sets every channel instead,
   // either to this channel's shape or to any shape without choosing it here
@@ -401,6 +418,10 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
 
   if (apvts.getParameter(id) == nullptr)
     return;
+
+  // The menu takes the pointer, and this screen is not told it left.
+  hovered = false;
+  repaint();
 
   auto m = buildMenu();
   m.setLookAndFeel(&getLookAndFeel());

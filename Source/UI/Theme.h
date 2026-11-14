@@ -57,6 +57,12 @@ using OvertoniumLookAndFeel = dm::ui::LookAndFeel;
 /// they read easily against the dark channels.
 inline const juce::Colour captionText{0xff9aa2aa};
 
+/// The noise channel's colour: a warm white, like an incandescent bulb,
+/// outside the interval palette since noise is not part of the harmonic
+/// series. Kept pale enough that it is not taken for one of the partials'
+/// oranges or yellows.
+inline const juce::Colour noiseColour{0xffc2b8a6};
+
 /// Colour for an interval class, so the eye can group octaves, fifths and
 /// thirds across 32 strips. The twelve classes run in chromatic order along a
 /// band from blue through magenta and red to yellow.
@@ -437,6 +443,10 @@ struct HoverTarget {
   /// @param stripIndex  the partial under the pointer, or -1 for the noise
   ///                    channel, which sits outside the series.
   virtual void hoverChanged(int stripIndex, Row row) = 0;
+
+  /// Called when the pointer arrives on a column or leaves it, the noise
+  /// channel's included. See StripColumn::isHovered.
+  virtual void columnHoverChanged() {}
 };
 
 /// An opaque lid over a column's pinned header, so a control scrolled under

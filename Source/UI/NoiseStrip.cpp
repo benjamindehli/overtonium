@@ -25,15 +25,12 @@ bool ownRow(Row r) {
          r == Row::PmDepth || r == Row::Drift || r == Row::Glide;
 }
 
-/// A neutral grey, outside the interval palette, since noise is not part of
-/// the harmonic series.
-const juce::Colour kNoiseColour{0xff9aa4b0};
 } // namespace
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
     : StripColumn(hoverTarget), apvts(state), popupHost(popupParent),
-      colour(kNoiseColour),
+      colour(noiseColour),
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames(), kNoiseSource),
@@ -41,8 +38,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                  params::muteSuffix),
       soloButton(state, "S", params::noiseParamId(params::soloSuffix),
                  params::soloSuffix),
-      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour), outputLamp(kNoiseColour) {
+      meter(noiseColour), envLamp(noiseColour), keyOffLamp(noiseColour),
+      tremoloLamp(noiseColour), outputLamp(noiseColour) {
   addAndMakeVisible(outputLamp);
 
   for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})
@@ -215,8 +212,11 @@ void NoiseStrip::setDrawGlow(bool on) {
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
-  // A menu takes the pointer away, so let go of the hover first. See
-  // ChannelStrip::mouseDown.
+  // A menu takes the pointer away, so let go of the hover first. The shape
+  // screen opens its menu on a plain click. See ChannelStrip::mouseDown.
+  if (dynamic_cast<const ShapeButton *>(e.originalComponent) != nullptr)
+    clearHover();
+
   if (e.mods.isPopupMenu()) {
     clearHover();
 
@@ -335,8 +335,14 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   constexpr float stroke = 1.6f;
   const auto area = outline.getBounds().reduced(0.0f, stroke * 0.5f);
 
-  // Accent when hovered, the same as a numbered channel. See ChannelStrip.
-  drawNoiseTrace(g, area, hovered ? colours::accent : colours::text, stroke);
+  // Accent when hovered, the same as a numbered channel, and its own colour
+  // when linked to the one that is. See ChannelStrip.
+  drawNoiseTrace(g, area,
+                 hovered || looped ? colours::accent
+                 : linked          ? colour
+                                   : colours::text,
+                 stroke);
+  paintModulationMark(g, area, colour);
 }
 
 void NoiseStrip::resized() {

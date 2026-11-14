@@ -514,6 +514,25 @@ struct Cache {
 
   /// Whether legato is on, from its switch or the old Legato choice.
   bool legatoValue() const;
+
+  /// One flag for each partial and, at kNoiseSource, the noise channel.
+  using ChannelFlags = std::array<bool, kNumHarmonics + 1>;
+
+  /// Where each channel takes its modulation from, by amplitude and then by
+  /// pitch, as a partial or kNoiseSource, or -1 for none. A link at no depth
+  /// is none, as in the voice, and so is following itself, which is feedback.
+  using Sources = std::array<std::array<int, 2>, kNumHarmonics + 1>;
+  Sources modulationSources() const;
+
+  /// The channels that are not heard themselves but modulate one that is,
+  /// directly or along a chain of others, given which channels are heard. A
+  /// link at no depth is no link, as in the voice.
+  static ChannelFlags feedingHeard(const Sources &, const ChannelFlags &heard);
+
+  /// The loop each channel is in, named by its lowest member, or -1 for one
+  /// in none. A loop is two or more channels that each reach the others along
+  /// the links, which the voice plays together a sample at a time.
+  static std::array<int, kNumHarmonics + 1> loopsOf(const Sources &);
 };
 
 /// The voice count each polyphony choice allows, in parameter order. The
