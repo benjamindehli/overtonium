@@ -328,16 +328,30 @@ public:
               const SharedModulation &shared = {}) noexcept;
 
 private:
+  /// See renderNoise.
+  struct NoiseRun;
+
   /// Adds the noise channel and its string into the buffers.
   ///
   /// @param source  whether a partial follows it, so it writes its ring even
   ///                while unheard
-  /// @param passesRing  whether what a partial does to it is passed on, which
-  ///                round a loop it is not. See OscParams::amSource.
+  /// @param ringFrom  the partial whose wave multiplies it, or -1 for none or
+  ///                for a link at no depth. See NoiseParams::amSource.
+  /// @param backEnd  how much of that ring a loop keeps out of what it passes
+  ///                on, by the end of the block. See Voice::render.
   /// @param foldAliases  on the lo-fi rate, where folding is wanted
-  void renderNoise(float *left, float *right, int len, const SynthParams &,
+  /// @param defer  where to set the block up, when the noise channel is in a
+  ///                loop, which then plays it a sample at a time with
+  ///                tickNoise and finishNoise. Says whether it did.
+  bool renderNoise(float *left, float *right, int len, const SynthParams &,
                    float pressure, const SharedModulation &shared, int block,
-                   bool source, bool passesRing, bool foldAliases) noexcept;
+                   bool source, int ringFrom, float backEnd, bool foldAliases,
+                   NoiseRun *defer) noexcept;
+
+  /// One sample of a block renderNoise set up, at n in the block, and what
+  /// is left to do once the block is played.
+  void tickNoise(NoiseRun &, int n) noexcept;
+  void finishNoise(const NoiseRun &) noexcept;
 
   /// Adds the leaking wheels on Wheel. foldAliases is true on the lo-fi rate,
   /// where the Nyquist fade is skipped.
@@ -406,6 +420,11 @@ private:
     /// the last block, so the depth ramps rather than steps.
     float lastRingDepth = 0.0f;
 
+    /// How much of that ring a loop was keeping out of what this partial
+    /// passes on at the end of the last block, so it ramps rather than steps.
+    /// See Voice::render.
+    float lastLoopBack = 0.0f;
+
     /// How far another partial's wave was moving this one's phase at the end
     /// of the last block, in 2^-32 of a turn per unit of the wave, so the
     /// index ramps rather than steps.
@@ -459,6 +478,7 @@ private:
     /// The same two as a partial's. See Partial::lastRingDepth and
     /// Partial::lastSourceGain.
     float lastRingDepth = 0.0f;
+    float lastLoopBack = 0.0f;
     float lastSourceGain = -1.0f;
   };
 
@@ -470,10 +490,10 @@ private:
   /// that sets its level but the fader and the mute, so a muted or faded
   /// partial can still modulate. One ring per partial,
   /// all read and written at ringAt plus the sample's place in the block. A
-  /// partial that has played this block has written there already, and one
-  /// that has not still holds the sample a block earlier, so a modulator
-  /// played after the partial it modulates, as in a loop of two, arrives a
-  /// block late rather than not at all. See OscParams::amSource.
+  /// partial plays after the ones it follows, so it reads their samples from
+  /// the same block. The partials of a loop play together a sample at a
+  /// time, and one that reads a partial playing after it in the loop reads
+  /// that partial's last sample. See Voice::render.
   ///
   /// The noise channel has the last ring, at kNoiseSource.
   std::array<std::array<float, kControlBlock>, kNumHarmonics + 1> ringSource{};

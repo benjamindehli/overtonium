@@ -90,7 +90,158 @@ inline double feedbackPeriodFor(double index) noexcept {
   return index <= 0.97 ? index / 0.06 + 1.8
                        : 18.0 * std::exp2((index - 0.97) / 0.18);
 }
+
+/// Everything a partial that modulates or is modulated steps through its
+/// block, so the block can be played one sample at a time beside the other
+/// partials in a loop. See Voice::render.
+struct PartialRun {
+  /// False for a partial nobody hears that still passes on its wave.
+  bool heard = true;
+
+  const Wave *wave = nullptr;
+  const Wave *previous = nullptr;
+  bool crossing = false;
+  float mix = 0.0f, mixInc = 0.0f;
+
+  bool feedback = false;
+  bool centred = false;
+  float centreCoef = 0.0f;
+
+  std::uint64_t ph = 0, step = 0;
+  Envelope env;
+
+  float g = 0.0f, gInc = 0.0f;
+  float pl = 0.0f, pr = 0.0f;
+  float *l = nullptr;
+  float *r = nullptr;
+
+  float depth = 0.0f, depthInc = 0.0f;
+  float passed = 0.0f, passedInc = 0.0f;
+  float back = 0.0f, backInc = 0.0f;
+  float moved = 0.0f, movedInc = 0.0f;
+
+  /// The rings it reads and the one it writes. A ring is read a sample back
+  /// when its partial plays after this one in a loop, so it holds this
+  /// sample's value only once that partial has had its turn.
+  const float *from = nullptr;
+  const float *mover = nullptr;
+  float *mine = nullptr;
+  std::size_t fromLag = 0, moverLag = 0;
+
+  std::array<float, 2> fed{};
+  float fedMean = 0.0f;
+};
+
+/// One sample of a PartialRun, at place k in the rings and n in the block.
+inline void tickPartial(PartialRun &run, std::size_t k, int n) noexcept {
+  constexpr std::size_t wrap = Voice::kControlBlock - 1;
+
+  // Where the table is read: the partial's own phase, moved by the other
+  // partial's wave or by its own last two samples. The phase itself runs on
+  // untouched, so the partial stays at its pitch.
+  std::uint64_t read = run.ph;
+
+  if (run.mover != nullptr) {
+    read += phaseOffset(run.moved * run.mover[(k - run.moverLag) & wrap]);
+    run.moved += run.movedInc;
+  } else if (run.feedback) {
+    read += phaseOffset(run.moved * 0.5f * (run.fed[0] + run.fed[1]));
+    run.moved += run.movedInc;
+  }
+
+  float w = run.wave->at(read);
+
+  if (run.crossing) {
+    const float was = run.previous->at(read);
+    w = was + (w - was) * run.mix;
+    run.mix += run.mixInc;
+  }
+
+  if (run.centred) {
+    run.fedMean += (w - run.fedMean) * run.centreCoef;
+    w -= run.fedMean;
+  }
+
+  if (!run.heard) {
+    // Unheard, so only what it passes on.
+    float v = w * run.env.tick() * run.passed;
+
+    if (run.from != nullptr) {
+      const float kept = run.depth * (1.0f - run.back);
+      v *= 1.0f - kept + kept * run.from[(k - run.fromLag) & wrap];
+      run.depth += run.depthInc;
+      run.back += run.backInc;
+    }
+
+    run.mine[k] = v;
+    run.fed = {v, run.fed[0]};
+    run.passed += run.passedInc;
+    run.ph += run.step;
+    return;
+  }
+
+  const float shaped = w * run.env.tick();
+
+  // Depth one is the product alone, which is ring modulation. What is passed
+  // on keeps less of it round a loop. See loopBack in Voice::render.
+  float ring = 1.0f;
+  float passedRing = 1.0f;
+
+  if (run.from != nullptr) {
+    const float by = run.from[(k - run.fromLag) & wrap];
+    ring = 1.0f - run.depth + run.depth * by;
+
+    const float kept = run.depth * (1.0f - run.back);
+    passedRing = 1.0f - kept + kept * by;
+
+    run.depth += run.depthInc;
+    run.back += run.backInc;
+  }
+
+  const float s = shaped * run.g * ring;
+
+  // What is passed on has this partial's own modulation in it, and its
+  // expression, but not the fader or the mute, so a muted partial modulates
+  // as strongly as a loud one.
+  if (run.mine != nullptr || run.feedback) {
+    const float out = shaped * passedRing * run.passed;
+    run.passed += run.passedInc;
+
+    if (run.mine != nullptr)
+      run.mine[k] = out;
+
+    run.fed = {out, run.fed[0]};
+  }
+
+  run.l[n] += s * run.pl;
+  run.r[n] += s * run.pr;
+
+  run.ph += run.step;
+  run.g += run.gInc;
+}
 } // namespace
+
+/// What the noise channel steps through its block, so the block can be
+/// played one sample at a time beside the partials in a loop. See
+/// Voice::render and PartialRun.
+struct Voice::NoiseRun {
+  float *mine = nullptr;
+  const float *from = nullptr;
+  std::size_t fromLag = 0;
+
+  float depth = 0.0f, depthInc = 0.0f;
+  float back = 0.0f, backInc = 0.0f;
+  float passed = 0.0f, passedInc = 0.0f;
+  float g = 0.0f, gInc = 0.0f;
+  float panL = 0.0f, panR = 0.0f;
+  float *left = nullptr;
+  float *right = nullptr;
+
+  float lowMix = 0.0f, highMix = 0.0f;
+  float amount = 0.0f;
+  bool stringOn = false;
+  float rungPeak = 0.0f;
+};
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
   // Drift is the one thing not recomputed here. Its step is latched at
@@ -151,6 +302,7 @@ void Voice::reset() noexcept {
   noise.gainPrimed = false;
   noise.lastFreq = 0.0;
   noise.lastRingDepth = 0.0f;
+  noise.lastLoopBack = 0.0f;
   noise.lastSourceGain = -1.0f;
   noise.string.reset();
   noise.stringAlive = false;
@@ -270,6 +422,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       // Nothing of the last note is left for a partial it modulates to read.
       ringSource[(size_t)i].fill(0.0f);
       pt.lastRingDepth = 0.0f;
+      pt.lastLoopBack = 0.0f;
       pt.lastPhaseDepth = 0.0f;
       pt.fedBack = {};
       pt.fedMean = 0.0f;
@@ -332,6 +485,7 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
       // Nothing of the last note is left for a partial it modulates to read.
       ringSource[(size_t)kNoiseSource].fill(0.0f);
       noise.lastRingDepth = 0.0f;
+      noise.lastLoopBack = 0.0f;
       noise.lastSourceGain = -1.0f;
     }
   }
@@ -471,6 +625,7 @@ void Voice::takeOver(const Voice &from) noexcept {
 
     pt.lastFreq = src.lastFreq;
     pt.lastRingDepth = src.lastRingDepth;
+    pt.lastLoopBack = src.lastLoopBack;
     pt.lastPhaseDepth = src.lastPhaseDepth;
     pt.fedBack = src.fedBack;
     pt.fedMean = src.fedMean;
@@ -489,6 +644,7 @@ void Voice::takeOver(const Voice &from) noexcept {
   noise.gainPrimed = from.noise.gainPrimed;
   noise.lastFreq = from.noise.lastFreq;
   noise.lastRingDepth = from.noise.lastRingDepth;
+  noise.lastLoopBack = from.noise.lastLoopBack;
   noise.lastSourceGain = from.noise.lastSourceGain;
 
   leaks = from.leaks;
@@ -625,80 +781,194 @@ void Voice::render(float *left, float *right, int numSamples,
   // channel at kNoiseSource.
   constexpr int kPlaces = kNumHarmonics + 1;
 
-  const auto amFrom = [&p](int at) {
-    const int from =
-        at == kNoiseSource ? p.noise.amSource : p.osc[(size_t)at].amSource;
-    return from >= 0 && from <= kNoiseSource && from != at ? from : -1;
+  //
+  // A link at no depth that was at none at the end of the last block does
+  // nothing, so it counts as no link at all. Otherwise it would still decide
+  // the order and close a loop, and a knob at nothing would change the sound.
+  const auto amFrom = [this, &p](int at) {
+    const bool isNoise = at == kNoiseSource;
+    const int from = isNoise ? p.noise.amSource : p.osc[(size_t)at].amSource;
+    const bool live = isNoise
+                          ? p.noise.amDepth > 0.0f || noise.lastRingDepth > 0.0f
+                          : p.osc[(size_t)at].amDepth > 0.0f ||
+                                partials[(size_t)at].lastRingDepth > 0.0f;
+
+    return live && from >= 0 && from <= kNoiseSource && from != at ? from : -1;
   };
 
-  const auto pmFrom = [&p](int at) {
+  const auto pmFrom = [this, &p](int at) {
     if (at == kNoiseSource)
       return -1;
 
-    const int from = p.osc[(size_t)at].pmSource;
-    return from >= 0 && from <= kNoiseSource && from != at ? from : -1;
+    const auto &op = p.osc[(size_t)at];
+    const bool live =
+        op.pmDepthCents > 0.0f || partials[(size_t)at].lastPhaseDepth > 0.0f;
+    const int from = op.pmSource;
+
+    return live && from >= 0 && from <= kNoiseSource && from != at ? from : -1;
   };
+
+  std::array<int, kPlaces> amLink{};
+  std::array<int, kPlaces> pmLink{};
+
+  for (int i = 0; i < kPlaces; ++i) {
+    amLink[(size_t)i] = amFrom(i);
+    pmLink[(size_t)i] = pmFrom(i);
+  }
 
   std::array<bool, kPlaces> isSource{};
   bool anySource = false;
 
   for (int i = 0; i < kPlaces; ++i)
-    for (const int from : {amFrom(i), pmFrom(i)})
+    for (const int from : {amLink[(size_t)i], pmLink[(size_t)i]})
       if (from >= 0) {
         isSource[(size_t)from] = true;
         anySource = true;
       }
 
+  // A place nothing reads this block holds nothing, so one that becomes a
+  // source while a note sounds is not read from what it held long ago.
+  for (int i = 0; i < kPlaces; ++i)
+    if (!isSource[(size_t)i])
+      ringSource[(size_t)i].fill(0.0f);
+
   // The noise channel joins the order only where it is part of it, and
   // otherwise plays after everything else, as before there was an order.
   const bool noiseInOrder =
-      isSource[(size_t)kNoiseSource] || amFrom(kNoiseSource) >= 0;
+      isSource[(size_t)kNoiseSource] || amLink[(size_t)kNoiseSource] >= 0;
   const int places = noiseInOrder ? kPlaces : kNumHarmonics;
 
   // A partial passes on what another partial does to it, so a chain
-  // multiplies all the way along. Round a loop it would multiply itself by
-  // itself each time round and die away, so a partial in a loop passes on
-  // its own wave alone.
-  std::array<bool, kPlaces> inLoop{};
+  // multiplies all the way along. Round a loop at full depth it would
+  // multiply itself by itself each time round and die away, so what it passes
+  // on loses the ring by as much as the loop comes back round to it: the
+  // depths of the other links in the loop, multiplied. With any of them at
+  // nothing it passes on its ring as in a chain, and with all of them at full
+  // its own wave alone, with no step anywhere between.
+  std::array<float, kPlaces> loopBack{};
+
+  const auto ringDepthOf = [this](int at) {
+    return at == kNoiseSource ? noise.lastRingDepth
+                              : partials[(size_t)at].lastRingDepth;
+  };
 
   if (anySource)
     for (int i = 0; i < places; ++i) {
-      int at = amFrom(i);
+      int at = amLink[(size_t)i];
+      float back = 1.0f;
 
-      for (int steps = 0; steps < kPlaces && at >= 0 && at != i; ++steps)
-        at = amFrom(at);
+      for (int steps = 0; steps < kNumHarmonics && at >= 0 && at != i;
+           ++steps) {
+        back *= ringDepthOf(at);
+        at = amLink[(size_t)at];
+      }
 
-      inLoop[(size_t)i] = at == i;
+      loopBack[(size_t)i] = at == i ? std::clamp(back, 0.0f, 1.0f) : 0.0f;
     }
 
-  // Each in turn as soon as what it follows has played, the lowest first.
-  // Round a loop nothing is ready, so the lowest left goes first and hears
-  // the other a block late.
-  std::array<int, kPlaces> order{};
+  // The loops: places that follow each other round, however far, play
+  // together a sample at a time, so each hears the others one sample late at
+  // most, as a DX7's feedback does, rather than a whole block. loopOf names a
+  // place's loop by its lowest place, and a place in no loop by itself.
+  // follows holds, for each place, every place it follows along the links.
+  std::array<int, kPlaces> loopOf{};
+  std::array<std::uint64_t, kPlaces> follows{};
 
   for (int i = 0; i < kPlaces; ++i)
+    loopOf[(size_t)i] = i;
+
+  if (anySource) {
+    for (int i = 0; i < places; ++i)
+      for (const int from : {amLink[(size_t)i], pmLink[(size_t)i]})
+        if (from >= 0)
+          follows[(size_t)i] |= std::uint64_t{1} << from;
+
+    for (int via = 0; via < places; ++via)
+      for (int i = 0; i < places; ++i)
+        if ((follows[(size_t)i] >> via) & 1u)
+          follows[(size_t)i] |= follows[(size_t)via];
+
+    for (int i = 0; i < places; ++i)
+      for (int j = 0; j < i; ++j)
+        if (((follows[(size_t)i] >> j) & 1u) &&
+            ((follows[(size_t)j] >> i) & 1u)) {
+          loopOf[(size_t)i] = j;
+          break;
+        }
+  }
+
+  // Each in turn as soon as what it follows has played, the lowest first. A
+  // loop goes in as one, once everything its places follow outside it has
+  // played, and inside it the same rule sets who has the first turn each
+  // sample. Round the loop nothing is ready, so the lowest left goes first
+  // and hears the others a sample late. loopSize is how many places from
+  // there on play together, at a loop's first place, and 1 everywhere else.
+  std::array<int, kPlaces> order{};
+  std::array<int, kPlaces> loopSize{};
+  std::array<int, kPlaces> placeOf{};
+
+  for (int i = 0; i < kPlaces; ++i) {
     order[(size_t)i] = i;
+    loopSize[(size_t)i] = 1;
+    placeOf[(size_t)i] = i;
+  }
 
   if (anySource) {
     std::array<bool, kPlaces> placed{};
 
-    for (int next = 0; next < places; ++next) {
+    const auto readyIn = [&](int i, int loop) {
+      for (const int from : {amLink[(size_t)i], pmLink[(size_t)i]})
+        if (from >= 0 && !placed[(size_t)from] &&
+            (loop < 0 || loopOf[(size_t)from] != loop))
+          return false;
+
+      return true;
+    };
+
+    for (int next = 0; next < places;) {
       int pick = -1;
 
       for (int i = 0; i < places && pick < 0; ++i) {
-        const int am = amFrom(i), pm = pmFrom(i);
+        if (placed[(size_t)i] || loopOf[(size_t)i] != i)
+          continue;
 
-        if (!placed[(size_t)i] && (am < 0 || placed[(size_t)am]) &&
-            (pm < 0 || placed[(size_t)pm]))
+        bool ready = true;
+
+        for (int m = i; m < places && ready; ++m)
+          if (loopOf[(size_t)m] == i)
+            ready = readyIn(m, i);
+
+        if (ready)
           pick = i;
       }
 
       for (int i = 0; i < places && pick < 0; ++i)
-        if (!placed[(size_t)i])
+        if (!placed[(size_t)i] && loopOf[(size_t)i] == i)
           pick = i;
 
-      placed[(size_t)pick] = true;
-      order[(size_t)next] = pick;
+      const int first = next;
+
+      for (bool more = true; more;) {
+        more = false;
+        int member = -1;
+
+        for (int m = pick; m < places && member < 0; ++m)
+          if (loopOf[(size_t)m] == pick && !placed[(size_t)m] && readyIn(m, -1))
+            member = m;
+
+        for (int m = pick; m < places && member < 0; ++m)
+          if (loopOf[(size_t)m] == pick && !placed[(size_t)m])
+            member = m;
+
+        if (member >= 0) {
+          placed[(size_t)member] = true;
+          placeOf[(size_t)member] = next;
+          order[(size_t)next++] = member;
+          more = true;
+        }
+      }
+
+      loopSize[(size_t)first] = next - first;
     }
   }
 
@@ -707,6 +977,10 @@ void Voice::render(float *left, float *right, int numSamples,
     return from == kNoiseSource ? noise.lastFreq
                                 : partials[(size_t)from].lastFreq;
   };
+
+  // Where a loop's places keep their blocks while they play them together.
+  std::array<PartialRun, kNumHarmonics> runs{};
+  NoiseRun noiseRun;
 
   for (int start = 0; start < numSamples; start += kControlBlock, ++block) {
     const int len = std::min(kControlBlock, numSamples - start);
@@ -719,26 +993,28 @@ void Voice::render(float *left, float *right, int numSamples,
     // are sized from it. The leaks are not in phase, so their powers add.
     double notePower = 0.0;
 
-    for (int place = 0; place < places; ++place) {
-      const int i = order[(size_t)place];
+    const auto finishPartial = [](Partial &pt, const PartialRun &run) {
+      pt.phase = fromFixedPhase(run.ph);
+      pt.env = run.env;
+      pt.fedBack = run.fed;
+      pt.fedMean = run.fedMean;
+    };
 
-      if (i == kNoiseSource) {
-        renderNoise(left + start, right + start, len, p, pressure, shared,
-                    block, isSource[(size_t)kNoiseSource],
-                    !inLoop[(size_t)kNoiseSource], foldAliases);
-        continue;
-      }
-
+    // Plays partial i's block. Given somewhere to put it, a partial that
+    // modulates or is modulated sets its block up there and leaves the
+    // samples to the caller, which is how a loop plays its partials side by
+    // side. Says whether it did.
+    const auto playPartial = [&](int i, PartialRun *defer) -> bool {
       auto &pt = partials[(size_t)i];
       const auto &op = p.osc[(size_t)i];
       const bool source = isSource[(size_t)i];
 
       // The partial or the noise channel this one takes its amplitude from,
       // if any. See OscParams::amSource.
-      const int ringFrom = amFrom(i);
+      const int ringFrom = amLink[(size_t)i];
 
       // And the one that moves its phase. See OscParams::pmSource.
-      const int phaseFrom = pmFrom(i);
+      const int phaseFrom = pmLink[(size_t)i];
 
       // Or whether it moves its own, from its own last samples.
       const bool feedback = op.pmSource == i;
@@ -767,7 +1043,9 @@ void Voice::render(float *left, float *right, int numSamples,
                       [(size_t)((ringAt + n) & (kControlBlock - 1))] = 0.0f;
 
         pt.lastRingDepth = 0.0f;
-        continue;
+
+        pt.lastLoopBack = 0.0f;
+        return false;
       }
 
       // ---- pitch ------------------------------------------------------------
@@ -933,6 +1211,12 @@ void Voice::render(float *left, float *right, int numSamples,
                                                 sampleRate));
       const float ringStart = pt.lastRingDepth;
       pt.lastRingDepth = ringEnd;
+
+      // How much of that ring is kept out of what it passes on, for a loop.
+      // See loopBack.
+      const float backEnd = loopBack[(size_t)i];
+      const float backStart = pt.lastLoopBack;
+      pt.lastLoopBack = backEnd;
 
       // How far the other partial's wave moves this one's phase, as the
       // modulation index FM synthesizers use, in radians at the wave's peak.
@@ -1139,62 +1423,51 @@ void Voice::render(float *left, float *right, int numSamples,
         // unless another partial takes its amplitude from this one, which
         // still needs its wave.
         if (source) {
-          auto &mine = ringSource[(size_t)i];
-          auto fed = pt.fedBack;
-          std::uint64_t ph = toFixedPhase(pt.phase);
-          const std::uint64_t step = toFixedStep(inc);
+          PartialRun run;
+          run.heard = false;
+          run.wave = &wave;
+          run.feedback = feedback;
+          run.centred = centred;
+          run.centreCoef = centreCoef;
+          run.ph = toFixedPhase(pt.phase);
+          run.step = toFixedStep(inc);
+          run.env = pt.env;
 
-          float passed = sourceStart;
-          const float passedInc = (sourceEnd - sourceStart) / (float)len;
+          run.passed = sourceStart;
+          run.passedInc = (sourceEnd - sourceStart) / (float)len;
 
-          // Modulated itself, so what it passes on is too, unless that would
-          // go round a loop.
-          const float *const from = ringFrom >= 0 && !inLoop[(size_t)i]
-                                        ? ringSource[(size_t)ringFrom].data()
-                                        : nullptr;
-          float depth = ringStart;
-          const float depthInc = (ringEnd - ringStart) / (float)len;
+          // Modulated itself, so what it passes on is too, less as much as
+          // a loop comes back round to it.
+          run.from =
+              ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
+          run.depth = ringStart;
+          run.depthInc = (ringEnd - ringStart) / (float)len;
+          run.back = backStart;
+          run.backInc = (backEnd - backStart) / (float)len;
 
           // Its phase moved by another partial, so what it passes on is too.
-          const float *const mover =
+          run.mover =
               phaseFrom >= 0 ? ringSource[(size_t)phaseFrom].data() : nullptr;
-          float moved = phaseStart;
-          const float movedInc = (phaseEnd - phaseStart) / (float)len;
+          run.moved = phaseStart;
+          run.movedInc = (phaseEnd - phaseStart) / (float)len;
 
-          for (int n = 0; n < len; ++n) {
-            const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
-            std::uint64_t read = ph;
+          run.mine = ringSource[(size_t)i].data();
+          run.fed = pt.fedBack;
+          run.fedMean = pt.fedMean;
 
-            if (mover != nullptr) {
-              read += phaseOffset(moved * mover[k]);
-              moved += movedInc;
-            } else if (feedback) {
-              read += phaseOffset(moved * 0.5f * (fed[0] + fed[1]));
-              moved += movedInc;
-            }
+          // Whatever it would have been reading, so that coming back audible
+          // does not cross-fade from a table it has not been heard on.
+          pt.lastWave = &wave;
 
-            float w = wave.at(read);
-
-            if (centred) {
-              pt.fedMean += (w - pt.fedMean) * centreCoef;
-              w -= pt.fedMean;
-            }
-
-            float v = w * pt.env.tick() * passed;
-
-            if (from != nullptr) {
-              v *= 1.0f - depth + depth * from[k];
-              depth += depthInc;
-            }
-
-            mine[k] = v;
-            fed = {v, fed[0]};
-            passed += passedInc;
-            ph += step;
+          if (defer != nullptr) {
+            *defer = run;
+            return true;
           }
 
-          pt.phase = fromFixedPhase(ph);
-          pt.fedBack = fed;
+          for (int n = 0; n < len; ++n)
+            tickPartial(run, (size_t)((ringAt + n) & (kControlBlock - 1)), n);
+
+          finishPartial(pt, run);
         } else {
           for (int n = 0; n < len; ++n)
             pt.env.tick();
@@ -1213,7 +1486,7 @@ void Voice::render(float *left, float *right, int numSamples,
         // Whatever it would have been reading, so that coming back audible
         // does not cross-fade from a table it has not been heard on.
         pt.lastWave = &wave;
-        continue;
+        return false;
       }
 
       float *l = left + start;
@@ -1241,92 +1514,51 @@ void Voice::render(float *left, float *right, int numSamples,
         // Modulating or modulated, which the plain loops below leave out to
         // stay as quick as they are. One loop for all of it, with the
         // cross-fade when the table changes.
-        const bool crossing = previous != nullptr && previous != &wave;
-        const float mixInc = crossing ? 1.0f / (float)len : 0.0f;
-        float mix = 0.0f;
+        PartialRun run;
+        run.wave = &wave;
+        run.previous = previous;
+        run.crossing = previous != nullptr && previous != &wave;
+        run.mixInc = run.crossing ? 1.0f / (float)len : 0.0f;
+        run.feedback = feedback;
+        run.centred = centred;
+        run.centreCoef = centreCoef;
+        run.ph = ph;
+        run.step = step;
+        run.env = env;
+        run.g = g;
+        run.gInc = gInc;
+        run.pl = pl;
+        run.pr = pr;
+        run.l = l;
+        run.r = r;
 
-        float depth = ringStart;
-        const float depthInc = (ringEnd - ringStart) / (float)len;
+        run.depth = ringStart;
+        run.depthInc = (ringEnd - ringStart) / (float)len;
+        run.passed = sourceStart;
+        run.passedInc = (sourceEnd - sourceStart) / (float)len;
+        run.back = backStart;
+        run.backInc = (backEnd - backStart) / (float)len;
 
-        float passed = sourceStart;
-        const float passedInc = (sourceEnd - sourceStart) / (float)len;
-        const bool passesRing = !inLoop[(size_t)i];
-
-        const float *const from =
+        run.from =
             ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
-        float *const mine = source ? ringSource[(size_t)i].data() : nullptr;
-
-        const float *const mover =
+        run.mine = source ? ringSource[(size_t)i].data() : nullptr;
+        run.mover =
             phaseFrom >= 0 ? ringSource[(size_t)phaseFrom].data() : nullptr;
-        float moved = phaseStart;
-        const float movedInc = (phaseEnd - phaseStart) / (float)len;
-        auto fed = pt.fedBack;
-        float fedMean = pt.fedMean;
+        run.moved = phaseStart;
+        run.movedInc = (phaseEnd - phaseStart) / (float)len;
+        run.fed = pt.fedBack;
+        run.fedMean = pt.fedMean;
 
-        for (int n = 0; n < len; ++n) {
-          const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
-
-          // Where the table is read: the partial's own phase, moved by the
-          // other partial's wave or by its own last two samples. The phase
-          // itself runs on untouched, so the partial stays at its pitch.
-          std::uint64_t read = ph;
-
-          if (mover != nullptr) {
-            read += phaseOffset(moved * mover[k]);
-            moved += movedInc;
-          } else if (feedback) {
-            read += phaseOffset(moved * 0.5f * (fed[0] + fed[1]));
-            moved += movedInc;
-          }
-
-          float w = wave.at(read);
-
-          if (crossing) {
-            const float was = previous->at(read);
-            w = was + (w - was) * mix;
-            mix += mixInc;
-          }
-
-          if (centred) {
-            fedMean += (w - fedMean) * centreCoef;
-            w -= fedMean;
-          }
-
-          const float shaped = w * env.tick();
-
-          // Depth one is the product alone, which is ring modulation.
-          float ring = 1.0f;
-
-          if (from != nullptr) {
-            ring = 1.0f - depth + depth * from[k];
-            depth += depthInc;
-          }
-
-          const float s = shaped * g * ring;
-
-          // What is passed on has this partial's own modulation in it, and
-          // its expression, but not the fader or the mute, so a muted
-          // partial modulates as strongly as a loud one. Round a loop, its
-          // wave alone.
-          if (mine != nullptr || feedback) {
-            const float out = shaped * (passesRing ? ring : 1.0f) * passed;
-            passed += passedInc;
-
-            if (mine != nullptr)
-              mine[k] = out;
-
-            fed = {out, fed[0]};
-          }
-
-          l[n] += s * pl;
-          r[n] += s * pr;
-
-          ph += step;
-          g += gInc;
+        if (defer != nullptr) {
+          *defer = run;
+          return true;
         }
 
-        pt.fedBack = fed;
-        pt.fedMean = fedMean;
+        for (int n = 0; n < len; ++n)
+          tickPartial(run, (size_t)((ringAt + n) & (kControlBlock - 1)), n);
+
+        finishPartial(pt, run);
+        return false;
       } else if (previous == nullptr || previous == &wave) {
         for (int n = 0; n < len; ++n) {
           const float s = wave.at(ph) * env.tick() * g;
@@ -1357,6 +1589,88 @@ void Voice::render(float *left, float *right, int numSamples,
 
       pt.env = env;
       pt.phase = fromFixedPhase(ph);
+      return false;
+    };
+
+    for (int place = 0; place < places;) {
+      const int size = loopSize[(size_t)place];
+
+      if (size == 1) {
+        const int i = order[(size_t)place++];
+
+        if (i == kNoiseSource)
+          renderNoise(left + start, right + start, len, p, pressure, shared,
+                      block, isSource[(size_t)kNoiseSource],
+                      amLink[(size_t)kNoiseSource],
+                      loopBack[(size_t)kNoiseSource], foldAliases, nullptr);
+        else
+          playPartial(i, nullptr);
+
+        continue;
+      }
+
+      // A loop. Each place sets its block up in turn, then they play it a
+      // sample at a time in their order, so a place reading one that plays
+      // after it reads that one's last sample.
+      std::array<bool, kPlaces> deferred{};
+
+      for (int m = place; m < place + size; ++m) {
+        const int at = order[(size_t)m];
+
+        deferred[(size_t)at] =
+            at == kNoiseSource
+                ? renderNoise(left + start, right + start, len, p, pressure,
+                              shared, block, isSource[(size_t)kNoiseSource],
+                              amLink[(size_t)kNoiseSource],
+                              loopBack[(size_t)kNoiseSource], foldAliases,
+                              &noiseRun)
+                : playPartial(at, &runs[(size_t)at]);
+      }
+
+      const auto lag = [&placeOf](int at, int from) -> std::size_t {
+        return from >= 0 && placeOf[(size_t)from] > placeOf[(size_t)at] ? 1 : 0;
+      };
+
+      for (int m = place; m < place + size; ++m) {
+        const int at = order[(size_t)m];
+
+        if (at == kNoiseSource)
+          noiseRun.fromLag = lag(at, amLink[(size_t)at]);
+        else {
+          runs[(size_t)at].fromLag = lag(at, amLink[(size_t)at]);
+          runs[(size_t)at].moverLag = lag(at, pmLink[(size_t)at]);
+        }
+      }
+
+      for (int n = 0; n < len; ++n) {
+        const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
+
+        for (int m = place; m < place + size; ++m) {
+          const int at = order[(size_t)m];
+
+          if (!deferred[(size_t)at])
+            continue;
+
+          if (at == kNoiseSource)
+            tickNoise(noiseRun, n);
+          else
+            tickPartial(runs[(size_t)at], k, n);
+        }
+      }
+
+      for (int m = place; m < place + size; ++m) {
+        const int at = order[(size_t)m];
+
+        if (!deferred[(size_t)at])
+          continue;
+
+        if (at == kNoiseSource)
+          finishNoise(noiseRun);
+        else
+          finishPartial(partials[(size_t)at], runs[(size_t)at]);
+      }
+
+      place += size;
     }
 
     // Every partial has written its block, so the rings move on by it.
@@ -1379,7 +1693,7 @@ void Voice::render(float *left, float *right, int numSamples,
 
     if (!noiseInOrder)
       renderNoise(left + start, right + start, len, p, pressure, shared, block,
-                  false, true, foldAliases);
+                  false, -1, 0.0f, foldAliases, nullptr);
 
     // The adaptive retune moves the whole note, so it steps once a block
     // rather than once a partial.
@@ -1461,19 +1775,74 @@ void Voice::renderLeaks(float *left, float *right, int len, double keyFreq,
   }
 }
 
-void Voice::renderNoise(float *left, float *right, int len,
+void Voice::tickNoise(NoiseRun &run, int n) noexcept {
+  const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
+  const float white = noise.rng.bipolar();
+
+  noise.lowpassState += lowpassCoef * (white - noise.lowpassState);
+  const float high = white - noise.lowpassState;
+
+  float out =
+      (run.lowMix * noise.lowpassState + run.highMix * high) * noise.env.tick();
+
+  // Crossfaded by STRING, and by how much of the string can be heard at this
+  // pitch: where the loop is too short to tune, the noise is left as it was.
+  if (run.stringOn) {
+    const float rung = noise.string.tick(out) * kStringGain;
+    run.rungPeak = std::max(run.rungPeak, std::abs(rung));
+    out += run.amount * noise.string.audibility() * (rung - out);
+  }
+
+  // Depth one is the product alone, which is ring modulation. What is passed
+  // on keeps less of it round a loop. See Voice::render.
+  float ring = 1.0f;
+  float passedRing = 1.0f;
+
+  if (run.from != nullptr) {
+    const float by = run.from[(k - run.fromLag) & (kControlBlock - 1)];
+    ring = 1.0f - run.depth + run.depth * by;
+
+    const float kept = run.depth * (1.0f - run.back);
+    passedRing = 1.0f - kept + kept * by;
+
+    run.depth += run.depthInc;
+    run.back += run.backInc;
+  }
+
+  // What is passed on has its expression and what the partial does to it,
+  // but not the fader or the mute.
+  if (run.mine != nullptr) {
+    run.mine[k] = out * passedRing * run.passed;
+    run.passed += run.passedInc;
+  }
+
+  const float s = out * run.g * ring;
+
+  run.left[n] += s * run.panL;
+  run.right[n] += s * run.panR;
+
+  run.g += run.gInc;
+}
+
+void Voice::finishNoise(const NoiseRun &run) noexcept {
+  // Alive while it is being struck or is still above -120 dBFS.
+  noise.stringAlive =
+      run.stringOn && (noise.env.isActive() || run.rungPeak >= 1.0e-6f);
+}
+
+bool Voice::renderNoise(float *left, float *right, int len,
                         const SynthParams &p, float pressure,
                         const SharedModulation &shared, int block, bool source,
-                        bool passesRing, bool foldAliases) noexcept {
+                        int ringFrom, float backEnd, bool foldAliases,
+                        NoiseRun *defer) noexcept {
   const auto &np = p.noise;
 
   // What it passes on as a source, written for every sample of the block.
   float *const mine =
       source ? ringSource[(size_t)kNoiseSource].data() : nullptr;
 
-  // The partial whose wave multiplies it, if any. See NoiseParams::amSource.
-  const int ringFrom =
-      np.amSource >= 0 && np.amSource < kNumHarmonics ? np.amSource : -1;
+  // ringFrom is the partial whose wave multiplies it, or -1 for none or for
+  // a link at no depth. See NoiseParams::amSource and Voice::render.
 
   noise.env.configure(np.delay * noise.delayScale,
                       struckAttack(np.attack, noise.attackScale), np.decay,
@@ -1493,7 +1862,9 @@ void Voice::renderNoise(float *left, float *right, int len,
         mine[(size_t)((ringAt + n) & (kControlBlock - 1))] = 0.0f;
 
     noise.lastRingDepth = 0.0f;
-    return;
+
+    noise.lastLoopBack = 0.0f;
+    return false;
   }
 
   const double amPhaseInc = (double)np.amRateHz / sampleRate;
@@ -1580,6 +1951,9 @@ void Voice::renderNoise(float *left, float *right, int len,
   const float ringStart = noise.lastRingDepth;
   noise.lastRingDepth = ringEnd;
 
+  const float backStart = noise.lastLoopBack;
+  noise.lastLoopBack = backEnd;
+
   if (!noise.gainPrimed) {
     noise.lastGain = (np.audible ? level : 0.0f) * amStart * pedal;
     noise.gainPrimed = true;
@@ -1611,7 +1985,7 @@ void Voice::renderNoise(float *left, float *right, int len,
 
     // Nothing of the channel is heard, so neither is its string.
     noise.stringAlive = false;
-    return;
+    return false;
   }
 
   // Colour tilts between the two halves of a complementary one-pole pair.
@@ -1644,61 +2018,36 @@ void Voice::renderNoise(float *left, float *right, int len,
                           len);
   }
 
-  float rungPeak = 0.0f;
+  NoiseRun run;
+  run.mine = mine;
+  run.from = ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
+  run.depth = ringStart;
+  run.depthInc = (ringEnd - ringStart) / (float)len;
+  run.back = backStart;
+  run.backInc = (backEnd - backStart) / (float)len;
+  run.passed = sourceStart;
+  run.passedInc = (sourceEnd - sourceStart) / (float)len;
+  run.g = g;
+  run.gInc = gInc;
+  run.panL = panL;
+  run.panR = panR;
+  run.left = left;
+  run.right = right;
+  run.lowMix = lowMix;
+  run.highMix = highMix;
+  run.amount = amount;
+  run.stringOn = stringOn;
 
-  const float *const from =
-      ringFrom >= 0 ? ringSource[(size_t)ringFrom].data() : nullptr;
-  float depth = ringStart;
-  const float depthInc = (ringEnd - ringStart) / (float)len;
-
-  float passed = sourceStart;
-  const float passedInc = (sourceEnd - sourceStart) / (float)len;
-
-  for (int n = 0; n < len; ++n) {
-    const float white = noise.rng.bipolar();
-
-    noise.lowpassState += lowpassCoef * (white - noise.lowpassState);
-    const float high = white - noise.lowpassState;
-
-    float out =
-        (lowMix * noise.lowpassState + highMix * high) * noise.env.tick();
-
-    // Crossfaded by STRING, and by how much of the string can be heard at
-    // this pitch: where the loop is too short to tune, the noise is left as
-    // it was.
-    if (stringOn) {
-      const float rung = noise.string.tick(out) * kStringGain;
-      rungPeak = std::max(rungPeak, std::abs(rung));
-      out += amount * noise.string.audibility() * (rung - out);
-    }
-
-    // Depth one is the product alone, which is ring modulation.
-    float ring = 1.0f;
-
-    if (from != nullptr) {
-      const auto k = (size_t)((ringAt + n) & (kControlBlock - 1));
-      ring = 1.0f - depth + depth * from[k];
-      depth += depthInc;
-    }
-
-    // What is passed on has its expression and what the partial does to it,
-    // but not the fader or the mute. Round a loop, its own sound alone.
-    if (mine != nullptr) {
-      mine[(size_t)((ringAt + n) & (kControlBlock - 1))] =
-          out * (passesRing ? ring : 1.0f) * passed;
-      passed += passedInc;
-    }
-
-    const float s = out * g * ring;
-
-    left[n] += s * panL;
-    right[n] += s * panR;
-
-    g += gInc;
+  if (defer != nullptr) {
+    *defer = run;
+    return true;
   }
 
-  // Alive while it is being struck or is still above -120 dBFS.
-  noise.stringAlive = stringOn && (noise.env.isActive() || rungPeak >= 1.0e-6f);
+  for (int n = 0; n < len; ++n)
+    tickNoise(run, n);
+
+  finishNoise(run);
+  return false;
 }
 
 } // namespace ovt

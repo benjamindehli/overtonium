@@ -99,7 +99,9 @@ struct OscParams {
   /// What it passes on has everything that
   /// sets its level but its fader and its mute: its envelope, velocity,
   /// aftertouch, KEYBOARD row and its own amplitude modulation, which along a
-  /// chain is the partial before it, though not round a loop. amDepth goes
+  /// chain is the partial before it, and round a loop less of it the deeper
+  /// the loop's other links are (see Voice::render). At an amDepth of 0 the
+  /// link counts as none. amDepth goes
   /// from none of it at 0 to the product
   /// alone, ring modulation, at 1. The rate is not used. Naming itself turns
   /// the modulation off.
