@@ -78,9 +78,9 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
   setUpKnob(amRate, params::amRateSuffix, colour, "Tremolo rate");
   setUpKnob(amDepth, params::amDepthSuffix, colour, "Tremolo depth");
 
-  // A partial as the source sets its own rate, so the knob greys out.
+  // A partial as the source sets its own rate, so the knob's lights go off.
   amShape.onChange = [this] {
-    amRate.setEnabled(amShape.selectedPartial() < 0);
+    setIdle(amRate, amShape.selectedPartial() >= 0);
   };
   amShape.onChange();
   setUpKnob(velocity, params::velSuffix, colour,

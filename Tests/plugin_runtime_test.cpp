@@ -6302,6 +6302,12 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
           "harmonic " + std::to_string(harmonic) + " is one of them");
 }
 
+/// Whether a knob's ring is lit. A rate a partial source has no use for goes
+/// dark, as a silenced channel's knobs do, rather than being disabled.
+bool ringLit(const juce::Slider &knob) {
+  return !(bool)knob.getProperties()["unlit"];
+}
+
 /// Whether each modulator is one circuit the whole keyboard hears.
 ///
 /// A global switch reached from a per-channel menu, so this checks that the
@@ -6402,7 +6408,7 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
         "which lists every partial but the channel's own (" +
             std::to_string(offered.size()) + ")");
 
-  check(strip.getAmRate().isEnabled(), "the rate is live on a shape");
+  check(ringLit(strip.getAmRate()), "the rate is live on a shape");
 
   button.chooseFromMenu(third);
 
@@ -6410,8 +6416,13 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
             button.selectedPartial() == 4 &&
             button.currentName() == "Partial 5",
         "picking Partial 5 stores it and names it");
-  check(!strip.getAmRate().isEnabled(),
-        "and greys the rate, which a partial has no use for");
+  check(!ringLit(strip.getAmRate()),
+        "and darkens the rate, which a partial has no use for");
+
+  strip.setSilencedByOthers(true);
+  strip.setSilencedByOthers(false);
+  check(!ringLit(strip.getAmRate()) && ringLit(strip.getPmRate()),
+        "and a mute or solo let go relights the rest but leaves the rate dark");
 
   bool tickedNow = false, fiveTicked = false;
   bool everyEnabled = true;
@@ -6444,7 +6455,7 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
 
   // Back to a shape from the host, as automation would.
   p.apvts.getParameter(id)->setValueNotifyingHost(0.0f);
-  check(button.selectedPartial() == -1 && strip.getAmRate().isEnabled(),
+  check(button.selectedPartial() == -1 && ringLit(strip.getAmRate()),
         "a shape set from outside lights the rate again");
 
   // The pitch modulator has the same submenu after its eight shapes.
@@ -6468,7 +6479,7 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
     return strip.getPmDepth().getTextFromValue(300.0);
   };
 
-  check(strip.getPmRate().isEnabled() && depthText().endsWith("ct"),
+  check(ringLit(strip.getPmRate()) && depthText().endsWith("ct"),
         "its rate is live and its depth reads in cents on a shape (" +
             depthText().toStdString() + ")");
 
@@ -6479,8 +6490,8 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
           p.apvts.getParameter(pitchId)->getValue()));
 
   check(pitchStored == ovt::params::pitchSourceIndex(0) &&
-            pitch.selectedPartial() == 0 && !strip.getPmRate().isEnabled(),
-        "picking Partial 1 stores it and greys the pitch rate");
+            pitch.selectedPartial() == 0 && !ringLit(strip.getPmRate()),
+        "picking Partial 1 stores it and darkens the pitch rate");
   check(depthText() == "Index 3.00",
         "and the depth reads as the modulation index (" +
             depthText().toStdString() + ")");
@@ -6517,9 +6528,9 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
 
   check(storedPitch(2) == ovt::params::pitchSourceIndex(2) &&
             pitch.feedsBack() && pitch.selectedPartial() == 2 &&
-            pitch.currentName() == "Feedback" &&
-            !strip.getPmRate().isEnabled() && depthText() == "Index 3.00",
-        "picking Feedback stores the channel's own partial, greys the rate "
+            pitch.currentName() == "Feedback" && !ringLit(strip.getPmRate()) &&
+            depthText() == "Index 3.00",
+        "picking Feedback stores the channel's own partial, darkens the rate "
         "and reads the depth as the index");
 
   bool setThisLive = false, feedbackTicked = false;
@@ -6617,13 +6628,13 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
   check(stored(oscParamId(amShapeSuffix, 2)) ==
                 ovt::params::ampSourceIndex(kNoiseSource) &&
             amp.selectedPartial() == kNoiseSource &&
-            amp.currentName() == "Noise" && !strip.getAmRate().isEnabled(),
-        "picking Noise for amplitude stores it, names it and greys the rate");
+            amp.currentName() == "Noise" && !ringLit(strip.getAmRate()),
+        "picking Noise for amplitude stores it, names it and darkens the rate");
 
   pitch.chooseFromMenu(pitchNoise);
   check(stored(oscParamId(pmShapeSuffix, 2)) ==
                 ovt::params::pitchSourceIndex(kNoiseSource) &&
-            !strip.getPmRate().isEnabled() &&
+            !ringLit(strip.getPmRate()) &&
             strip.getPmDepth().getTextFromValue(300.0) == "Index 3.00",
         "and for pitch, where the depth reads as the index");
 
@@ -6669,7 +6680,7 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
 
   const auto noiseIds = idsOf(menu, "Noise");
   check(offered == 32 && noiseIds.first == 0 && noiseIds.second == 0 &&
-            noise.getAmRate().isEnabled(),
+            ringLit(noise.getAmRate()),
         "the noise channel's menu offers all 32 partials and not itself (" +
             std::to_string(offered) + ")");
 
@@ -6680,8 +6691,8 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
     check(stored(ovt::params::noiseParamId(amShapeSuffix)) ==
                   ovt::params::ampSourceIndex(0) &&
               noiseShape.selectedPartial() == 0 &&
-              !noise.getAmRate().isEnabled() && out.noise.amSource == 0,
-          "picking Partial 1 there stores it, greys the rate and reaches the "
+              !ringLit(noise.getAmRate()) && out.noise.amSource == 0,
+          "picking Partial 1 there stores it, darkens the rate and reaches the "
           "snapshot");
   }
 
