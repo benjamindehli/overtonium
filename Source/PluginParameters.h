@@ -528,6 +528,11 @@ struct Cache {
   /// directly or along a chain of others, given which channels are heard. A
   /// link at no depth is no link, as in the voice.
   static ChannelFlags feedingHeard(const Sources &, const ChannelFlags &heard);
+
+  /// The loop each channel is in, named by its lowest member, or -1 for one
+  /// in none. A loop is two or more channels that each reach the others along
+  /// the links, which the voice plays together a sample at a time.
+  static std::array<int, kNumHarmonics + 1> loopsOf(const Sources &);
 };
 
 /// The voice count each polyphony choice allows, in parameter order. The

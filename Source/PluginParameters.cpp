@@ -1662,6 +1662,45 @@ Cache::Sources Cache::modulationSources() const {
   return from;
 }
 
+std::array<int, kNumHarmonics + 1> Cache::loopsOf(const Sources &from) {
+  constexpr int places = kNumHarmonics + 1;
+
+  // Every channel each one takes from, directly or along the links.
+  std::array<std::uint64_t, places> reaches{};
+
+  for (int at = 0; at < places; ++at)
+    for (const int source : from[(size_t)at])
+      if (source >= 0)
+        reaches[(size_t)at] |= std::uint64_t{1} << source;
+
+  for (int via = 0; via < places; ++via)
+    for (int at = 0; at < places; ++at)
+      if ((reaches[(size_t)at] >> via) & 1u)
+        reaches[(size_t)at] |= reaches[(size_t)via];
+
+  std::array<int, places> loop{};
+  loop.fill(-1);
+
+  for (int at = 0; at < places; ++at)
+    for (int other = 0; other < places && loop[(size_t)at] < 0; ++other)
+      if (other != at && ((reaches[(size_t)at] >> other) & 1u) &&
+          ((reaches[(size_t)other] >> at) & 1u))
+        loop[(size_t)at] = std::min(at, other);
+
+  // The lowest member names the loop, which the first match only finds when
+  // it is lower than this channel.
+  for (int at = 0; at < places; ++at)
+    if (loop[(size_t)at] >= 0)
+      for (int other = 0; other < at; ++other)
+        if (((reaches[(size_t)at] >> other) & 1u) &&
+            ((reaches[(size_t)other] >> at) & 1u)) {
+          loop[(size_t)at] = other;
+          break;
+        }
+
+  return loop;
+}
+
 Cache::ChannelFlags Cache::feedingHeard(const Sources &from,
                                         const ChannelFlags &heard) {
   // Back from every channel that is heard, until nothing more is reached.

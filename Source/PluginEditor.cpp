@@ -2128,8 +2128,15 @@ void OvertoniumEditor::updateModulationMarks() {
     }
   }
 
-  for (int at = 0; at <= kNoiseSource; ++at)
-    column(at).setModulationMarks(modulates[(size_t)at], linked[(size_t)at]);
+  // The loops, and the one the channel under the pointer is in.
+  const auto loops = ovt::params::Cache::loopsOf(modulation);
+  const int pointedLoop = pointed >= 0 ? loops[(size_t)pointed] : -1;
+
+  for (int at = 0; at <= kNoiseSource; ++at) {
+    const int loop = loops[(size_t)at];
+    column(at).setModulationMarks(modulates[(size_t)at], linked[(size_t)at],
+                                  loop >= 0 && loop == pointedLoop);
+  }
 }
 
 // =============================================================================

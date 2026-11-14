@@ -339,9 +339,9 @@ void NoiseStrip::paintHeaderBand(juce::Graphics &g) {
   // Accent when hovered, the same as a numbered channel, and its own colour
   // when linked to the one that is. See ChannelStrip.
   drawNoiseTrace(g, area,
-                 hovered  ? colours::accent
-                 : linked ? colour
-                          : colours::text,
+                 hovered || looped ? colours::accent
+                 : linked          ? colour
+                                   : colours::text,
                  stroke);
   paintModulationMark(g, area, colour);
 }

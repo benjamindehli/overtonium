@@ -58,9 +58,12 @@ public:
   bool isHovered() const noexcept { return hovered; }
 
   /// The marks at the head of the column for the modulation between
-  /// channels: whether this channel modulates another, and whether it is
-  /// linked, either way, to the channel under the pointer.
-  void setModulationMarks(bool modulatesOther, bool linkedToHovered);
+  /// channels: whether this channel modulates another, whether it is linked,
+  /// either way, to the channel under the pointer, and whether it is in a loop
+  /// with it. A loop lights as one, in the accent, since the voice plays it as
+  /// one, a sample at a time.
+  void setModulationMarks(bool modulatesOther, bool linkedToHovered,
+                          bool loopedWithHovered = false);
 
   /// Picks out one row, or kNoRow to clear. Every column is told the same
   /// row, so the highlight runs the width of the mixer.
@@ -117,6 +120,7 @@ protected:
   /// See setModulationMarks.
   bool modulates = false;
   bool linked = false;
+  bool looped = false;
 
   /// Repaints whatever draws the number or the mark at the head.
   virtual void repaintHeader() = 0;

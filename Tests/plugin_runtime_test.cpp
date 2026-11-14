@@ -6636,6 +6636,35 @@ void testFeedingHeard(OvertoniumProcessor &p) {
   check(none, "with nothing heard, nothing feeds");
 
   ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  // Loops, from links written out by hand: 2 and 3 follow each other, 8, 9
+  // and 10 go round, 5 follows 2 without being followed, and the noise
+  // channel and 12 follow each other.
+  Cache::Sources links{};
+  for (auto &both : links)
+    both = {-1, -1};
+
+  links[1] = {2, -1};
+  links[2] = {-1, 1};
+  links[4] = {1, -1};
+  links[7] = {-1, 9};
+  links[8] = {-1, 7};
+  links[9] = {8, -1};
+  links[11] = {ovt::kNoiseSource, -1};
+  links[ovt::kNoiseSource] = {11, -1};
+
+  const auto loops = Cache::loopsOf(links);
+  check(loops[1] == 1 && loops[2] == 1,
+        "two channels following each other are one loop, named by the lower");
+  check(loops[7] == 7 && loops[8] == 7 && loops[9] == 7,
+        "three going round are one loop, though 8 does not follow 9 directly");
+  check(loops[4] == -1 && loops[0] == -1,
+        "one that follows a loop without being followed is in none");
+  check(loops[11] == 11 && loops[ovt::kNoiseSource] == 11,
+        "the noise channel can be in a loop with a partial");
+
+  links[2] = {-1, -1};
+  check(Cache::loopsOf(links)[1] == -1, "and a link taken away opens the loop");
 }
 
 /// The noise channel as a source in a partial's two menus, and the partials

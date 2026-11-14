@@ -180,13 +180,15 @@ void StripColumn::setIdle(juce::Slider &knob, bool idle) {
   knob.repaint();
 }
 
-void StripColumn::setModulationMarks(bool modulatesOther,
-                                     bool linkedToHovered) {
-  if (modulates == modulatesOther && linked == linkedToHovered)
+void StripColumn::setModulationMarks(bool modulatesOther, bool linkedToHovered,
+                                     bool loopedWithHovered) {
+  if (modulates == modulatesOther && linked == linkedToHovered &&
+      looped == loopedWithHovered)
     return;
 
   modulates = modulatesOther;
   linked = linkedToHovered;
+  looped = loopedWithHovered;
   repaintHeader();
 }
 
@@ -211,7 +213,12 @@ void StripColumn::paintModulationMark(juce::Graphics &g,
     g.fillEllipse(lamp.expanded(diameter * 0.18f));
   }
 
-  g.setColour(colour.withAlpha(modulates ? 1.0f : 0.16f));
+  // Blended into the column's background rather than drawn see-through, so
+  // the face is opaque and covers the recess under it, as the rule lamps'
+  // faces do.
+  g.setColour(modulates ? colour
+                        : backdropAt(juce::roundToInt(lamp.getCentreY()))
+                              .interpolatedWith(colour, 0.16f));
   g.fillEllipse(lamp);
 }
 

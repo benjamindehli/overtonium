@@ -658,12 +658,12 @@ void ChannelStrip::paintHeaderBand(juce::Graphics &g) {
 
   const auto header = rows[rowIndex(Row::Header)];
 
-  // Accent when the pointer is on this channel, and mixed towards the accent
-  // by how much of a LINK drag the channel would take. A channel linked by
-  // modulation to the one under the pointer lights in its own colour, apart
-  // from both.
+  // Accent when the pointer is on this channel or on one in a loop with it,
+  // and mixed towards the accent by how much of a LINK drag the channel would
+  // take. A channel linked by modulation to the one under the pointer lights
+  // in its own colour, apart from both.
   const auto ink =
-      hovered ? colours::accent
+      hovered || looped ? colours::accent
       : linkReach <= 0.0f && linked
           ? colour
           : colours::text.interpolatedWith(colours::accent, linkReach);
