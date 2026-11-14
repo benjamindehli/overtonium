@@ -6450,6 +6450,25 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
 
   check(ringLit(strip.getAmRate()), "the rate is live on a shape");
 
+  // A plain click on a shape screen opens its menu, which takes the pointer
+  // away without telling the strip, so the strip lets go of its hover then.
+  {
+    strip.setBounds(0, 0, ovt::ui::kStripWidth, 600);
+    const juce::Point<float> at{10.0f, 10.0f};
+    const auto now = juce::Time::getCurrentTime();
+    const auto event = [&](juce::Component &origin) {
+      return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),
+                              at, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f,
+                              0.0f, &strip, &origin, now, at, now, 1, false);
+    };
+
+    strip.mouseEnter(event(strip));
+    const bool before = strip.isHovered();
+    strip.mouseDown(event(button));
+    check(before && !strip.isHovered(),
+          "clicking a shape screen lets go of the strip's hover");
+  }
+
   button.chooseFromMenu(third);
 
   check(stored() == ovt::params::ampSourceIndex(4) &&

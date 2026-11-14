@@ -419,6 +419,10 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   if (apvts.getParameter(id) == nullptr)
     return;
 
+  // The menu takes the pointer, and this screen is not told it left.
+  hovered = false;
+  repaint();
+
   auto m = buildMenu();
   m.setLookAndFeel(&getLookAndFeel());
 

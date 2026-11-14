@@ -200,7 +200,7 @@ void StripColumn::paintModulationMark(juce::Graphics &g,
   // another. Unlit is the channel colour held down low, as theirs is.
   constexpr float diameter = 5.0f;
   const auto lamp = juce::Rectangle<float>(diameter, diameter)
-                        .withCentre({number.getRight() + 1.5f + diameter * 0.5f,
+                        .withCentre({number.getRight() + 3.0f + diameter * 0.5f,
                                      number.getY() + diameter * 0.5f - 0.5f});
 
   paintRecess(g, lamp, diameter * 0.5f);

@@ -468,6 +468,11 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   const bool echoOfTheSameClick = e.eventTime == lastClick;
   lastClick = e.eventTime;
 
+  // A shape screen opens its menu on a plain click, and the menu takes the
+  // pointer away as the right-click one does, so the hover is let go now.
+  if (dynamic_cast<const ShapeButton *>(e.originalComponent) != nullptr)
+    clearHover();
+
   // The command key on the channel's number picks the channel, for the
   // Selected scope. Only on the number, since on a knob that key asks for fine
   // movement.

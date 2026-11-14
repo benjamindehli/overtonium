@@ -212,8 +212,11 @@ void NoiseStrip::setDrawGlow(bool on) {
 }
 
 void NoiseStrip::mouseDown(const juce::MouseEvent &e) {
-  // A menu takes the pointer away, so let go of the hover first. See
-  // ChannelStrip::mouseDown.
+  // A menu takes the pointer away, so let go of the hover first. The shape
+  // screen opens its menu on a plain click. See ChannelStrip::mouseDown.
+  if (dynamic_cast<const ShapeButton *>(e.originalComponent) != nullptr)
+    clearHover();
+
   if (e.mods.isPopupMenu()) {
     clearHover();
 
