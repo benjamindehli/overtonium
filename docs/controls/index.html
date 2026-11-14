@@ -338,13 +338,14 @@
                     </p>
 
                     <p>
-                        <strong>Another partial as the source.</strong> The Partial submenu under the amplitude shapes lets a channel follow another
-                        partial instead of a tremolo. That partial's wave multiplies this one sample by sample, which makes the sum and the difference
-                        of their two frequencies. On A3, partial 2 following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every
-                        partial is a whole multiple of the note, so the two new frequencies are too, and the result stays in tune. DEPTH goes from
-                        none of it at 0% to the product alone at 100%, which is ring modulation, with the partial's own tone gone. In between, the
-                        tone is still there with the two new ones beside it. RATE goes dark, as on a muted channel, since the source sets the rate.
-                        The drawing shows a times sign and the source's number.
+                        <strong>Another partial as the source.</strong> The Channel submenu under the amplitude shapes lets a channel follow another
+                        partial instead of a tremolo. It lists every partial, its own place unavailable, then the noise channel. That partial's wave
+                        multiplies this one sample by sample, which makes the sum and the difference of their two frequencies. On A3, partial 2
+                        following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every partial is a whole multiple of the note, so
+                        the two new frequencies are too, and the result stays in tune. DEPTH goes from none of it at 0% to the product alone at 100%,
+                        which is ring modulation, with the partial's own tone gone. In between, the tone is still there with the two new ones beside
+                        it. RATE goes dark, as on a muted channel, since the source sets the rate. The screen shows the source's number on a two-digit
+                        display, lit in the source's colour.
                     </p>
 
                     <p>
@@ -368,7 +369,7 @@
                     </p>
 
                     <p>
-                        <strong>A partial as the pitch source.</strong> The pitch shapes have the same Partial submenu. There, the other partial's
+                        <strong>A partial as the pitch source.</strong> The pitch shapes have the same Channel submenu. There, the other partial's
                         wave moves this one's phase sample by sample, which is how FM synthesizers make their tones. It spreads the partial into pairs
                         of tones either side of it, one source frequency apart. On A3, partial 2 moved by partial 1 keeps 440 Hz and gains 660 Hz and
                         880 Hz above it, and 220 Hz below. Every one of them is a whole multiple of the note, so the result stays in tune however deep
@@ -385,34 +386,35 @@
                     </p>
 
                     <p>
-                        <strong>Feedback.</strong> The last entry in the pitch shapes moves a partial's phase by its own wave, as the feedback
-                        operator on a DX7 does. It takes the average of the partial's last two samples, which keeps a deep setting from flipping
-                        between two values every sample. The partial keeps its pitch and gains its own harmonics, so it stays in tune. As the index
-                        rises it turns from a sine towards a sawtooth, at about 1.5 it is close to one, and from about 2 it turns to noise, which
-                        grows denser up to 12. The deeper the index and the higher the partial, the further its harmonics reach, so below 2 the index
-                        is held where they would fold back from the top of the audio band. A low partial gets to about 2, a partial at 1.8 kHz to
-                        about 1.1, and one at 10 kHz stays close to a sine. Past 2 the knob goes straight through to noise at every pitch. On the
-                        lo-fi rate nothing is held back. Feeding back makes the wave lean to one side, which would put in an offset, so that is taken
-                        out, as the DX7's output does. Feedback passes on the same things as a partial as the source, and a partial set to feedback
-                        can be the source for others, muted or not. The drawing shows FB.
+                        <strong>Feedback.</strong> In the pitch shapes' Channel submenu, a partial's own place is Feedback, which moves a partial's
+                        phase by its own wave, as the feedback operator on a DX7 does. It takes the average of the partial's last two samples, which
+                        keeps a deep setting from flipping between two values every sample. The partial keeps its pitch and gains its own harmonics,
+                        so it stays in tune. As the index rises it turns from a sine towards a sawtooth, at about 1.5 it is close to one, and from
+                        about 2 it turns to noise, which grows denser up to 12. The deeper the index and the higher the partial, the further its
+                        harmonics reach, so below 2 the index is held where they would fold back from the top of the audio band. A low partial gets to
+                        about 2, a partial at 1.8 kHz to about 1.1, and one at 10 kHz stays close to a sine. Past 2 the knob goes straight through to
+                        noise at every pitch. On the lo-fi rate nothing is held back. Feeding back makes the wave lean to one side, which would put in
+                        an offset, so that is taken out, as the DX7's output does. Feedback passes on the same things as a partial as the source, and
+                        a partial set to feedback can be the source for others, muted or not. The screen shows FB in the channel's own colour, the B
+                        drawn as seven bars draw it.
                     </p>
 
                     <p>
-                        <strong>The noise channel as the source.</strong> Both shape menus also offer <strong>Noise</strong>, the noise channel as it
-                        comes out of COLOUR and STRING. For amplitude, noise multiplying a partial spreads it into a band of noise around its own
+                        <strong>The noise channel as the source.</strong> Both Channel submenus end with <strong>Noise</strong>, the noise channel as
+                        it comes out of COLOUR and STRING. For amplitude, noise multiplying a partial spreads it into a band of noise around its own
                         pitch, so a little DEPTH gives a tone some breath and full depth leaves a whistle at the partial's pitch. For pitch, noise
                         moving the phase makes the partial rough and unsteady, and deep enough it turns to noise. Noise has no peak, so the index is
                         read against its level, and dark noise, which is quieter, moves it less than bright. With STRING up, the source is the string,
                         which rings at the fundamental, so the new tones are whole multiples of the note and stay in tune, and they die away as the
                         string does. The noise channel passes on what a partial passes on: its envelope, velocity, aftertouch, KEYBOARD row and its
-                        own AMP MOD, but not its fader or mute, so it can be pulled all the way down and still be the source. The drawing shows a
-                        times sign and the noise trace.
+                        own AMP MOD, but not its fader or mute, so it can be pulled all the way down and still be the source. The screen shows the
+                        noise trace, the mark at the head of the noise channel, in its colour.
                     </p>
 
                     <p>
-                        <strong>A partial as the noise channel's source.</strong> The noise channel's own amplitude menu has the Partial submenu, with
-                        all 32. The partial's wave then multiplies the noise, which moves the noise up around the partial's pitch. Following the
-                        fundamental, the noise pulses at the note's pitch, which gives a voiced breath or a buzz that follows the key. The noise
+                        <strong>A partial as the noise channel's source.</strong> The noise channel's own amplitude menu has the Channel submenu, with
+                        all 32 partials. The partial's wave then multiplies the noise, which moves the noise up around the partial's pitch. Following
+                        the fundamental, the noise pulses at the note's pitch, which gives a voiced breath or a buzz that follows the key. The noise
                         channel keeps its own fader, envelope and pan. A partial and the noise channel can follow each other, as two partials can.
                     </p>
 

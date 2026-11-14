@@ -25,16 +25,12 @@ bool ownRow(Row r) {
          r == Row::PmDepth || r == Row::Drift || r == Row::Glide;
 }
 
-/// A warm white, like an incandescent bulb, outside the interval palette since
-/// noise is not part of the harmonic series. Kept pale enough that it is not
-/// taken for one of the partials' oranges or yellows.
-const juce::Colour kNoiseColour{0xffc2b8a6};
 } // namespace
 
 NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                        HoverTarget &hoverTarget, juce::Component &popupParent)
     : StripColumn(hoverTarget), apvts(state), popupHost(popupParent),
-      colour(kNoiseColour),
+      colour(noiseColour),
       amShape(state, params::noiseParamId(params::amShapeSuffix),
               params::amShapeSuffix, params::kAmpShapes,
               params::ampShapeNames(), kNoiseSource),
@@ -42,8 +38,8 @@ NoiseStrip::NoiseStrip(juce::AudioProcessorValueTreeState &state,
                  params::muteSuffix),
       soloButton(state, "S", params::noiseParamId(params::soloSuffix),
                  params::soloSuffix),
-      meter(kNoiseColour), envLamp(kNoiseColour), keyOffLamp(kNoiseColour),
-      tremoloLamp(kNoiseColour), outputLamp(kNoiseColour) {
+      meter(noiseColour), envLamp(noiseColour), keyOffLamp(noiseColour),
+      tremoloLamp(noiseColour), outputLamp(noiseColour) {
   addAndMakeVisible(outputLamp);
 
   for (auto *lamp : {&envLamp, &keyOffLamp, &tremoloLamp})

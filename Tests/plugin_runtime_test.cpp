@@ -3597,14 +3597,16 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   std::vector<SegmentDisplay *> displays;
   displays = descendantsOf<SegmentDisplay>(*editor);
 
-  // Three on the bar (the two converter readouts and the preset name), two on
-  // each of the thirty-two channels, the level on the noise strip, and one per
-  // macro in the panel. Then five in the Playing bar (the voices, the voices in
-  // use, bend range, aftertouch and slide) and sixteen in the Tuning bar (the
-  // temperament, root, reference, the twelve pitch classes and the drift). The
-  // macro and bar displays are built whether or not they are in use.
+  // Three on the bar (the two converter readouts and the preset name), four on
+  // each of the thirty-two channels (the tuning, the level and the source's
+  // number in each of the two shape screens), the level and the shape screen
+  // on the noise strip, and one per macro in the panel. Then five in the
+  // Playing bar (the voices, the voices in use, bend range, aftertouch and
+  // slide) and sixteen in the Tuning bar (the temperament, root, reference,
+  // the twelve pitch classes and the drift). The macro, bar and source
+  // displays are built whether or not they are in use.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
+            3 + 4 * ovt::kNumHarmonics + 2 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -3641,10 +3643,15 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
     return;
 
   // The readouts are the strip's own children, so they are found by walking
-  // one strip rather than by being handed out.
-  const auto onFirst = descendantsOf<SegmentDisplay>(*strips.front());
+  // one strip rather than by being handed out. Not the source's number inside
+  // each shape screen.
+  std::vector<SegmentDisplay *> onFirst;
+  for (auto *d : descendantsOf<SegmentDisplay>(*strips.front()))
+    if (dynamic_cast<ovt::ui::ShapeButton *>(d->getParentComponent()) ==
+        nullptr)
+      onFirst.push_back(d);
 
-  check(onFirst.size() == 2, "a channel carries two of them (" +
+  check(onFirst.size() == 2, "a channel carries two readouts (" +
                                  std::to_string(onFirst.size()) + ")");
   if (onFirst.size() != 2)
     return;
@@ -3771,7 +3778,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       param->setValueNotifyingHost(param->convertTo0to1(blend));
 
     std::vector<SegmentDisplay *> on;
-    on = descendantsOf<SegmentDisplay>(*strips[(size_t)channel]);
+    for (auto *d : descendantsOf<SegmentDisplay>(*strips[(size_t)channel]))
+      if (dynamic_cast<ovt::ui::ShapeButton *>(d->getParentComponent()) ==
+          nullptr)
+        on.push_back(d);
 
     return on.empty() ? juce::String() : on.front()->getReading();
   };
@@ -6302,6 +6312,23 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
           "harmonic " + std::to_string(harmonic) + " is one of them");
 }
 
+/// The Channel submenu of a shape menu, where the partials, Feedback and the
+/// noise channel are listed, or null.
+const juce::PopupMenu *channelSubmenu(const juce::PopupMenu &menu) {
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Channel" && it.getItem().subMenu != nullptr)
+      return it.getItem().subMenu.get();
+  return nullptr;
+}
+
+/// The display a shape button shows its source's number on.
+ovt::ui::SegmentDisplay *sourceDigitsOf(ovt::ui::ShapeButton &button) {
+  for (auto *child : button.getChildren())
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
+      return d;
+  return nullptr;
+}
+
 /// Whether a knob's ring is lit. A rate a partial source has no use for goes
 /// dark, as a silenced channel's knobs do, rather than being disabled.
 bool ringLit(const juce::Slider &knob) {
@@ -6375,7 +6402,7 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
     const auto &item = it.getItem();
 
-    if (item.text == "Partial" && item.subMenu != nullptr) {
+    if (item.text == "Channel" && item.subMenu != nullptr) {
       partials = item.subMenu.get();
       ticked = item.isTicked;
     } else if (item.text == "Set every channel to this") {
@@ -6390,23 +6417,36 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   check(shapes == (int)ovt::params::kAmpShapes.size(),
         "the menu lists the seven shapes as before");
   check(partials != nullptr && !ticked,
-        "then a Partial submenu, not ticked while a shape is chosen");
+        "then a Channel submenu, not ticked while a shape is chosen");
 
   if (partials == nullptr)
     return;
 
-  juce::StringArray offered;
+  juce::StringArray offered, listed;
   int third = 0;
+  bool ownShut = false;
   for (juce::PopupMenu::MenuItemIterator it(*partials); it.next();) {
-    offered.add(it.getItem().text);
-    if (it.getItem().text == "Partial 5")
-      third = it.getItem().itemID;
+    const auto &item = it.getItem();
+    if (item.isSeparator)
+      continue;
+    listed.add(item.text);
+    if (item.isEnabled)
+      offered.add(item.text);
+    if (item.text == "Partial 3")
+      ownShut = !item.isEnabled;
+    if (item.text == "Partial 5")
+      third = item.itemID;
   }
 
-  check(offered.size() == 31 && !offered.contains("Partial 3") &&
-            offered[0] == "Partial 1" && offered[30] == "Partial 32",
-        "which lists every partial but the channel's own (" +
+  check(offered.size() == 32 && !offered.contains("Partial 3") &&
+            offered[0] == "Partial 1" && offered[30] == "Partial 32" &&
+            offered[31] == "Noise",
+        "which offers every partial but the channel's own, then the noise "
+        "channel (" +
             std::to_string(offered.size()) + ")");
+  check(ownShut && listed.size() == 33 && listed[2] == "Partial 3",
+        "and keeps the channel's own place, unavailable, so the list lines up "
+        "with the channel numbers");
 
   check(ringLit(strip.getAmRate()), "the rate is live on a shape");
 
@@ -6416,6 +6456,27 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
             button.selectedPartial() == 4 &&
             button.currentName() == "Partial 5",
         "picking Partial 5 stores it and names it");
+
+  {
+    auto *digits = sourceDigitsOf(button);
+    check(digits != nullptr && digits->isVisible() &&
+              digits->getReading() == "5" && digits->isActive() &&
+              digits->howManyBars() == ovt::ui::SegmentDisplay::Bars::Seven &&
+              digits->getLampColour() ==
+                  ovt::ui::intervalColour(ovt::harmonic(4).pitchClass),
+          "and its screen shows 5 on seven bars, lit in partial 5's colour");
+
+    strip.setSilencedByOthers(true);
+    button.setSize(36, 18);
+    juce::Image canvas(juce::Image::ARGB, 36, 18, true);
+    juce::Graphics g(canvas);
+    button.paintEntireComponent(g, false);
+    check(digits != nullptr && !digits->isActive(),
+          "which goes dark on a silenced channel");
+    strip.setSilencedByOthers(false);
+    button.paintEntireComponent(g, false);
+    check(digits != nullptr && digits->isActive(), "and lights again after");
+  }
   check(!ringLit(strip.getAmRate()),
         "and darkens the rate, which a partial has no use for");
 
@@ -6445,7 +6506,7 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   menu = button.buildMenu();
   for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
     const auto &item = it.getItem();
-    if (item.text == "Partial" && item.subMenu != nullptr) {
+    if (item.text == "Channel" && item.subMenu != nullptr) {
       tickedNow = item.isTicked;
       for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
         if (sub.getItem().text == "Partial 5")
@@ -6473,23 +6534,32 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   p.apvts.getParameter(id)->setValueNotifyingHost(0.0f);
   check(button.selectedPartial() == -1 && ringLit(strip.getAmRate()),
         "a shape set from outside lights the rate again");
+  check(sourceDigitsOf(button) != nullptr &&
+            !sourceDigitsOf(button)->isVisible(),
+        "and the screen goes back to drawing the shape");
 
   // The pitch modulator has the same submenu after its eight shapes.
   auto &pitch = strip.getPmShape();
   const auto pitchId = oscParamId(ovt::params::pmShapeSuffix, 2);
   int pitchPartials = 0, partialOne = 0;
   menu = pitch.buildMenu();
-  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-    if (it.getItem().text == "Partial" && it.getItem().subMenu != nullptr)
-      for (juce::PopupMenu::MenuItemIterator sub(*it.getItem().subMenu);
-           sub.next();) {
+  juce::StringArray pitchListed;
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator sub(*channels); sub.next();) {
+      if (sub.getItem().isSeparator)
+        continue;
+      pitchListed.add(sub.getItem().text);
+      if (sub.getItem().text.startsWith("Partial "))
         ++pitchPartials;
-        if (sub.getItem().text == "Partial 1")
-          partialOne = sub.getItem().itemID;
-      }
+      if (sub.getItem().text == "Partial 1")
+        partialOne = sub.getItem().itemID;
+    }
 
   check(pitchPartials == 31,
         "the pitch modulator offers the other 31 partials too");
+  check(pitchListed.size() == 33 && pitchListed[2] == "Feedback" &&
+            pitchListed[32] == "Noise",
+        "with Feedback in the channel's own place and the noise channel last");
 
   const auto depthText = [&] {
     return strip.getPmDepth().getTextFromValue(300.0);
@@ -6516,10 +6586,12 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
   // and in its "Set every channel to" submenu.
   const auto feedbackIds = [](const juce::PopupMenu &m) {
     std::pair<int, int> ids{0, 0};
+    if (const auto *channels = channelSubmenu(m))
+      for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+        if (it.getItem().text == "Feedback")
+          ids.first = it.getItem().itemID;
     for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
       const auto &item = it.getItem();
-      if (item.text == "Feedback")
-        ids.first = item.itemID;
       if (item.text == "Set every channel to" && item.subMenu != nullptr)
         for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
           if (sub.getItem().text == "Feedback")
@@ -6548,15 +6620,24 @@ void testAmpFromAPartial(OvertoniumProcessor &p) {
             depthText() == "Index 3.00",
         "picking Feedback stores the channel's own partial, darkens the rate "
         "and reads the depth as the index");
+  {
+    auto *digits = sourceDigitsOf(pitch);
+    check(digits != nullptr && digits->isVisible() &&
+              digits->getReading() == "F8" &&
+              digits->getLampColour() ==
+                  ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
+          "and its screen shows FB, as seven bars draw it, in its own colour");
+  }
 
   bool setThisLive = false, feedbackTicked = false;
   menu = pitch.buildMenu();
-  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
     if (it.getItem().text == "Set every channel to this")
       setThisLive = it.getItem().isEnabled;
-    if (it.getItem().text == "Feedback")
-      feedbackTicked = it.getItem().isTicked;
-  }
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+      if (it.getItem().text == "Feedback")
+        feedbackTicked = it.getItem().isTicked;
   check(setThisLive && feedbackTicked,
         "Feedback is ticked, and setting every channel to this is offered");
 
@@ -6716,10 +6797,12 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
   // The ids of an entry, and of the same entry under "Set every channel to".
   const auto idsOf = [](const juce::PopupMenu &m, const juce::String &text) {
     std::pair<int, int> ids{0, 0};
+    if (const auto *channels = channelSubmenu(m))
+      for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+        if (it.getItem().text == text)
+          ids.first = it.getItem().itemID;
     for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
       const auto &item = it.getItem();
-      if (item.text == text && item.subMenu == nullptr)
-        ids.first = item.itemID;
       if (item.text == "Set every channel to" && item.subMenu != nullptr)
         for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
           if (sub.getItem().text == text)
@@ -6744,6 +6827,8 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
             amp.selectedPartial() == kNoiseSource &&
             amp.currentName() == "Noise" && !ringLit(strip.getAmRate()),
         "picking Noise for amplitude stores it, names it and darkens the rate");
+  check(sourceDigitsOf(amp) != nullptr && !sourceDigitsOf(amp)->isVisible(),
+        "and draws the noise channel's trace rather than a number");
 
   pitch.chooseFromMenu(pitchNoise);
   check(stored(oscParamId(pmShapeSuffix, 2)) ==
@@ -6783,14 +6868,14 @@ void testNoiseAsSource(OvertoniumProcessor &p) {
   auto &noiseShape = noise.getAmShape();
   int offered = 0, partialOne = 0;
   menu = noiseShape.buildMenu();
-  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
-    if (it.getItem().text == "Partial" && it.getItem().subMenu != nullptr)
-      for (juce::PopupMenu::MenuItemIterator sub(*it.getItem().subMenu);
-           sub.next();) {
-        ++offered;
-        if (sub.getItem().text == "Partial 1")
-          partialOne = sub.getItem().itemID;
-      }
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator sub(*channels); sub.next();) {
+      if (!sub.getItem().text.startsWith("Partial "))
+        continue;
+      ++offered;
+      if (sub.getItem().text == "Partial 1")
+        partialOne = sub.getItem().itemID;
+    }
 
   const auto noiseIds = idsOf(menu, "Noise");
   check(offered == 32 && noiseIds.first == 0 && noiseIds.second == 0 &&
@@ -10479,7 +10564,7 @@ void testTuningBar(OvertoniumProcessor &p) {
   SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr;
   ovt::ui::LabelledKnob *retune = nullptr;
   for (auto *child : bar->getChildren()) {
-    if (auto *d = dynamic_cast<SegmentDisplay *>(child)) {
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child)) {
       const auto t = d->getTitle();
       if (t.startsWith("Temperament"))
         temperament = d;
@@ -12109,7 +12194,7 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       // The converter readouts, which count. The preset name is a display on
       // this bar too and does not sit under the meter, and it is told apart
       // by having the cells to spell with.
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+      if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
         if (d->howManyBars() == SegmentDisplay::Bars::Seven)
           under.add(child->getBounds());
 
@@ -12162,7 +12247,7 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     // The two that have a unit to name. The preset display is the third on
     // this bar and has none: a name is not measured in anything.
     for (auto *child : bar.getChildren())
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+      if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
         if (d->howManyBars() == SegmentDisplay::Bars::Seven)
           named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
 

@@ -33,6 +33,7 @@ public:
               int ownPartial = -1, bool offersFeedback = false);
 
   void paint(juce::Graphics &) override;
+  void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -96,6 +97,13 @@ private:
 
   /// Everything paint draws, before it is kept as a picture.
   void paintShape(juce::Graphics &);
+
+  /// The source's number, FB for feedback, in the source's colour. Shown
+  /// while a partial is the source. See paintShape for the noise channel.
+  SegmentDisplay sourceDigits{{}, SegmentDisplay::Bars::Seven, 2};
+
+  /// Sets sourceDigits from the stored choice and the channel's lights.
+  void showSource();
 
   juce::AudioProcessorValueTreeState &apvts;
 
