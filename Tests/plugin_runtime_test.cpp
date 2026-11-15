@@ -2564,11 +2564,29 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   const auto released = renderBlocks(p, 40, 512, release);
   check(released.peak < pressed.peak, "letting go fades them back out");
 
+  const auto setPolySource = [&p](ovt::params::AftertouchSource s) {
+    auto *param = p.apvts.getParameter(ovt::params::atSourceId);
+    param->setValueNotifyingHost(param->convertTo0to1((float)s));
+  };
+
   // Polyphonic aftertouch has to reach the voice holding that note.
   juce::MidiBuffer poly;
   poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 127), 0);
   const auto polyPressed = renderBlocks(p, 20, 512, poly);
   check(polyPressed.peak > 0.01f, "polyphonic aftertouch reaches the voice");
+
+  // Held at full while the setting moves: pressure only takes it too, and the
+  // wheel alone leaves it out.
+  setPolySource(ovt::params::AftertouchSource::ChannelPressure);
+  check(renderBlocks(p, 20, 512).peak > 0.01f,
+        "set to channel pressure, polyphonic aftertouch still reaches it");
+
+  setPolySource(ovt::params::AftertouchSource::ModWheel);
+  renderBlocks(p, 20, 512);
+  check(renderBlocks(p, 20, 512).peak < 1.0e-4f,
+        "set to the mod wheel, polyphonic aftertouch is left out");
+
+  setPolySource(ovt::params::AftertouchSource::Either);
 
   poly.clear();
   poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 0), 0);
@@ -3179,6 +3197,27 @@ void testMpe(OvertoniumProcessor &p) {
     std::printf("  pressed on its own channel it reaches %.3f\n", pressed);
 
     check(pressed > 0.01f, "pressure on its own channel brings it in");
+
+    // Aftertouch from the wheel alone leaves the note's own pressure out,
+    // though the Playing bar still shows it. The first stretch lets the
+    // smoothing settle.
+    setParam(ovt::params::atSourceId,
+             (float)ovt::params::AftertouchSource::ModWheel);
+    play(16, {});
+    play(8, {});
+
+    check(peak() < 0.01f,
+          "set to the mod wheel, a note's own pressure is left out (" +
+              std::to_string(peak()) + ")");
+    check(p.getPressurePosition() > 0.9f,
+          "while the Playing bar still shows the pressure");
+
+    setParam(ovt::params::atSourceId,
+             (float)ovt::params::AftertouchSource::Either);
+    play(16, {});
+    play(8, {});
+
+    check(peak() > 0.01f, "set back to Either, it comes in again");
 
     setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, 0), 1.0f);
     setParam(ovt::params::oscParamId(ovt::params::atSuffix, 0), 0.0f);

@@ -1,6 +1,6 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-14
+Last changed: 2026-11-15
 
 # Overtonium controls
 
@@ -85,7 +85,7 @@ Patches made before the switch existed keep Classic, so a saved project and a sa
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity. A strip with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
 
-By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings.
+By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings. With Mod wheel, pressure of every kind is left out, polyphonic and MPE pressure included.
 
 ## Following the keyboard, per partial
 

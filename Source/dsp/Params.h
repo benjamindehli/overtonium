@@ -183,7 +183,12 @@ struct GlobalParams {
   bool adaptiveHome = false;
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
-  float aftertouch = 0.0f;    ///< current channel pressure, 0..1
+  /// Channel pressure, the mod wheel or the higher of the two, 0..1, as
+  /// "Aftertouch from" chooses.
+  float aftertouch = 0.0f;
+  /// Whether each note's own pressure, polyphonic aftertouch or MPE, counts as
+  /// well. Off when "Aftertouch from" is the mod wheel alone.
+  bool notePressure = true;
   /// Whether a partial starting from silence starts its cycle at a rising zero
   /// crossing, the softest onset. Off, it carries on from wherever its phase
   /// was.
