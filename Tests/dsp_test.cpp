@@ -10418,6 +10418,52 @@ void testNoiseChannel() {
     check(engine.getNoiseLevel() < 1.0e-6f, "and its meter falls to zero");
   }
 
+  // With the string on, the meter follows the string as well as the burst that
+  // strikes it, which is over long before the string stops ringing.
+  {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f;
+
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.0005f;
+    p.noise.decay = 0.02f;
+    p.noise.sustain = 0.0f;
+    p.noise.stringAmount = 1.0f;
+    p.noise.stringDecay = 4.0f;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(45, 1.0f, p);
+
+    // The second half second, well past the burst, with the key still down.
+    engine.render(l.data(), r.data(), N, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    float heard = 0.0f;
+    for (int n = 0; n < N; ++n)
+      heard = std::max(heard, std::abs(l[(size_t)n]));
+
+    const auto ringing = engine.getNoiseLevel();
+    check(heard > 0.01f, "the string still rings after the burst (" +
+                             std::to_string(heard) + ")");
+    check(ringing > 0.05f, "and the noise meter still reads it (" +
+                               std::to_string(ringing) + ")");
+
+    // Let go, the string is damped over RELEASE, and the meter goes with it.
+    engine.noteOff(45);
+    for (int b = 0; b < 8; ++b)
+      engine.render(l.data(), r.data(), N, p);
+
+    check(engine.getNoiseLevel() < 0.01f * ringing,
+          "and falls once the string has died away (" +
+              std::to_string(engine.getNoiseLevel()) + ")");
+  }
+
   // Two voices must not layer the identical noise.
   {
     const auto engineOwner = std::make_unique<SynthEngine>();

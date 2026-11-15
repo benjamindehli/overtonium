@@ -241,7 +241,13 @@ public:
     return partialPeaks;
   }
 
+  /// The noise channel's envelope against its gain, which is what reaches
+  /// the resonator. See getNoiseMeterPeak for what is heard.
   float getNoisePeak() const noexcept { return noisePeak; }
+
+  /// The louder of that and the Karplus-Strong string as heard, which rings
+  /// on long after the burst that strikes it. For the meter.
+  float getNoiseMeterPeak() const noexcept { return noiseMeterPeak; }
 
   /// Where each partial's envelope stands, signed by which half of it is
   /// running: positive on the way in, negative once the key is up.
@@ -527,6 +533,7 @@ private:
   std::array<float, kMaxPowerBlocks> blockPowers{};
 
   float noisePeak = 0.0f;
+  float noiseMeterPeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
   float noiseVelocity = 0.0f;

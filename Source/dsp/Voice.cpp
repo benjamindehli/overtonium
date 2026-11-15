@@ -241,6 +241,10 @@ struct Voice::NoiseRun {
   float amount = 0.0f;
   bool stringOn = false;
   float rungPeak = 0.0f;
+  /// The loudest the string was heard in the block, through STRING, and the
+  /// channel's gain at the end of it, for the meter.
+  float heardStringPeak = 0.0f;
+  float meterGain = 0.0f;
 };
 
 void Voice::setRenderRate(double newSampleRate) noexcept {
@@ -310,6 +314,7 @@ void Voice::reset() noexcept {
   leaks.fill(Leak{});
   blockPowers.fill(0.0f);
   noisePeak = 0.0f;
+  noiseMeterPeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
@@ -749,6 +754,7 @@ void Voice::render(float *left, float *right, int numSamples,
   partialPressures.fill(0.0f);
   partialKeyboards.fill(0.0f);
   noisePeak = 0.0f;
+  noiseMeterPeak = 0.0f;
   noiseEnvelope = 0.0f;
   noiseTremolo = 0.0f;
   noiseVelocity = 0.0f;
@@ -1791,7 +1797,10 @@ void Voice::tickNoise(NoiseRun &run, int n) noexcept {
   if (run.stringOn) {
     const float rung = noise.string.tick(out) * kStringGain;
     run.rungPeak = std::max(run.rungPeak, std::abs(rung));
-    out += run.amount * noise.string.audibility() * (rung - out);
+
+    const float heard = run.amount * noise.string.audibility();
+    run.heardStringPeak = std::max(run.heardStringPeak, std::abs(heard * rung));
+    out += heard * (rung - out);
   }
 
   // Depth one is the product alone, which is ring modulation. What is passed
@@ -1826,6 +1835,11 @@ void Voice::tickNoise(NoiseRun &run, int n) noexcept {
 }
 
 void Voice::finishNoise(const NoiseRun &run) noexcept {
+  // The envelope is only the burst that strikes the string, which is over long
+  // before the string stops ringing, so the meter takes the string too.
+  noiseMeterPeak =
+      std::max(noiseMeterPeak, run.heardStringPeak * run.meterGain);
+
   // Alive while it is being struck or is still above -120 dBFS.
   noise.stringAlive =
       run.stringOn && (noise.env.isActive() || run.rungPeak >= 1.0e-6f);
@@ -1966,6 +1980,7 @@ bool Voice::renderNoise(float *left, float *right, int len,
   noise.lastGain = gHeard;
 
   noisePeak = std::max(noisePeak, noise.env.getLevel() * gEnd);
+  noiseMeterPeak = std::max(noiseMeterPeak, noisePeak);
 
   {
     const auto stage = noise.env.getStage();
@@ -2038,6 +2053,7 @@ bool Voice::renderNoise(float *left, float *right, int len,
   run.highMix = highMix;
   run.amount = amount;
   run.stringOn = stringOn;
+  run.meterGain = gEnd;
 
   if (defer != nullptr) {
     *defer = run;

@@ -193,7 +193,7 @@ The lamps read the voice pool, not the knobs, so they show what a note is doing,
 
 ### Meters
 
-Each channel meters the actual output of its partial, on a decibel scale down to -48 dB. The envelope, tremolo, velocity, aftertouch and mute or solo all show in it, and you can watch the spectrum change as a note decays. The meter fills the fader's own track instead of sitting beside it, and the fader cap is drawn as translucent glass so the meter shows through it. It shows the loudest instance of the partial across the sounding voices, not the sum, so it shows the shape of the patch instead of hitting the top as soon as you play a chord.
+Each channel meters the actual output of its partial, on a decibel scale down to -48 dB. The envelope, tremolo, velocity, aftertouch and mute or solo all show in it, and you can watch the spectrum change as a note decays. The meter fills the fader's own track instead of sitting beside it, and the fader cap is drawn as translucent glass so the meter shows through it. It shows the loudest instance of the partial across the sounding voices, not the sum, so it shows the shape of the patch instead of hitting the top as soon as you play a chord. On the noise channel with STRING up, it also shows the string ringing after the noise that struck it has died away.
 
 ### Colour and hover
 
