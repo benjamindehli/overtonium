@@ -359,6 +359,10 @@ void OvertoniumProcessor::updateAftertouch() {
       0, (int)ovt::params::kAftertouchSourceNames.size() - 1,
       (int)std::lround(paramCache.atSource->load()));
 
+  // A note's own pressure is pressure too, so the wheel alone shuts it out.
+  // The pressure meter still shows it, as what the keyboard sends.
+  currentParams.global.notePressure = source != AftertouchSource::ModWheel;
+
   switch (source) {
   case AftertouchSource::ChannelPressure:
     currentParams.global.aftertouch = channelPressure;

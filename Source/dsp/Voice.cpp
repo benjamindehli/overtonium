@@ -756,7 +756,8 @@ void Voice::render(float *left, float *right, int numSamples,
   noiseKeyboard = 0.0f;
 
   const float pressureTarget =
-      std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f), polyPressure);
+      std::max(std::clamp(p.global.aftertouch, 0.0f, 1.0f),
+               p.global.notePressure ? polyPressure : 0.0f);
 
   // With the render rate turned down, folding is the sound being asked for,
   // so the Nyquist guard is turned off, as a low-rate converter wraps rather
