@@ -267,7 +267,10 @@ const char *const kNames[] = {
     "Dream Phase",
     "EP Chimes",
     "Equal Saw",
+    "FM KarplusStrong",
+    "FM Perc Piano",
     "FM Piano",
+    "FM String Machine",
     "Glass Armonica",
     "Glide",
     "Glockenspiel",
@@ -2545,6 +2548,288 @@ bool build(const Applier &ap, const juce::String &name) {
     ap.set("stretch", -0.3302f);
     ap.set("track", 2.1f);
     ap.set("wobble", 0.0823f);
+    return true;
+  }
+  if (name == "FM KarplusStrong") {
+    ap.neutralBase();
+
+    // Two partials on FM, the fundamental and the octave, each modulating the
+    // other's pitch and ringing the other's level, panned apart, over the noise
+    // channel's Karplus-Strong string.
+    ap.oscTable(params::attackSuffix,
+                {-1.0f, -1.0f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
+                 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
+                 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
+                 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f, 0.0008f,
+                 0.0008f, 0.0008f, 0.0008f, 0.0008f});
+    ap.oscTable(params::releaseSuffix,
+                {0.001f, 0.001f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f, 0.008f,
+                 0.008f});
+    ap.set("h01_amDepth", 0.3861f);
+    ap.set("h01_amRate", 4.153f);
+    ap.set("h01_amShape", 8.0f);
+    ap.set("h01_decay", 6.274f);
+    ap.set("h01_drift", 3.9769f);
+    ap.set("h01_keyboard", -0.4559f);
+    ap.set("h01_pan", -1.0f);
+    ap.set("h01_pmDepth", 159.1074f);
+    ap.set("h01_pmShape", 9.0f);
+    ap.set("h01_sustain", 0.0f);
+    ap.set("h01_vel", 0.0979f);
+    ap.set("h01_volume", 0.9553f);
+    ap.set("h02_amDepth", 0.7512f);
+    ap.set("h02_amShape", 7.0f);
+    ap.set("h02_decay", 6.553f);
+    ap.set("h02_drift", 5.6139f);
+    ap.set("h02_keyboard", -0.457f);
+    ap.set("h02_pan", 1.0f);
+    ap.set("h02_pmDepth", 156.9583f);
+    ap.set("h02_pmShape", 8.0f);
+    ap.set("h02_sustain", 0.0f);
+    ap.set("h02_vel", 0.102f);
+    ap.set("h02_volume", 1.0f);
+    ap.set("h03_glide", 0.0039f);
+    ap.set("character", 7.0f);
+    ap.set("clipType", 7.0f); // Print
+    ap.set("echoAge", 0.4578f);
+    ap.set("echoFeedback", 0.0f);
+    ap.set("echoMix", 0.2556f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0954f);
+    ap.set("echoType", 1.0f); // Bucket brigade
+    ap.set("masterGain", -1.5f);
+    ap.set("noise_attack", 0.0005f);
+    ap.set("noise_colour", 0.5715f);
+    ap.set("noise_decay", 0.0195f);
+    ap.set("noise_keyboard", 0.408f);
+    ap.set("noise_release", 0.0027f);
+    ap.set("noise_string", 0.9961f);
+    ap.set("noise_stringDamp", 1.0f);
+    ap.set("noise_stringDecay", 8.1324f);
+    ap.set("noise_stringPoint", 0.2188f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_vel", 0.7166f);
+    ap.set("noise_volume", 0.5988f);
+    ap.set("reverbDamp", 0.1063f);
+    ap.set("reverbDecay", 0.4002f);
+    ap.set("reverbMix", 0.072f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0066f);
+    return true;
+  }
+  if (name == "FM Perc Piano") {
+    ap.neutralBase();
+
+    // Three partials heard on FM, each driven by another: the fundamental by
+    // the octave, the octave by a silent tenth partial feeding back on itself,
+    // and the twelfth by a silent fourth doing the same. Velocity raises the
+    // modulators far more than the fundamental, so a soft note is close to a
+    // sine and a hard one is bright and struck. The noise channel's string
+    // starts each note with a short strike.
+    ap.oscTable(params::velSuffix,
+                {0.0483f, 0.4941f, 0.4172f, 0.4234f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.5739f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f});
+    ap.set("h01_amDepth", 0.0821f);
+    ap.set("h01_attack", -0.4408f);
+    ap.set("h01_decay", 7.0816f);
+    ap.set("h01_keyboard", 0.0098f);
+    ap.set("h01_pmDepth", 152.9908f);
+    ap.set("h01_pmShape", 9.0f);
+    ap.set("h01_release", 0.1792f);
+    ap.set("h01_sustain", 0.0f);
+    ap.set("h01_volume", 1.0f);
+    ap.set("h02_amDepth", 0.7502f);
+    ap.set("h02_attack", 0.0002f);
+    ap.set("h02_decay", 4.6198f);
+    ap.set("h02_drift", 3.5096f);
+    ap.set("h02_keyboard", 0.252f);
+    ap.set("h02_offLevel", 0.5457f);
+    ap.set("h02_pan", -0.301f);
+    ap.set("h02_pmDepth", 201.739f);
+    ap.set("h02_pmShape", 17.0f);
+    ap.set("h02_release", 0.0345f);
+    ap.set("h02_strike", 0.1033f);
+    ap.set("h02_sustain", 0.0f);
+    ap.set("h02_swell", 0.005f);
+    ap.set("h02_volume", 0.4466f);
+    ap.set("h03_amDepth", 0.211f);
+    ap.set("h03_amRate", 3.9278f);
+    ap.set("h03_attack", 0.0002f);
+    ap.set("h03_decay", 4.3367f);
+    ap.set("h03_delay", 0.0036f);
+    ap.set("h03_drift", 12.3506f);
+    ap.set("h03_keyboard", 0.3827f);
+    ap.set("h03_pan", 0.3004f);
+    ap.set("h03_pmDepth", 243.9628f);
+    ap.set("h03_pmShape", 11.0f);
+    ap.set("h03_release", 0.1287f);
+    ap.set("h03_strike", 0.2685f);
+    ap.set("h03_sustain", 0.0f);
+    ap.set("h03_swell", 0.003f);
+    ap.set("h03_volume", 0.1786f);
+    ap.set("h04_amDepth", 0.239f);
+    ap.set("h04_amRate", 1.1806f);
+    ap.set("h04_attack", 0.0002f);
+    ap.set("h04_decay", 1.1398f);
+    ap.set("h04_delay", 0.0009f);
+    ap.set("h04_drift", 2.7859f);
+    ap.set("h04_keyboard", 0.3441f);
+    ap.set("h04_offLevel", 0.5878f);
+    ap.set("h04_pmDepth", 183.9381f);
+    ap.set("h04_pmShape", 11.0f);
+    ap.set("h04_release", 0.0119f);
+    ap.set("h04_strike", 0.2688f);
+    ap.set("h04_sustain", 0.2282f);
+    ap.set("h04_swell", 0.0039f);
+    ap.set("h05_drift", 0.0037f);
+    ap.set("h10_amDepth", 0.3643f);
+    ap.set("h10_amRate", 5.0543f);
+    ap.set("h10_amShape", 6.0f);
+    ap.set("h10_attack", 0.0002f);
+    ap.set("h10_decay", 0.1607f);
+    ap.set("h10_delay", 0.0016f);
+    ap.set("h10_drift", 3.4869f);
+    ap.set("h10_offLevel", 0.1566f);
+    ap.set("h10_pmDepth", 262.7296f);
+    ap.set("h10_pmShape", 17.0f);
+    ap.set("h10_release", 0.0159f);
+    ap.set("h10_strike", 0.1275f);
+    ap.set("h10_sustain", 0.0f);
+    ap.set("h10_swell", 0.0021f);
+    ap.set("h10_tune", 0.553f);
+    ap.set("character", 7.0f);
+    ap.set("clipType", 5.0f); // Console
+    ap.set("echoAge", 0.7495f);
+    ap.set("echoFeedback", 0.1172f);
+    ap.set("echoMix", 0.1812f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.0906f);
+    ap.set("lofiBits", 3.0f); // 10 bits
+    ap.set("masterGain", -7.0f);
+    ap.set("noise_amDepth", 0.2289f);
+    ap.set("noise_amRate", 3.6162f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0002f);
+    ap.set("noise_colour", 0.0693f);
+    ap.set("noise_decay", 0.0087f);
+    ap.set("noise_keyboard", 0.8135f);
+    ap.set("noise_offLevel", 0.2125f);
+    ap.set("noise_release", 0.0114f);
+    ap.set("noise_string", 0.5932f);
+    ap.set("noise_stringDamp", 0.997f);
+    ap.set("noise_stringDecay", 7.8738f);
+    ap.set("noise_stringPoint", 1.0f);
+    ap.set("noise_sustain", 0.0f);
+    ap.set("noise_swell", 0.0051f);
+    ap.set("noise_vel", 0.7942f);
+    ap.set("noise_volume", 1.0f);
+    ap.set("resonatorDamp", 0.5531f);
+    ap.set("resonatorDecay", 0.3056f);
+    ap.set("resonatorMix", 0.1484f);
+    ap.set("resonatorMode", 3.0f); // Octave
+    ap.set("reverbDamp", 0.2559f);
+    ap.set("reverbDecay", 0.5333f);
+    ap.set("reverbMix", 0.1488f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.016f);
+    ap.set("track", 1.7f);
+    ap.set("wobble", 0.0838f);
+    return true;
+  }
+  if (name == "FM String Machine") {
+    ap.neutralBase();
+
+    // A fundamental on FM feeding back on its own pitch, which leans its sine
+    // towards a sawtooth, and modulating the next three partials, with the
+    // octave and the twelfth spread apart and slowly wavering like an
+    // ensemble's voices.
+    ap.oscTable(params::velSuffix,
+                {0.228f, 0.8995f, 0.9001f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+                 0.0f, 0.0f, 0.0f});
+    ap.set("h01_amDepth", 0.2497f);
+    ap.set("h01_amRate", 5.2095f);
+    ap.set("h01_amShape", 6.0f);
+    ap.set("h01_attack", 0.0056f);
+    ap.set("h01_decay", 4.7107f);
+    ap.set("h01_keyboard", -0.3788f);
+    ap.set("h01_pmDepth", 208.0051f);
+    ap.set("h01_pmShape", 8.0f);
+    ap.set("h01_release", 0.8149f);
+    ap.set("h01_strike", 0.5773f);
+    ap.set("h01_sustain", 0.8164f);
+    ap.set("h01_volume", 1.0f);
+    ap.set("h02_amDepth", 0.1989f);
+    ap.set("h02_amRate", 1.1458f);
+    ap.set("h02_amShape", 6.0f);
+    ap.set("h02_attack", 0.0212f);
+    ap.set("h02_decay", 2.0353f);
+    ap.set("h02_drift", 6.673f);
+    ap.set("h02_pan", 1.0f);
+    ap.set("h02_pmDepth", 719.2926f);
+    ap.set("h02_pmShape", 8.0f);
+    ap.set("h02_strike", 1.0f);
+    ap.set("h02_sustain", 0.6595f);
+    ap.set("h02_volume", 1.0f);
+    ap.set("h03_amDepth", 0.1995f);
+    ap.set("h03_amRate", 0.9453f);
+    ap.set("h03_amShape", 6.0f);
+    ap.set("h03_attack", 0.0213f);
+    ap.set("h03_decay", 2.0353f);
+    ap.set("h03_drift", 6.6627f);
+    ap.set("h03_pan", -1.0f);
+    ap.set("h03_pmDepth", 717.6801f);
+    ap.set("h03_pmShape", 8.0f);
+    ap.set("h03_strike", 1.0f);
+    ap.set("h03_sustain", 0.6595f);
+    ap.set("h03_volume", 1.0f);
+    ap.set("h04_aftertouch", 0.5992f);
+    ap.set("h04_amDepth", 0.4107f);
+    ap.set("h04_amShape", 6.0f);
+    ap.set("h04_attack", 0.0191f);
+    ap.set("h04_decay", 0.7634f);
+    ap.set("h04_drift", 3.7861f);
+    ap.set("h04_keyboard", 0.5012f);
+    ap.set("h04_pmDepth", 1200.0f);
+    ap.set("h04_pmShape", 8.0f);
+    ap.set("h04_strike", 1.0f);
+    ap.set("h04_volume", 0.2513f);
+    ap.set("character", 7.0f);
+    ap.set("clipType", 6.0f); // Cassette
+    ap.set("echoAge", 0.6193f);
+    ap.set("echoFeedback", 0.38f);
+    ap.set("echoMix", 0.2193f);
+    ap.set("echoOn", 1.0f);
+    ap.set("echoTime", 0.1205f);
+    ap.set("echoType", 1.0f); // Bucket brigade
+    ap.set("lofiBits", 3.0f); // 10 bits
+    ap.set("masterGain", -6.5f);
+    ap.set("noise_amDepth", 0.5013f);
+    ap.set("noise_amRate", 3.2099f);
+    ap.set("noise_amShape", 6.0f);
+    ap.set("noise_attack", 0.0014f);
+    ap.set("noise_colour", 0.7131f);
+    ap.set("noise_decay", 1.7041f);
+    ap.set("noise_keyboard", 0.3797f);
+    ap.set("noise_release", 0.5854f);
+    ap.set("noise_strike", 0.7704f);
+    ap.set("noise_sustain", 0.2057f);
+    ap.set("noise_vel", 0.868f);
+    ap.set("noise_volume", 0.3563f);
+    ap.set("reverbDamp", 0.2464f);
+    ap.set("reverbDecay", 4.0341f);
+    ap.set("reverbMix", 0.3001f);
+    ap.set("reverbOn", 1.0f);
+    ap.set("reverbPreDelay", 0.0238f);
+    ap.set("reverbType", 1.0f); // Modulated Plate
+    ap.set("track", 0.4f);
+    ap.set("wobble", 0.0579f);
     return true;
   }
   if (name == "Glass Armonica") {

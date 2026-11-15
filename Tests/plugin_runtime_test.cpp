@@ -4002,11 +4002,14 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Struck Bell", "STRUCKBLL"},
       {"8-bit Choir", "8-BITCHOR"},
       {"Combo Organ", "COMBOORGN"},
+      {"FM Perc Piano", "FMPERCPIN"},
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
       {"KarplusStrong", "KRPLSSTRN"},
       {"Synth Ensemble", "SYNTHNSMB"},
+      {"FM KarplusStrong", "FMKRPLSST"},
+      {"FM String Machine", "FMSTRNGMC"},
   };
 
   int wrong = 0;
