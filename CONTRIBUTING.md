@@ -256,7 +256,7 @@ The Windows installer is not signed, so SmartScreen tells the user the publisher
 
 | Generated                                                     | From                                                              |
 | ------------------------------------------------------------- | ----------------------------------------------------------------- |
-| each page's `<head>`: title, descriptions, cards, JSON-LD     | `PAGES`, `PRODUCT`, `VIDEO` and `QUESTIONS` in the data           |
+| each page's `<head>`: title, descriptions, cards, JSON-LD     | `PAGES`, `PRODUCT`, `VIDEOS` and `QUESTIONS` in the data          |
 | the header, the section list and the page's contents rail     | the page list, and the page's own `<h2>` and `<h3>` ids           |
 | the trail above the title and the links at the foot           | `nav` and `onward` per page                                       |
 | the footer                                                    | `FOOTER_LINKS`                                                    |

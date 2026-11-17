@@ -1,6 +1,6 @@
 Page: Overtonium presets: the forty-seven that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-11-15
+Last changed: 2026-11-17
 
 # Overtonium presets
 
@@ -8,9 +8,26 @@ Forty-seven presets ship with the plugin. All but a handful were set up on the p
 
 ## Hear them played
 
-Eleven of them, played live, not rendered. The clips further down are one chord each, the same chord every time. That makes them easy to compare, but it does not show what a preset does when someone plays it. The video shows that.
+Two videos of them played live, not rendered. The clips further down are one chord each, the same chord every time. That makes them easy to compare, but it does not show what a preset does when someone plays it. The videos show that.
 
-Played on an Expressive E Osmose, with nothing on the output but the plugin's own effects.
+Both are played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. The newer one plays eight of them and shows the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials.
+
+[Video: Karplus-Strong, Adaptive tuning, FM and AM in Overtonium](https://www.youtube.com/watch?v=6scfdVeF3D8)
+
+Straight to one of them:
+
+- [0:00 KarplusStrong with Adaptive tuning](https://www.youtube.com/watch?v=6scfdVeF3D8&t=0s)
+- [0:25 FM String Machine](https://www.youtube.com/watch?v=6scfdVeF3D8&t=25s)
+- [2:08 Space Cowboy](https://www.youtube.com/watch?v=6scfdVeF3D8&t=128s)
+- [3:12 Chapel](https://www.youtube.com/watch?v=6scfdVeF3D8&t=192s)
+- [3:49 FM Perc Piano](https://www.youtube.com/watch?v=6scfdVeF3D8&t=229s)
+- [4:46 8-bit Choir](https://www.youtube.com/watch?v=6scfdVeF3D8&t=286s)
+- [5:39 FM KarplusStrong](https://www.youtube.com/watch?v=6scfdVeF3D8&t=339s)
+- [6:12 Tape Pluck](https://www.youtube.com/watch?v=6scfdVeF3D8&t=372s)
+
+### The first video
+
+Eleven other presets, recorded in September 2026.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 

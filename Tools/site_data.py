@@ -72,6 +72,7 @@ PRODUCT = {
         "https://www.kvraudio.com/product/overtonium-by-dehli-musikk",
         "https://github.com/benjamindehli/overtonium",
         "https://www.youtube.com/watch?v=L1oYdPxGlGA",
+        "https://www.youtube.com/watch?v=6scfdVeF3D8",
         "https://www.wikidata.org/wiki/Q141757590",
     ],
     "codeRepository": "https://github.com/benjamindehli/overtonium",
@@ -106,9 +107,12 @@ PRODUCT = {
     ],
 }
 
-# The one recording of the instrument being played. Each chapter runs to the
-# start of the next, and the last to the end of the video.
-VIDEO = {
+# The recordings of the instrument being played, by their YouTube id. A page
+# names the ones it shows in "videos", and gets a VideoObject for each. Each
+# chapter runs to the start of the next, and the last to the end of the video.
+VIDEOS = {}
+
+VIDEOS["L1oYdPxGlGA"] = {
     "id": "L1oYdPxGlGA",
     "name": "Overtonium - Sound Examples",
     "description": "Eleven of the {presets} factory presets in Overtonium, played on an Expressive E Osmose, with no effects on the output except the plugin's own.",
@@ -129,6 +133,25 @@ VIDEO = {
         ("Wurli", 512),
         ("Lo-fi", 525),
         ("Nylon EP", 603),
+    ],
+}
+
+VIDEOS["6scfdVeF3D8"] = {
+    "id": "6scfdVeF3D8",
+    "name": "Karplus-Strong, Adaptive Tuning, FM and AM in Overtonium",
+    "description": "Eight of the {presets} factory presets in Overtonium, played on an Expressive E Osmose, showing the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials, with no effects on the output except the plugin's own.",
+    "thumbnail": BASE + "overtonium-video-2.webp",
+    "uploaded": "2026-11-17T12:00:00+01:00",
+    "seconds": 550,
+    "chapters": [
+        ("KarplusStrong with Adaptive tuning", 0),
+        ("FM String Machine", 25),
+        ("Space Cowboy", 128),
+        ("Chapel", 192),
+        ("FM Perc Piano", 229),
+        ("8-bit Choir", 286),
+        ("FM KarplusStrong", 339),
+        ("Tape Pluck", 372),
     ],
 }
 
@@ -228,10 +251,11 @@ PAGES = [
         "image": "overtonium-card.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window: rows of per-partial knobs above 32 channel faders and lit meters.",
         "scripts": ["video.js", "contents.js"],
-        "jsonld": ["website", "product", "faq", "video"],
+        "jsonld": ["website", "product", "faq"],
+        "videos": ["6scfdVeF3D8"],
         "card": None,
         "card_404": "What Overtonium is, what it sounds like, and where it came from.",
-        "llms": 'what the instrument is, what TUNE does, a video of [eleven of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA), common questions, and the three sample instruments that came before it.',
+        "llms": 'what the instrument is, what TUNE does, a video of [eight of the {presets} factory presets played on a keyboard](https://www.youtube.com/watch?v=6scfdVeF3D8), showing the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials, common questions, and the three sample instruments that came before it.',
         "priority": "1.0",
     },
     {
@@ -303,10 +327,11 @@ PAGES = [
         "image": "overtonium-card-presets.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Presets.",
         "scripts": ["video.js", "contents.js"],
-        "jsonld": ["breadcrumbs", "video"],
+        "jsonld": ["breadcrumbs"],
+        "videos": ["6scfdVeF3D8", "L1oYdPxGlGA"],
         "card": "The {presets} that ship, what a preset carries, and where your own are kept on each platform.",
         "card_404": "The {presets} that ship, and where your own are kept.",
-        "llms": 'the {presets} that ship, each one playable on the page, [eleven of them played on a keyboard](https://www.youtube.com/watch?v=L1oYdPxGlGA) with a chapter link to each, what a preset stores and what it leaves out on purpose, how a MIDI program change selects one, where user presets are kept on each platform, and how folders in that directory become groups in the menu.',
+        "llms": 'the {presets} that ship, each one playable on the page, two videos of them played on a keyboard, [eight](https://www.youtube.com/watch?v=6scfdVeF3D8) and [eleven](https://www.youtube.com/watch?v=L1oYdPxGlGA) of them, with a chapter link to each, what a preset stores and what it leaves out on purpose, how a MIDI program change selects one, where user presets are kept on each platform, and how folders in that directory become groups in the menu.',
         "priority": "0.6",
     },
     {

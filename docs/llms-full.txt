@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-11-15
+Last changed: 2026-11-17
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eight of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. It shows the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing.
 
-[Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
+[Video: Karplus-Strong, Adaptive tuning, FM and AM in Overtonium](https://www.youtube.com/watch?v=6scfdVeF3D8)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-seven presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eight, an earlier video of eleven others, and a clip of every one of the forty-seven presets.
 
 ## The control to try first
 
@@ -902,7 +902,7 @@ Two things to expect. A control jumps to the controller's current position inste
 
 Page: Overtonium presets: the forty-seven that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-11-15
+Last changed: 2026-11-17
 
 # Overtonium presets
 
@@ -910,9 +910,26 @@ Forty-seven presets ship with the plugin. All but a handful were set up on the p
 
 ## Hear them played
 
-Eleven of them, played live, not rendered. The clips further down are one chord each, the same chord every time. That makes them easy to compare, but it does not show what a preset does when someone plays it. The video shows that.
+Two videos of them played live, not rendered. The clips further down are one chord each, the same chord every time. That makes them easy to compare, but it does not show what a preset does when someone plays it. The videos show that.
 
-Played on an Expressive E Osmose, with nothing on the output but the plugin's own effects.
+Both are played on an Expressive E Osmose, with nothing on the output but the plugin's own effects. The newer one plays eight of them and shows the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials.
+
+[Video: Karplus-Strong, Adaptive tuning, FM and AM in Overtonium](https://www.youtube.com/watch?v=6scfdVeF3D8)
+
+Straight to one of them:
+
+- [0:00 KarplusStrong with Adaptive tuning](https://www.youtube.com/watch?v=6scfdVeF3D8&t=0s)
+- [0:25 FM String Machine](https://www.youtube.com/watch?v=6scfdVeF3D8&t=25s)
+- [2:08 Space Cowboy](https://www.youtube.com/watch?v=6scfdVeF3D8&t=128s)
+- [3:12 Chapel](https://www.youtube.com/watch?v=6scfdVeF3D8&t=192s)
+- [3:49 FM Perc Piano](https://www.youtube.com/watch?v=6scfdVeF3D8&t=229s)
+- [4:46 8-bit Choir](https://www.youtube.com/watch?v=6scfdVeF3D8&t=286s)
+- [5:39 FM KarplusStrong](https://www.youtube.com/watch?v=6scfdVeF3D8&t=339s)
+- [6:12 Tape Pluck](https://www.youtube.com/watch?v=6scfdVeF3D8&t=372s)
+
+### The first video
+
+Eleven other presets, recorded in September 2026.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 

@@ -220,8 +220,7 @@ def breadcrumbs(page):
     }
 
 
-def video():
-    v = data.VIDEO
+def video(v):
     minutes, seconds = divmod(v["seconds"], 60)
     watch = f"https://www.youtube.com/watch?v={v['id']}"
     starts = [start for _, start in v["chapters"]]
@@ -230,7 +229,7 @@ def video():
     return {
         "@context": "https://schema.org",
         "@type": "VideoObject",
-        "@id": data.BASE + "#video",
+        "@id": data.BASE + "#video-" + v["id"],
         "name": v["name"],
         "description": fill(v["description"]),
         "thumbnailUrl": v["thumbnail"],
@@ -353,7 +352,6 @@ def head(page):
         "product": product,
         "faq": faq,
         "breadcrumbs": lambda: breadcrumbs(page),
-        "video": video,
         "audio": lambda: audio(page),
     }
     names = [name for name in blocks if name == "webpage" or name in page["jsonld"]]
@@ -401,6 +399,7 @@ def head(page):
             f'<script src="{p}menu.js"></script>',
             *[f'<script src="{p}{script}" defer></script>' for script in page["scripts"]],
             *[jsonld(blocks[name]()) for name in names],
+            *[jsonld(video(data.VIDEOS[id])) for id in page.get("videos", [])],
             "</head>",
         ]
     )
