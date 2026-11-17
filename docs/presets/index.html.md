@@ -1,10 +1,10 @@
-Page: Overtonium presets: the forty-four that ship, and saving your own
+Page: Overtonium presets: the forty-seven that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-11-08
+Last changed: 2026-11-15
 
 # Overtonium presets
 
-Forty-four presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-seven presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -30,11 +30,11 @@ Straight to one of them:
 
 ## What ships
 
-Forty-four presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-seven presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-nine of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Forty-two of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -100,9 +100,21 @@ A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the
 
 Just Saw with every partial moved to equal temperament
 
+**FM KarplusStrong**
+
+KarplusStrong's struck string with two partials on FM over it, the fundamental and the octave, each modulating the other's pitch and level, which gives the string a synthetic, metallic edge. The two partials are panned to opposite sides. It goes into a short bucket brigade echo and a small room, through Print
+
+**FM Perc Piano**
+
+A struck FM piano that follows velocity closely. Played softly it is close to a sine, and played hard it is bright and punchy with a lot of overtones, as the partials that modulate it come up with velocity. Three partials are heard, each driven by another, and two silent partials feed back on themselves to drive them. The noise channel's string starts each note with a short strike. It goes into a tape echo, the room and the resonator's octave strings, at 10 bits through Console
+
 **FM Piano**
 
 The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates, on FM
+
+**FM String Machine**
+
+A string machine on FM. The fundamental feeds back on its own pitch, which turns its sine into something close to a sawtooth, and it modulates the next three partials. The octave and the twelfth are panned apart and drift, so they waver like an ensemble, and aftertouch brings up the fourth partial. It goes into a bucket brigade echo and the modulated plate, at 10 bits through Cassette
 
 **Glass Armonica**
 

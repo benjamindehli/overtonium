@@ -10418,6 +10418,52 @@ void testNoiseChannel() {
     check(engine.getNoiseLevel() < 1.0e-6f, "and its meter falls to zero");
   }
 
+  // With the string on, the meter follows the string as well as the burst that
+  // strikes it, which is over long before the string stops ringing.
+  {
+    const auto engineOwner = std::make_unique<SynthEngine>();
+    auto &engine = *engineOwner;
+    engine.prepare(sr);
+
+    auto p = makeFlatParams(0.0f);
+    for (auto &o : p.osc)
+      o.volume = 0.0f;
+
+    p.noise.volume = 0.6f;
+    p.noise.velAmount = 0.0f;
+    p.noise.attack = 0.0005f;
+    p.noise.decay = 0.02f;
+    p.noise.sustain = 0.0f;
+    p.noise.stringAmount = 1.0f;
+    p.noise.stringDecay = 4.0f;
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.noteOn(45, 1.0f, p);
+
+    // The second half second, well past the burst, with the key still down.
+    engine.render(l.data(), r.data(), N, p);
+    engine.render(l.data(), r.data(), N, p);
+
+    float heard = 0.0f;
+    for (int n = 0; n < N; ++n)
+      heard = std::max(heard, std::abs(l[(size_t)n]));
+
+    const auto ringing = engine.getNoiseLevel();
+    check(heard > 0.01f, "the string still rings after the burst (" +
+                             std::to_string(heard) + ")");
+    check(ringing > 0.05f, "and the noise meter still reads it (" +
+                               std::to_string(ringing) + ")");
+
+    // Let go, the string is damped over RELEASE, and the meter goes with it.
+    engine.noteOff(45);
+    for (int b = 0; b < 8; ++b)
+      engine.render(l.data(), r.data(), N, p);
+
+    check(engine.getNoiseLevel() < 0.01f * ringing,
+          "and falls once the string has died away (" +
+              std::to_string(engine.getNoiseLevel()) + ")");
+  }
+
   // Two voices must not layer the identical noise.
   {
     const auto engineOwner = std::make_unique<SynthEngine>();
@@ -10675,6 +10721,780 @@ void testModulation() {
   for (int n = 0; n < N; ++n)
     finite &= std::isfinite(l2[(size_t)n]);
   check(finite, "modulated output is finite");
+}
+
+/// Another partial's wave as the amplitude modulator: multiplied in sample by
+/// sample, so two partials make their sum and their difference. Everything
+/// that sets the source's level counts but its fader and its mute.
+void testPartialAsAmpSource() {
+  section("A partial as the amplitude source");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57,
+                        float velocity = 1.0f) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, velocity, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, against partial 2 times partial 1, whose
+  // fader is down, so all of partial 1 that is heard is what it does to 2.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto ringed = plain;
+  ringed.osc[1].amSource = 0;
+  ringed.osc[1].amDepth = 1.0f;
+
+  const auto alone = play(plain);
+  const auto product = play(ringed);
+
+  const auto tone = binMagnitude(alone, 440.0, sr);
+  const auto below = binMagnitude(product, 220.0, sr);
+  const auto above = binMagnitude(product, 660.0, sr);
+  const auto left = binMagnitude(product, 440.0, sr);
+
+  check(std::abs(below / tone - 0.5) < 0.05 &&
+            std::abs(above / tone - 0.5) < 0.05,
+        "at full depth 440 Hz times 220 Hz is 220 Hz and 660 Hz, each half "
+        "the tone (" +
+            std::to_string(below / tone) + ", " + std::to_string(above / tone) +
+            ")");
+  check(left < 0.01 * tone, "and none of 440 Hz itself is left");
+
+  // Half depth keeps half the tone and adds half the sidebands.
+  auto half = ringed;
+  half.osc[1].amDepth = 0.5f;
+  const auto mixed = play(half);
+  check(std::abs(binMagnitude(mixed, 440.0, sr) / tone - 0.5) < 0.05 &&
+            std::abs(binMagnitude(mixed, 660.0, sr) / tone - 0.25) < 0.05,
+        "at half depth half the tone is left, with a quarter in each sideband");
+
+  // A muted source modulates as strongly as one that is heard.
+  auto muted = ringed;
+  muted.osc[0].volume = 0.5f;
+  muted.osc[0].audible = false;
+  check(std::abs(binMagnitude(play(muted), 660.0, sr) - above) < 0.01 * tone,
+        "a muted partial still modulates");
+
+  // Its envelope does count: a source that has decayed to nothing leaves
+  // nothing of the one it multiplies at full depth.
+  auto decayed = ringed;
+  decayed.osc[0].sustain = 0.0f;
+  decayed.osc[0].decay = 0.01f;
+  const auto gone = play(decayed);
+  check(binMagnitude(gone, 660.0, sr) < 0.05 * tone,
+        "a source that has decayed takes the partial it multiplies with it");
+
+  // What sets the source's level other than its fader scales what it passes
+  // on, so the sidebands follow it while the partial they ring does not.
+  // Velocity first, on the source only, struck at half.
+  auto byVelocity = ringed;
+  byVelocity.osc[0].velAmount = 1.0f;
+  const auto velGain = velocityGain(1.0f, 0.5f, VelocityCurve::Classic);
+  const auto softer = binMagnitude(play(byVelocity, 57, 0.5f), 660.0, sr);
+  check(std::abs(softer / above - (double)velGain) < 0.03,
+        "the source's velocity scales the sidebands (" +
+            std::to_string(softer / above) + " against " +
+            std::to_string(velGain) + ")");
+
+  // Aftertouch, held at full before the note, turning the source down by half.
+  auto byPressure = ringed;
+  byPressure.osc[0].atAmount = -0.5f;
+  byPressure.global.aftertouch = 1.0f;
+  const auto pressed = binMagnitude(play(byPressure), 660.0, sr);
+  check(std::abs(pressed / above - 0.5) < 0.03,
+        "its aftertouch does too (" + std::to_string(pressed / above) + ")");
+
+  // The KEYBOARD row, on A3, below the middle of the keyboard.
+  auto byKey = ringed;
+  byKey.osc[0].keyAmount = 1.0f;
+  const auto keyGain = keyboardGain(1.0f, 57.0);
+  const auto keyed = binMagnitude(play(byKey), 660.0, sr);
+  check(keyGain < 0.95f && std::abs(keyed / above - (double)keyGain) < 0.03,
+        "and so does its KEYBOARD row (" + std::to_string(keyed / above) +
+            " against " + std::to_string(keyGain) + ")");
+
+  // Its own tremolo, a 5 Hz sine at full depth, which halves the source on
+  // average and puts sidebands 5 Hz either side of each new tone.
+  auto byTremolo = ringed;
+  byTremolo.osc[0].amRateHz = 5.0f;
+  byTremolo.osc[0].amDepth = 1.0f;
+  const auto trembling = play(byTremolo);
+  check(std::abs(binMagnitude(trembling, 660.0, sr) / above - 0.5) < 0.05 &&
+            binMagnitude(trembling, 665.0, sr) > 0.2 * above,
+        "and its own tremolo moves the sidebands");
+
+  // None of it reaches the partial being modulated itself: its tone at no
+  // depth is the same whatever the source's velocity.
+  auto quietSource = byVelocity;
+  quietSource.osc[1].amDepth = 0.0f;
+  check(std::abs(binMagnitude(play(quietSource, 57, 0.5f), 440.0, sr) / tone -
+                 1.0) < 0.01,
+        "while the partial it modulates keeps its own level");
+
+  // At depth nothing, a partial as the source changes nothing, sample for
+  // sample, since the multiply is by exactly one.
+  auto none = ringed;
+  none.osc[1].amDepth = 0.0f;
+  const auto untouched = play(none);
+  bool same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(untouched[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < untouched[(size_t)n]);
+  check(same, "at no depth, a partial as the source changes nothing");
+
+  // A partial that names itself, which only a host could ask for, has no
+  // modulation at all.
+  auto itself = plain;
+  itself.osc[1].amSource = 1;
+  itself.osc[1].amDepth = 1.0f;
+  const auto self = play(itself);
+  same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(self[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < self[(size_t)n]);
+  check(same, "a partial that names itself is not modulated");
+
+  // Played before its source, as in a loop of two, it still rings, a block
+  // late, and the pair stays finite and bounded.
+  auto loop = plain;
+  loop.osc[0].volume = 0.5f;
+  loop.osc[0].amSource = 1;
+  loop.osc[0].amDepth = 1.0f;
+  loop.osc[1].amSource = 0;
+  loop.osc[1].amDepth = 1.0f;
+  const auto looped = play(loop);
+  bool bounded = true;
+  for (const auto v : looped)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "two partials that modulate each other stay bounded");
+  check(binMagnitude(looped, 660.0, sr) > 0.3 * tone,
+        "and each rings the other");
+
+  // Along a chain the product is passed on: partial 3 following partial 2,
+  // which follows partial 1, is all three multiplied. 659 Hz times 440 Hz
+  // alone has a tone at 1099 Hz, which partial 1 splits again either side.
+  auto pair = plain;
+  pair.osc[1].volume = 0.0f;
+  pair.osc[2].volume = 0.5f;
+  pair.osc[2].amSource = 1;
+  pair.osc[2].amDepth = 1.0f;
+  auto chain = pair;
+  chain.osc[1].amSource = 0;
+  chain.osc[1].amDepth = 1.0f;
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  const auto paired = binMagnitude(play(pair), third + 440.0, sr);
+  const auto chained = play(chain);
+  check(paired > 0.3 * tone &&
+            binMagnitude(chained, third + 440.0, sr) < 0.05 * paired &&
+            binMagnitude(chained, third + 660.0, sr) > 0.3 * paired,
+        "a chain passes each partial's product on to the next");
+
+  // Partials 12 and 16 on A5, at 10.56 kHz and 14.08 kHz. Their sum is past
+  // Nyquist, so the depth fades out rather than fold the sum back down, and
+  // the difference goes with it.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highRinged = high;
+  highRinged.osc[11].amSource = 15;
+  highRinged.osc[11].amDepth = 1.0f;
+  const auto highAlone = play(high, 81);
+  const auto highProduct = play(highRinged, 81);
+  const auto highTone = binMagnitude(highAlone, 10560.0, sr);
+  check(binMagnitude(highProduct, 48000.0 - 24640.0, sr) < 0.01 * highTone &&
+            binMagnitude(highProduct, 3520.0, sr) < 0.01 * highTone &&
+            binMagnitude(highProduct, 10560.0, sr) > 0.95 * highTone,
+        "a sum past Nyquist fades the modulation out instead of folding");
+}
+
+/// Another partial's wave moving a partial's phase, as FM synthesizers do. A
+/// sine moved by a sine has its tones at the partial's frequency plus and
+/// minus whole multiples of the source's, each as strong as the Bessel
+/// function of that order at the index says.
+void testPartialAsPitchSource() {
+  section("A partial as the pitch source");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, and moved by partial 1 at 220 Hz, whose
+  // fader is down. Index 1 is 100 on the knob.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto moved = plain;
+  moved.osc[1].pmSource = 0;
+  moved.osc[1].pmDepthCents = 100.0f;
+
+  const auto alone = play(plain);
+  const auto fm = play(moved);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // J0, J1 and J2 at an index of 1.
+  constexpr double kJ0 = 0.7651976866, kJ1 = 0.4400505857, kJ2 = 0.1149034849;
+  const auto at440 = binMagnitude(fm, 440.0, sr) / tone;
+  const auto at660 = binMagnitude(fm, 660.0, sr) / tone;
+  const auto at880 = binMagnitude(fm, 880.0, sr) / tone;
+
+  check(std::abs(at440 - kJ0) < 0.02 && std::abs(at660 - kJ1) < 0.02 &&
+            std::abs(at880 - kJ2) < 0.02,
+        "at index 1 the tones at 440, 660 and 880 Hz are J0, J1 and J2 (" +
+            std::to_string(at440) + ", " + std::to_string(at660) + ", " +
+            std::to_string(at880) + ")");
+
+  check(binMagnitude(fm, 450.0, sr) < 0.01 * tone &&
+            binMagnitude(fm, 1100.0, sr) / tone < 0.03,
+        "and nothing falls between them or far above, so it stays in tune");
+
+  // A muted source moves the phase as much as one that is heard.
+  auto muted = moved;
+  muted.osc[0].volume = 0.5f;
+  muted.osc[0].audible = false;
+  check(std::abs(binMagnitude(play(muted), 660.0, sr) / tone - kJ1) < 0.02,
+        "a muted partial still moves the phase");
+
+  // At index nothing, a partial as the source changes nothing, sample for
+  // sample.
+  auto none = moved;
+  none.osc[1].pmDepthCents = 0.0f;
+  check(sameSamples(play(none), alone),
+        "at index nothing, a partial as the source changes nothing");
+
+  // What a partial passes on has its own phase movement in it: partial 3
+  // ringed by partial 2 rings with partial 2's new tones as well.
+  auto ringedByPlain = plain;
+  ringedByPlain.osc[1].volume = 0.0f;
+  ringedByPlain.osc[2].volume = 0.5f;
+  ringedByPlain.osc[2].amSource = 1;
+  ringedByPlain.osc[2].amDepth = 1.0f;
+  auto ringedByFm = ringedByPlain;
+  ringedByFm.osc[1].pmSource = 0;
+  ringedByFm.osc[1].pmDepthCents = 100.0f;
+
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  check(binMagnitude(play(ringedByPlain), third + 660.0, sr) < 0.01 * tone &&
+            binMagnitude(play(ringedByFm), third + 660.0, sr) > 0.1 * tone,
+        "a moved partial passes its new tones on");
+
+  // Partial 12 on A5 at 10.56 kHz, moved by partial 16 at 14.08 kHz. Even one
+  // pair of tones would pass the top of the band, so the index falls to
+  // nothing and the partial plays as it does alone.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highMoved = high;
+  highMoved.osc[11].pmSource = 15;
+  highMoved.osc[11].pmDepthCents = 1200.0f;
+  const auto highAlone = play(high, 81);
+  const auto highFm = play(highMoved, 81);
+  check(std::abs(binMagnitude(highFm, 10560.0, sr) /
+                     binMagnitude(highAlone, 10560.0, sr) -
+                 1.0) < 0.01 &&
+            binMagnitude(highFm, 48000.0 - 24640.0, sr) <
+                0.01 * binMagnitude(highAlone, 10560.0, sr),
+        "past the top of the band the index falls to nothing");
+
+  // The deepest index on a low note, and two partials moving each other,
+  // stay finite and bounded.
+  auto deep = plain;
+  deep.osc[0].volume = 0.5f;
+  deep.osc[0].pmSource = 1;
+  deep.osc[0].pmDepthCents = 1200.0f;
+  deep.osc[1].pmSource = 0;
+  deep.osc[1].pmDepthCents = 1200.0f;
+  bool bounded = true;
+  for (const auto v : play(deep, 36))
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "the deepest index, two partials moving each other, stays "
+                 "finite and bounded");
+}
+
+/// A partial that moves its own phase by its own last two samples, as the
+/// DX7's feedback operator does. A sine fed back into its own phase,
+/// sin(t + b sin(...)), has its n-th harmonic at 2 J_n(n b) / (n b), so it
+/// stays in tune and turns towards a sawtooth as the index rises, and from
+/// about 2 turns to noise.
+void testPartialFeedback() {
+  section("A partial moving its own phase");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  // Partial 2 alone, 440 Hz on A3, and feeding itself back at index 0.5,
+  // which is 50 on the knob.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+
+  auto fedBack = plain;
+  fedBack.osc[1].pmSource = 1;
+  fedBack.osc[1].pmDepthCents = 50.0f;
+
+  const auto alone = play(plain);
+  const auto fb = play(fedBack);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // 2 J1(0.5) / 0.5, 2 J2(1) / 1 and 2 J3(1.5) / 1.5.
+  constexpr double kH1 = 0.9690470, kH2 = 0.2298070, kH3 = 0.0812757;
+  const auto h1 = binMagnitude(fb, 440.0, sr) / tone;
+  const auto h2 = binMagnitude(fb, 880.0, sr) / tone;
+  const auto h3 = binMagnitude(fb, 1320.0, sr) / tone;
+
+  check(std::abs(h1 - kH1) < 0.02 && std::abs(h2 - kH2) < 0.02 &&
+            std::abs(h3 - kH3) < 0.02,
+        "at index 0.5 its harmonics are 2 J_n(n b) / (n b) (" +
+            std::to_string(h1) + ", " + std::to_string(h2) + ", " +
+            std::to_string(h3) + ")");
+
+  check(binMagnitude(fb, 660.0, sr) < 0.01 * tone &&
+            binMagnitude(fb, 450.0, sr) < 0.01 * tone,
+        "and nothing falls between them, so it stays in tune");
+
+  // At index nothing it plays sample for sample as it does alone.
+  auto none = fedBack;
+  none.osc[1].pmDepthCents = 0.0f;
+  const auto still = play(none);
+  bool same = true;
+  for (int n = 0; n < N; ++n)
+    same = same && !(still[(size_t)n] < alone[(size_t)n]) &&
+           !(alone[(size_t)n] < still[(size_t)n]);
+  check(same, "at index nothing, feeding itself back changes nothing");
+
+  // Index 1.5 on A1, which is not held there, is nearly a sawtooth: the
+  // second harmonic over a third of the first, where a sawtooth has a half,
+  // and the tenth still there. Finite and bounded.
+  auto low = makeFlatParams(0.0f);
+  low.osc[0].volume = 0.5f;
+  low.osc[0].pmSource = 0;
+  low.osc[0].pmDepthCents = 150.0f;
+  const auto deep = play(low, 33);
+  bool bounded = true;
+  for (const auto v : deep)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  const auto first = binMagnitude(deep, 55.0, sr);
+  check(bounded && binMagnitude(deep, 110.0, sr) > 0.3 * first &&
+            binMagnitude(deep, 550.0, sr) > 0.03 * first &&
+            binMagnitude(deep, 82.5, sr) < 0.01 * first,
+        "index 1.5 on a low note is nearly a sawtooth, in tune");
+
+  // The wave leans to one side, which would put in an offset. None is left.
+  // Averaged over the last 19200 samples, 22 cycles of 55 Hz and 704 of
+  // 1760 Hz, so no part cycle is left over to read as one.
+  constexpr size_t kWhole = 19200;
+  double sum = 0.0, peak = 0.0;
+  for (size_t n = (size_t)N - kWhole; n < (size_t)N; ++n) {
+    sum += deep[n];
+    peak = std::max(peak, (double)std::abs(deep[n]));
+  }
+  const auto offset = std::abs(sum / (double)kWhole);
+
+  auto highNote = fedBack;
+  highNote.osc[1].pmDepthCents = 100.0f;
+  const auto lean = play(highNote, 81); // 1760 Hz, at index 1
+  double leanSum = 0.0, leanPeak = 0.0;
+  for (size_t n = (size_t)N - kWhole; n < (size_t)N; ++n) {
+    leanSum += lean[n];
+    leanPeak = std::max(leanPeak, (double)std::abs(lean[n]));
+  }
+  const auto leanOffset = std::abs(leanSum / (double)kWhole);
+  check(offset < 0.001 * peak && leanOffset < 0.001 * leanPeak,
+        "it leaves no offset, low or high (" + std::to_string(offset / peak) +
+            ", " + std::to_string(leanOffset / leanPeak) + " of the peak)");
+
+  // Partial 12 on A5 at 10.56 kHz. Its third harmonic would fold down to
+  // 16.32 kHz, so index 1.5 is held to where that stays far down.
+  auto high = makeFlatParams(0.0f);
+  high.osc[11].volume = 0.5f;
+  auto highFed = high;
+  highFed.osc[11].pmSource = 11;
+  highFed.osc[11].pmDepthCents = 150.0f;
+  const auto highTone = binMagnitude(play(high, 81), 10560.0, sr);
+  check(binMagnitude(play(highFed, 81), 16320.0, sr) < 0.002 * highTone,
+        "near the top of the band the index is held so nothing folds");
+
+  // Past index 2 it is noise, which the knob reaches at every pitch, still
+  // finite and bounded. Noise lands between the harmonics.
+  auto noisy = fedBack;
+  noisy.osc[1].pmDepthCents = 600.0f;
+  const auto hiss = play(noisy);
+  bounded = true;
+  for (const auto v : hiss)
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded && binMagnitude(hiss, 660.0, sr) > 0.01 * tone,
+        "past index 2 it turns to noise, finite and bounded");
+
+  // On the lo-fi rate nothing is held, and the deepest index stays finite
+  // and bounded.
+  auto lofi = low;
+  lofi.osc[0].pmDepthCents = 1200.0f;
+  lofi.lofi.rateHz = 8000.0;
+  bounded = true;
+  for (const auto v : play(lofi, 33))
+    bounded = bounded && std::isfinite(v) && std::abs(v) < 2.0f;
+  check(bounded, "on the lo-fi rate the deepest index stays finite and "
+                 "bounded");
+
+  // Muted, it still feeds itself back for a partial that follows it: partial
+  // 3 ringed by partial 2 rings with partial 2's second harmonic too.
+  const auto third = 440.0 * std::pow(2.0, 7.0 / 12.0);
+  auto ringed = plain;
+  ringed.osc[1].audible = false;
+  ringed.osc[2].volume = 0.5f;
+  ringed.osc[2].amSource = 1;
+  ringed.osc[2].amDepth = 1.0f;
+  auto ringedFed = ringed;
+  ringedFed.osc[1].pmSource = 1;
+  ringedFed.osc[1].pmDepthCents = 50.0f;
+  check(binMagnitude(play(ringed), third + 880.0, sr) < 0.01 * tone &&
+            binMagnitude(play(ringedFed), third + 880.0, sr) > 0.05 * tone,
+        "muted, it still passes its harmonics on");
+}
+
+/// The noise channel as the source of a partial's amplitude or phase, and as
+/// a partial's target. Noise multiplying a partial spreads it into a band of
+/// noise around its pitch. The string, pitched at the fundamental, moves a
+/// partial in tune as a partial would.
+void testModulationLoops() {
+  section("Links at no depth, and loops");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 48000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  const auto rmsOf = [](const std::vector<float> &x, size_t from, size_t to) {
+    double sum = 0.0;
+    for (size_t n = from; n < to; ++n)
+      sum += (double)x[n] * x[n];
+    return std::sqrt(sum / (double)std::max<size_t>(1, to - from));
+  };
+
+  // The patch this was found on: partial 1 feeding back into itself and
+  // taking its amplitude from partial 2, and partial 2 taking its pitch from
+  // partial 1, with some drift. Partial 2's amplitude link is at nothing, so
+  // pointing it at partial 1 must sound the same as pointing it nowhere.
+  auto patch = makeFlatParams(0.0f);
+  patch.osc[0].volume = 0.5f;
+  patch.osc[1].volume = 0.5f;
+  patch.osc[0].pmSource = 0;
+  patch.osc[0].pmDepthCents = 202.0f;
+  patch.osc[0].amSource = 1;
+  patch.osc[0].amDepth = 1.0f;
+  patch.osc[1].pmSource = 0;
+  patch.osc[1].pmDepthCents = 235.0f;
+  patch.osc[1].driftCents = 4.6f;
+
+  const auto unlinked = play(patch);
+
+  auto linked = patch;
+  linked.osc[1].amSource = 0;
+  const auto atNothing = play(linked);
+
+  check(sameSamples(unlinked, atNothing),
+        "an amplitude link at no depth that closes a loop changes nothing, "
+        "sample for sample");
+
+  // Just above nothing it is just above nothing, rather than a different
+  // sound. Before, any depth at all closed the loop and partial 1 stopped
+  // passing on its ring, which changed both partials at once. Measured on a
+  // tamer form of the same patch, since feedback past index 2 is noise, and
+  // noise moved by any amount at all is different noise.
+  auto tame = linked;
+  tame.osc[0].pmDepthCents = 80.0f;
+  tame.osc[1].pmDepthCents = 150.0f;
+  tame.osc[1].driftCents = 0.0f;
+  const auto tameAtNothing = play(tame);
+
+  auto barely = tame;
+  barely.osc[1].amDepth = 0.01f;
+  const auto slight = play(barely);
+
+  std::vector<float> apart((size_t)N);
+  for (size_t n = 0; n < (size_t)N; ++n)
+    apart[n] = slight[n] - tameAtNothing[n];
+
+  const auto change =
+      rmsOf(apart, 0, (size_t)N) / rmsOf(tameAtNothing, 0, (size_t)N);
+  check(change < 0.05, "at 1% depth the sound moves by a little (" +
+                           std::to_string(change) + " of its level)");
+
+  // A link at nothing does not decide the order either. Partial 1 ringed by
+  // partial 2 plays after it and hears it in the same block. A link back at
+  // nothing would otherwise make a loop, which plays partial 1 first and
+  // hears partial 2 a sample late.
+  auto chain = makeFlatParams(0.0f);
+  chain.osc[0].volume = 0.5f;
+  chain.osc[0].amSource = 1;
+  chain.osc[0].amDepth = 1.0f;
+  chain.osc[1].volume = 0.5f;
+
+  auto chainBack = chain;
+  chainBack.osc[1].amSource = 0;
+
+  check(sameSamples(play(chain), play(chainBack)),
+        "a link back at no depth keeps the order of a chain");
+
+  // The same between a partial and the noise channel, both ways.
+  auto noisy = makeFlatParams(0.0f);
+  noisy.osc[1].volume = 0.5f;
+  noisy.osc[1].amSource = kNoiseSource;
+  noisy.osc[1].amDepth = 1.0f;
+  noisy.noise.volume = 0.3f;
+
+  auto noisyBack = noisy;
+  noisyBack.noise.amSource = 1;
+
+  check(sameSamples(play(noisy), play(noisyBack)),
+        "the noise channel's link at no depth changes nothing");
+
+  auto pitchAtNothing = noisy;
+  pitchAtNothing.osc[1].pmSource = kNoiseSource;
+
+  check(sameSamples(play(noisy), play(pitchAtNothing)),
+        "nor does a pitch link at no depth");
+
+  // Round a loop the first to play hears the other one sample late, as a
+  // DX7's feedback does, not a block late. Partial 1 ringed by partial 2,
+  // whose fader is down, against the same with a link back from partial 2 at
+  // next to nothing, which makes a loop: partial 1 then plays first each
+  // sample and reads partial 2's last one. Shifting partial 2 by one sample at
+  // 440 Hz changes the product by 2 sin(pi 440 / 48000) of its level, two
+  // samples by twice that, and a block by more than all of it.
+  auto chained = makeFlatParams(0.0f);
+  chained.osc[0].volume = 0.5f;
+  chained.osc[0].amSource = 1;
+  chained.osc[0].amDepth = 1.0f;
+
+  auto looped = chained;
+  looped.osc[1].amSource = 0;
+  looped.osc[1].amDepth = 1.0e-5f;
+
+  const auto inChain = play(chained);
+  const auto inLoop = play(looped);
+
+  std::vector<float> late((size_t)N);
+  for (size_t n = 0; n < (size_t)N; ++n)
+    late[n] = inLoop[n] - inChain[n];
+
+  const auto oneSample = 2.0 * std::sin(3.141592653589793 * 440.0 / sr);
+  const auto shifted =
+      rmsOf(late, 4800, (size_t)N) / rmsOf(inChain, 4800, (size_t)N);
+
+  check(std::abs(shifted / oneSample - 1.0) < 0.1,
+        "round a loop, the first to play hears the other one sample late (" +
+            std::to_string(shifted) + " against " + std::to_string(oneSample) +
+            " for one sample)");
+
+  // A loop of two at full depth still sounds to the end rather than
+  // multiplying itself away, and so does one at half depth, which now passes
+  // on part of its ring.
+  for (const float depth : {1.0f, 0.5f}) {
+    auto loop = makeFlatParams(0.0f);
+    loop.osc[0].volume = 0.5f;
+    loop.osc[1].volume = 0.5f;
+    loop.osc[0].amSource = 1;
+    loop.osc[1].amSource = 0;
+    loop.osc[0].amDepth = depth;
+    loop.osc[1].amDepth = depth;
+
+    const auto out = play(loop);
+    const auto early = rmsOf(out, 2400, 12000);
+    const auto late = rmsOf(out, 36000, (size_t)N);
+
+    bool finite = true;
+    for (const auto v : out)
+      finite = finite && std::isfinite(v) && std::abs(v) < 2.0f;
+
+    check(finite && early > 0.01 && late > 0.5 * early,
+          "a loop of two at " + std::to_string((int)(depth * 100.0f)) +
+              "% keeps sounding (" + std::to_string(late / early) + ")");
+  }
+}
+
+void testNoiseAsSource() {
+  section("The noise channel as a source and a target");
+
+  constexpr double sr = 48000.0;
+  constexpr int N = 24000;
+
+  const auto play = [&](const SynthParams &p, int note = 57) {
+    const auto owner = std::make_unique<SynthEngine>();
+    auto &engine = *owner;
+    engine.prepare(sr);
+    engine.noteOn(note, 1.0f, p);
+
+    std::vector<float> l((size_t)N), r((size_t)N);
+    engine.render(l.data(), r.data(), N, p);
+    return l;
+  };
+
+  const auto sameSamples = [](const std::vector<float> &a,
+                              const std::vector<float> &b) {
+    bool same = a.size() == b.size();
+    for (size_t n = 0; same && n < a.size(); ++n)
+      same = !(a[n] < b[n]) && !(b[n] < a[n]);
+    return same;
+  };
+
+  const auto bounded = [](const std::vector<float> &x) {
+    bool ok = true;
+    for (const auto v : x)
+      ok = ok && std::isfinite(v) && std::abs(v) < 2.0f;
+    return ok;
+  };
+
+  // The power in a band, read every 10 Hz across it.
+  const auto band = [&](const std::vector<float> &x, double lo, double hi) {
+    double sum = 0.0;
+    for (double f = lo; f <= hi; f += 10.0) {
+      const auto m = binMagnitude(x, f, sr);
+      sum += m * m;
+    }
+    return sum;
+  };
+
+  // Partial 2 alone, 440 Hz on A3. The noise channel's fader is down and its
+  // colour dark, so it is heard only through what it does to the partial.
+  auto plain = makeFlatParams(0.0f);
+  plain.osc[1].volume = 0.5f;
+  plain.noise.colour = 0.0f;
+
+  const auto alone = play(plain);
+  const auto tone = binMagnitude(alone, 440.0, sr);
+
+  // At full depth, the partial is the noise moved up to its pitch: the tone
+  // itself is gone, and what is left lies around 440 Hz, not far above it.
+  auto ringed = plain;
+  ringed.osc[1].amSource = kNoiseSource;
+  ringed.osc[1].amDepth = 1.0f;
+  const auto breath = play(ringed);
+  check(bounded(breath) && binMagnitude(breath, 440.0, sr) < 0.1 * tone &&
+            band(breath, 400.0, 480.0) > 10.0 * band(breath, 4000.0, 4080.0),
+        "noise as the amplitude source spreads a partial into a band around "
+        "its pitch");
+
+  // Muted, it does the same, since a source is taken before its fader and
+  // mute.
+  auto muted = ringed;
+  muted.noise.audible = false;
+  check(binMagnitude(play(muted), 440.0, sr) < 0.1 * tone,
+        "a muted noise channel still modulates");
+
+  // At no depth it changes nothing, sample for sample.
+  auto none = ringed;
+  none.osc[1].amDepth = 0.0f;
+  check(sameSamples(play(none), alone),
+        "at no depth, noise as the source changes nothing");
+
+  // Moving the phase by flat noise blurs the tone, and stays bounded. Noise
+  // has no peak, so the index is read against its level, which dark noise
+  // keeps lower.
+  auto rough = plain;
+  rough.noise.colour = 0.5f;
+  rough.osc[1].pmSource = kNoiseSource;
+  rough.osc[1].pmDepthCents = 300.0f;
+  const auto blurred = play(rough);
+  check(bounded(blurred) && binMagnitude(blurred, 440.0, sr) < 0.7 * tone,
+        "noise as the pitch source blurs the partial, bounded");
+
+  // The string rings at the fundamental, 220 Hz, so moving partial 2 by it
+  // gives tones at whole multiples of the note, and none between.
+  auto strung = plain;
+  strung.noise.stringAmount = 1.0f;
+  strung.osc[1].pmSource = kNoiseSource;
+  strung.osc[1].pmDepthCents = 100.0f;
+  const auto plucked = play(strung);
+  check(bounded(plucked) && binMagnitude(plucked, 660.0, sr) > 0.05 * tone &&
+            binMagnitude(plucked, 550.0, sr) < 0.01 * tone,
+        "the string as the pitch source moves a partial in tune");
+
+  // The noise channel as the target: dark noise multiplied by partial 8,
+  // 1760 Hz, whose fader is down, moves up to 1760 Hz. The noise alone has
+  // more low than high, and moved up it has more high than low.
+  auto target = makeFlatParams(0.0f);
+  target.noise.colour = 0.0f;
+  target.noise.volume = 0.5f;
+  const auto hiss = play(target);
+  auto pitched = target;
+  pitched.noise.amSource = 7;
+  pitched.noise.amDepth = 1.0f;
+  const auto voiced = play(pitched);
+  check(band(hiss, 1720.0, 1800.0) < 0.5 * band(hiss, 100.0, 180.0) &&
+            band(voiced, 1720.0, 1800.0) > 1.5 * band(voiced, 100.0, 180.0),
+        "a partial as the noise channel's source moves the noise to its "
+        "pitch");
+
+  // The noise channel and a partial following each other stay bounded.
+  auto loop = pitched;
+  loop.noise.amSource = 0;
+  loop.osc[0].volume = 0.5f;
+  loop.osc[0].amSource = kNoiseSource;
+  loop.osc[0].amDepth = 1.0f;
+  check(bounded(play(loop)), "noise and a partial following each other stay "
+                             "bounded");
+
+  // A partial follows the noise, which follows another partial: the noise
+  // plays between them, so the last hears the product in the same block.
+  auto chain = plain;
+  chain.osc[1].amSource = kNoiseSource;
+  chain.osc[1].amDepth = 1.0f;
+  chain.noise.amSource = 0;
+  chain.noise.amDepth = 1.0f;
+  check(bounded(play(chain)), "a chain through the noise channel stays "
+                              "bounded");
 }
 
 /// A modulator the whole keyboard shares rather than one per note: a note
@@ -14199,6 +15019,11 @@ int main() {
   testLfoShapes();
   testEveryAmpShapeIsClickFree();
   testModulation();
+  testPartialAsAmpSource();
+  testPartialAsPitchSource();
+  testPartialFeedback();
+  testNoiseAsSource();
+  testModulationLoops();
   testModulatorsInPhase();
   testPerPartialVelocity();
   testVelocityCurve();

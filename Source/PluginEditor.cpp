@@ -339,7 +339,7 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
   // The header holds the tool button, which sits in front of this cap. See
   // resized.
   paintChannelBackground(*this, g, getLocalBounds(),
-                         colours::panel.darker(0.25f));
+                         colours::panel.darker(0.37f));
 
   // The right-edge divider too, so the cap does not cover the top of it.
   g.setColour(colours::outline);
@@ -348,7 +348,7 @@ void RowGutter::paintHeaderBand(juce::Graphics &g) {
 
 void RowGutter::paint(juce::Graphics &g) {
   paintChannelBackground(*this, g, getLocalBounds(),
-                         colours::panel.darker(0.25f));
+                         colours::panel.darker(0.37f));
 
   const auto rows =
       layoutRows(getLocalBounds().reduced(0, kStripPadY), collapsed, scroll);
@@ -378,7 +378,7 @@ void RowGutter::paint(juce::Graphics &g) {
 
     g.setFont(makeFont(heading ? 10.0f : 9.5f, heading || lit));
     g.setColour(lit ? colours::accent
-                    : (heading ? colours::text : colours::textDim));
+                    : (heading ? colours::text : captionText));
     g.drawText(text, area, juce::Justification::centredRight, false);
 
     // The disclosure mark at the far left of the heading, pointing down when
@@ -406,7 +406,7 @@ void RowGutter::paint(juce::Graphics &g) {
                          cy + kAcross * 0.5f);
 
       // Lit with its own caption, since the two are one control.
-      g.setColour(lit ? colours::accent : colours::textDim);
+      g.setColour(lit ? colours::accent : captionText);
       g.fillPath(mark);
     }
   }
@@ -2072,15 +2072,71 @@ void OvertoniumEditor::timerCallback() {
   for (int i = 0; i < kNumHarmonics && !anySolo; ++i)
     anySolo = on(cache.osc[(size_t)i].solo);
 
+  ovt::params::Cache::ChannelFlags heard{};
+
   for (int i = 0; i < kNumHarmonics; ++i) {
     const auto &osc = cache.osc[(size_t)i];
-    const bool audible = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
-
-    strips[(size_t)i]->setSilencedByOthers(!audible);
+    heard[(size_t)i] = on(osc.mute) ? false : (anySolo ? on(osc.solo) : true);
   }
 
-  noiseStrip.setSilencedByOthers(
-      on(cache.noise.mute) ? true : (anySolo && !on(cache.noise.solo)));
+  heard[kNoiseSource] =
+      on(cache.noise.mute) ? false : (!anySolo || on(cache.noise.solo));
+
+  // A silenced channel that still modulates one that is heard keeps its
+  // lights, since its settings still change the sound.
+  modulation = cache.modulationSources();
+  const auto feeding = ovt::params::Cache::feedingHeard(modulation, heard);
+
+  for (int i = 0; i < kNumHarmonics; ++i)
+    strips[(size_t)i]->setSilencedByOthers(!heard[(size_t)i],
+                                           feeding[(size_t)i]);
+
+  noiseStrip.setSilencedByOthers(!heard[kNoiseSource], feeding[kNoiseSource]);
+
+  updateModulationMarks();
+}
+
+void OvertoniumEditor::columnHoverChanged() { updateModulationMarks(); }
+
+void OvertoniumEditor::updateModulationMarks() {
+  auto column = [this](int at) -> ovt::ui::StripColumn & {
+    if (at == kNoiseSource)
+      return noiseStrip;
+    return *strips[(size_t)at];
+  };
+
+  int pointed = -1;
+  for (int at = 0; at <= kNoiseSource && pointed < 0; ++at)
+    if (column(at).isHovered())
+      pointed = at;
+
+  ovt::params::Cache::ChannelFlags modulates{}, linked{};
+
+  for (int at = 0; at <= kNoiseSource; ++at) {
+    for (const int source : modulation[(size_t)at]) {
+      if (source < 0)
+        continue;
+
+      modulates[(size_t)source] = true;
+
+      // Either way: the one under the pointer and what it takes from, or what
+      // takes from it.
+      if (at == pointed)
+        linked[(size_t)source] = true;
+      if (source == pointed)
+        linked[(size_t)at] = true;
+    }
+  }
+
+  // The loops, and the one the channel under the pointer is in.
+  const auto loops = ovt::params::Cache::loopsOf(modulation);
+  const int pointedLoop = pointed >= 0 ? loops[(size_t)pointed] : -1;
+
+  for (int at = 0; at <= kNoiseSource; ++at) {
+    const int loop = loops[(size_t)at];
+    column(at).setModulationMarks(modulates[(size_t)at], linked[(size_t)at],
+                                  loop >= 0 && loop == pointedLoop);
+  }
 }
 
 // =============================================================================

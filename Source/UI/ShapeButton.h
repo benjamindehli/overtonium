@@ -17,11 +17,23 @@ public:
   ///                pitch and amplitude. Indexes match the parameter's.
   /// @param suffix  the same control on every other channel, for the entry
   ///                 that sets them all
+  /// @param ownPartial  the channel's partial, 0 to 31, for a modulator that
+  ///                 can follow another partial or the noise channel,
+  ///                 kNoiseSource for the noise channel's, which can follow
+  ///                 any partial, or -1 for one that offers the shapes alone.
+  ///                 The parameter then lists the partials after the shapes,
+  ///                 and the noise channel after them on a partial's. See
+  ///                 params::ampSourceNames.
+  /// @param offersFeedback  whether it can follow its own partial too, which
+  ///                 the pitch modulator can as feedback. See
+  ///                 OscParams::pmSource.
   ShapeButton(juce::AudioProcessorValueTreeState &state,
               const juce::String &parameterId, const char *suffix,
-              juce::Span<const LfoShape> shapes, juce::StringArray shapeNames);
+              juce::Span<const LfoShape> shapes, juce::StringArray shapeNames,
+              int ownPartial = -1, bool offersFeedback = false);
 
   void paint(juce::Graphics &) override;
+  void resized() override;
   void mouseDown(const juce::MouseEvent &) override;
   void mouseEnter(const juce::MouseEvent &) override;
   void mouseExit(const juce::MouseEvent &) override;
@@ -36,6 +48,19 @@ public:
 
   /// The shape that is selected.
   LfoShape selectedShape() const;
+
+  /// The partial, 0 to 31, this modulator follows, kNoiseSource when it
+  /// follows the noise channel, or -1 when it traces one of the shapes. Its
+  /// own partial when it feeds itself back.
+  int selectedPartial() const;
+
+  /// Whether it follows its own partial, as feedback.
+  bool feedsBack() const;
+
+  /// Called when the parameter moves, from wherever it is moved. The strip
+  /// uses it to grey the rate, which a partial has no use for, and to show
+  /// the pitch depth as an index.
+  std::function<void()> onChange;
 
   /// Reported to a screen reader, since a glyph has no text of its own.
   juce::String currentName() const;
@@ -58,8 +83,27 @@ private:
   /// channel" entries in the menu do.
   void applyToEveryChannel(int index);
 
+  /// Sets every channel to follow its own partial, as feedback, as one step
+  /// in the undo history.
+  void applyFeedbackToEveryChannel();
+
+  /// Sets every partial's channel to follow the noise channel, as one step
+  /// in the undo history.
+  void applyNoiseToEveryChannel();
+
+  /// Whether it offers the noise channel as a source, which a partial's
+  /// does.
+  bool offersNoise() const;
+
   /// Everything paint draws, before it is kept as a picture.
   void paintShape(juce::Graphics &);
+
+  /// The source's number, FB for feedback, in the source's colour. Shown
+  /// while a partial is the source. See paintShape for the noise channel.
+  SegmentDisplay sourceDigits{{}, SegmentDisplay::Bars::Seven, 2};
+
+  /// Sets sourceDigits from the stored choice and the channel's lights.
+  void showSource();
 
   juce::AudioProcessorValueTreeState &apvts;
 
@@ -72,6 +116,8 @@ private:
 
   juce::String id;
   const char *sharedSuffix;
+  int partialOf = -1;
+  bool feedbackOffered = false;
   juce::Span<const LfoShape> offered;
   juce::StringArray names;
   bool hovered = false;

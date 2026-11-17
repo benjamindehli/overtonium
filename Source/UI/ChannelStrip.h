@@ -144,6 +144,13 @@ public:
   /// The lamp on the OUTPUT rule, for reading back what it shows.
   const SplitLamp &getOutputLamp() const noexcept { return outputLamp; }
 
+  /// The modulators' shapes, rates and depth, for the tests.
+  ShapeButton &getAmShape() noexcept { return amShape; }
+  const juce::Slider &getAmRate() const noexcept { return amRate; }
+  ShapeButton &getPmShape() noexcept { return pmShape; }
+  const juce::Slider &getPmRate() const noexcept { return pmRate; }
+  juce::Slider &getPmDepth() noexcept { return pmDepth; }
+
   /// Where a displacement sits on the needle's travel, -1 to 1.
   ///
   /// Full deflection is always params::kPitchNeedleFullScaleCents.
@@ -235,6 +242,7 @@ private:
   HeaderCap headerCap;
 
   void paintHeaderBand(juce::Graphics &);
+  void repaintHeader() override { headerCap.repaint(); }
 
   /// When the last click on this strip happened, so the same click arriving a
   /// second time cannot act twice. See mouseDown.

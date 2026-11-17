@@ -7,6 +7,7 @@
 #include "dsp/TapeEcho.h"
 #include "dsp/Velocity.h"
 
+#include <algorithm>
 #include <cmath>
 #include <iterator>
 #include <utility>
@@ -622,6 +623,49 @@ juce::StringArray pitchShapeNames() { return namesOf(kPitchShapes); }
 juce::StringArray ampShapeNames() { return namesOf(kAmpShapes); }
 
 namespace {
+/// A modulator's shapes, then each of the partials.
+juce::StringArray withPartials(juce::StringArray names) {
+  for (int i = 0; i < kNumHarmonics; ++i)
+    names.add("Partial " + juce::String(i + 1));
+
+  return names;
+}
+
+/// Then the noise channel, at kNoiseSource past the shapes.
+juce::StringArray withNoise(juce::StringArray names) {
+  names.add("Noise");
+  return names;
+}
+
+/// The partial or the noise channel a stored index stands for, past @p shapes
+/// shapes, or -1.
+int partialPast(int index, size_t shapes) {
+  const auto partial = index - (int)shapes;
+  return partial >= 0 && partial <= kNoiseSource ? partial : -1;
+}
+} // namespace
+
+juce::StringArray ampSourceNames() {
+  return withNoise(withPartials(ampShapeNames()));
+}
+
+juce::StringArray noiseAmpSourceNames() {
+  return withPartials(ampShapeNames());
+}
+
+int ampSourcePartial(int index) {
+  return partialPast(index, kAmpShapes.size());
+}
+
+juce::StringArray pitchSourceNames() {
+  return withNoise(withPartials(pitchShapeNames()));
+}
+
+int pitchSourcePartial(int index) {
+  return partialPast(index, kPitchShapes.size());
+}
+
+namespace {
 /// The shape a stored index means, clamped so an index from a later build
 /// stays in range.
 LfoShape pitchShapeAt(int index) {
@@ -871,7 +915,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(pmShapeSuffix, i), 1},
-        p + "Pitch Mod Shape", pitchShapeNames(), 0));
+        p + "Pitch Mod Shape", pitchSourceNames(), 0));
 
     // How long this partial takes to reach a new note, or how long an octave
     // takes under Rate. Off by default. Declared where the removed start phase
@@ -940,7 +984,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
     layout.add(std::make_unique<juce::AudioParameterChoice>(
         juce::ParameterID{oscParamId(amShapeSuffix, i), 1}, p + "Amp Mod Shape",
-        ampShapeNames(), 0));
+        ampSourceNames(), 0));
 
     layout.add(std::make_unique<FloatP>(
         juce::ParameterID{oscParamId(velSuffix, i), 1}, p + "Velocity",
@@ -1028,7 +1072,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout() {
 
   layout.add(std::make_unique<juce::AudioParameterChoice>(
       juce::ParameterID{noiseParamId(amShapeSuffix), 1}, "Noise Amp Mod Shape",
-      ampShapeNames(), 0));
+      noiseAmpSourceNames(), 0));
 
   layout.add(std::make_unique<FloatP>(
       juce::ParameterID{noiseParamId(velSuffix), 1}, "Noise Velocity",
@@ -1594,6 +1638,94 @@ static_assert(kNumMacroRows == 20,
 
 } // namespace
 
+Cache::Sources Cache::modulationSources() const {
+  Sources from{};
+
+  const auto live = [](int source, std::atomic<float> *depth, int at) {
+    return source >= 0 && source != at && depth->load() > 0.0f ? source : -1;
+  };
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    const auto &c = osc[(size_t)i];
+    from[(size_t)i] = {
+        live(ampSourcePartial((int)c.amShape->load()), c.amDepth, i),
+        live(pitchSourcePartial((int)c.pmShape->load()), c.pmDepth, i)};
+  }
+
+  // The noise channel's list holds the partials only, and it has no pitch.
+  from[kNoiseSource] = {
+      live(std::min(ampSourcePartial((int)noise.amShape->load()),
+                    kNumHarmonics - 1),
+           noise.amDepth, kNoiseSource),
+      -1};
+
+  return from;
+}
+
+std::array<int, kNumHarmonics + 1> Cache::loopsOf(const Sources &from) {
+  constexpr int places = kNumHarmonics + 1;
+
+  // Every channel each one takes from, directly or along the links.
+  std::array<std::uint64_t, places> reaches{};
+
+  for (int at = 0; at < places; ++at)
+    for (const int source : from[(size_t)at])
+      if (source >= 0)
+        reaches[(size_t)at] |= std::uint64_t{1} << source;
+
+  for (int via = 0; via < places; ++via)
+    for (int at = 0; at < places; ++at)
+      if ((reaches[(size_t)at] >> via) & 1u)
+        reaches[(size_t)at] |= reaches[(size_t)via];
+
+  std::array<int, places> loop{};
+  loop.fill(-1);
+
+  for (int at = 0; at < places; ++at)
+    for (int other = 0; other < places && loop[(size_t)at] < 0; ++other)
+      if (other != at && ((reaches[(size_t)at] >> other) & 1u) &&
+          ((reaches[(size_t)other] >> at) & 1u))
+        loop[(size_t)at] = std::min(at, other);
+
+  // The lowest member names the loop, which the first match only finds when
+  // it is lower than this channel.
+  for (int at = 0; at < places; ++at)
+    if (loop[(size_t)at] >= 0)
+      for (int other = 0; other < at; ++other)
+        if (((reaches[(size_t)at] >> other) & 1u) &&
+            ((reaches[(size_t)other] >> at) & 1u)) {
+          loop[(size_t)at] = other;
+          break;
+        }
+
+  return loop;
+}
+
+Cache::ChannelFlags Cache::feedingHeard(const Sources &from,
+                                        const ChannelFlags &heard) {
+  // Back from every channel that is heard, until nothing more is reached.
+  ChannelFlags feeding{};
+
+  for (bool reached = true; reached;) {
+    reached = false;
+
+    for (size_t at = 0; at < from.size(); ++at) {
+      if (!heard[at] && !feeding[at])
+        continue;
+
+      for (const int source : from[at]) {
+        if (source < 0 || heard[(size_t)source] || feeding[(size_t)source])
+          continue;
+
+        feeding[(size_t)source] = true;
+        reached = true;
+      }
+    }
+  }
+
+  return feeding;
+}
+
 void Cache::snapshot(SynthParams &out, float bendNormalised) const {
   // Solo spans the noise channel too.
   bool anySolo = noise.solo->load() > 0.5f;
@@ -1612,8 +1744,14 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (row.field != nullptr)
         o.*row.field = (c.*row.cached)->load();
 
-    o.pmShape = pitchShapeAt((int)c.pmShape->load());
-    o.amShape = ampShapeAt((int)c.amShape->load());
+    const auto pmIndex = (int)c.pmShape->load();
+    o.pmShape = pitchShapeAt(pmIndex);
+    o.pmSource = pitchSourcePartial(pmIndex);
+    // A partial as the source leaves the shape at the last of the shapes,
+    // whose LFO still steps underneath, unheard.
+    const auto amIndex = (int)c.amShape->load();
+    o.amShape = ampShapeAt(amIndex);
+    o.amSource = ampSourcePartial(amIndex);
 
     const bool muted = c.mute->load() > 0.5f;
     const bool soloed = c.solo->load() > 0.5f;
@@ -1683,7 +1821,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
       if (row.field != nullptr)
         n.*row.field = (noise.*row.cached)->load();
 
-    n.amShape = ampShapeAt((int)noise.amShape->load());
+    const auto noiseAmIndex = (int)noise.amShape->load();
+    n.amShape = ampShapeAt(noiseAmIndex);
+    // A partial, never the noise channel itself, which its list leaves out.
+    n.amSource = std::min(ampSourcePartial(noiseAmIndex), kNumHarmonics - 1);
 
     const bool muted = noise.mute->load() > 0.5f;
     const bool soloed = noise.solo->load() > 0.5f;

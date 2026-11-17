@@ -46,12 +46,24 @@ public:
   /// activity lamps on the heading rows paint opaque backdrops.
   void paintOverChildren(juce::Graphics &) override;
 
-  /// Turns the column's lights and screens off when another channel's solo is
-  /// silencing it. Its mute and solo stay lit.
-  void setSilencedByOthers(bool shouldDim);
+  /// Turns the column's lights and screens off when a mute or another
+  /// channel's solo is silencing it. Its mute and solo stay lit.
+  ///
+  /// A silenced channel that @p feedsHeard, modulating one that is heard,
+  /// keeps every light but its fader's and its level's, since its settings
+  /// still change the sound.
+  void setSilencedByOthers(bool shouldDim, bool feedsHeard = false);
 
   /// Whether the pointer is on this column, which is what lights it.
   bool isHovered() const noexcept { return hovered; }
+
+  /// The marks at the head of the column for the modulation between
+  /// channels: whether this channel modulates another, whether it is linked,
+  /// either way, to the channel under the pointer, and whether it is in a loop
+  /// with it. A loop lights as one, in the accent, since the voice plays it as
+  /// one, a sample at a time.
+  void setModulationMarks(bool modulatesOther, bool linkedToHovered,
+                          bool loopedWithHovered = false);
 
   /// Picks out one row, or kNoRow to clear. Every column is told the same
   /// row, so the highlight runs the width of the mixer.
@@ -75,6 +87,11 @@ protected:
   /// lamp that paints an opaque backdrop.
   juce::Colour backdropAt(int y) const;
 
+  /// Turns a knob's lights off while its setting has no effect, the way a
+  /// silenced channel's are. Unlike a disabled knob, it stays at full
+  /// strength and can still be turned.
+  void setIdle(juce::Slider &, bool idle);
+
   /// The level a fader's gain reads as, -inF at the bottom.
   static juce::String levelReading(float gain);
 
@@ -96,6 +113,25 @@ protected:
   HoverTarget &hover;
 
   bool silenced = false;
+
+  /// Silenced, but modulating a channel that is heard.
+  bool feeding = false;
+
+  /// See setModulationMarks.
+  bool modulates = false;
+  bool linked = false;
+  bool looped = false;
+
+  /// Repaints whatever draws the number or the mark at the head.
+  virtual void repaintHeader() = 0;
+
+  /// The lamp beside the number, whose ink is @p number, lit while this
+  /// channel modulates another.
+  void paintModulationMark(juce::Graphics &, juce::Rectangle<float> number,
+                           juce::Colour) const;
+
+  /// Whether the knobs, the shapes and the tuning go dark.
+  bool controlsDark() const noexcept { return silenced && !feeding; }
   Row highlighted = kNoRow;
 
   /// Folded groups, set by the editor. Every layout and hit test follows it.

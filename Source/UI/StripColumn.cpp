@@ -93,6 +93,7 @@ void StripColumn::reportHover(const juce::MouseEvent &e) {
   if (inside != hovered) {
     hovered = inside;
     repaint();
+    hover.columnHoverChanged();
   }
 }
 
@@ -106,6 +107,7 @@ void StripColumn::clearHover() {
   if (hovered) {
     hovered = false;
     repaint();
+    hover.columnHoverChanged();
   }
 }
 
@@ -130,11 +132,14 @@ void StripColumn::setHighlightedRow(Row row) {
   repaintRowHighlight(*this, rows, highlighted);
 }
 
-void StripColumn::setSilencedByOthers(bool shouldDim) {
-  if (silenced == shouldDim)
+void StripColumn::setSilencedByOthers(bool shouldDim, bool feedsHeard) {
+  const bool shouldFeed = shouldDim && feedsHeard;
+
+  if (silenced == shouldDim && feeding == shouldFeed)
     return;
 
   silenced = shouldDim;
+  feeding = shouldFeed;
 
   // Turns the controls' lights off rather than dimming the whole column, so
   // the mute and solo stay readable.
@@ -145,10 +150,17 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
         continue;
 
       // Sliders and the waveform displays carry colour of their own. The meters
-      // and the lamps get nothing to show on a silenced channel.
+      // and the lamps get nothing to show on a silenced channel. A channel
+      // feeding one that is heard keeps every light but its fader's, since
+      // only its own output is off.
       if (dynamic_cast<juce::Slider *>(child) != nullptr ||
           dynamic_cast<ShapeButton *>(child) != nullptr) {
-        child->getProperties().set("unlit", silenced);
+        const bool dark = child == &fader() ? silenced : controlsDark();
+
+        // An idle knob stays dark when the channel comes back.
+        child->getProperties().set(
+            "unlit",
+            dark || (bool)child->getProperties().getWithDefault("idle", false));
         child->repaint();
       }
 
@@ -160,6 +172,54 @@ void StripColumn::setSilencedByOthers(bool shouldDim) {
 
   silenceChanged();
   repaint();
+}
+
+void StripColumn::setIdle(juce::Slider &knob, bool idle) {
+  knob.getProperties().set("idle", idle);
+  knob.getProperties().set("unlit", controlsDark() || idle);
+  knob.repaint();
+}
+
+void StripColumn::setModulationMarks(bool modulatesOther, bool linkedToHovered,
+                                     bool loopedWithHovered) {
+  if (modulates == modulatesOther && linked == linkedToHovered &&
+      looped == loopedWithHovered)
+    return;
+
+  modulates = modulatesOther;
+  linked = linkedToHovered;
+  looped = loopedWithHovered;
+  repaintHeader();
+}
+
+void StripColumn::paintModulationMark(juce::Graphics &g,
+                                      juce::Rectangle<float> number,
+                                      juce::Colour colour) const {
+  // A small round lamp up at the number's top right, mounted in a hole like
+  // the lamps on the section rules, and lit while this channel modulates
+  // another. Unlit is the channel colour held down low, as theirs is.
+  constexpr float diameter = 5.0f;
+  const auto lamp = juce::Rectangle<float>(diameter, diameter)
+                        .withCentre({number.getRight() + 3.0f + diameter * 0.5f,
+                                     number.getY() + diameter * 0.5f - 0.5f});
+
+  paintRecess(g, lamp, diameter * 0.5f);
+
+  if (modulates) {
+    g.setColour(colour.withAlpha(0.10f));
+    g.fillEllipse(lamp.expanded(diameter * 0.42f));
+
+    g.setColour(colour.withAlpha(0.12f));
+    g.fillEllipse(lamp.expanded(diameter * 0.18f));
+  }
+
+  // Blended into the column's background rather than drawn see-through, so
+  // the face is opaque and covers the recess under it, as the rule lamps'
+  // faces do.
+  g.setColour(modulates ? colour
+                        : backdropAt(juce::roundToInt(lamp.getCentreY()))
+                              .interpolatedWith(colour, 0.16f));
+  g.fillEllipse(lamp);
 }
 
 juce::Colour StripColumn::backdropAt(int y) const {

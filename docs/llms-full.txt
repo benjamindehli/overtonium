@@ -8,7 +8,7 @@ Every page of https://benjamindehli.github.io/overtonium/ as Markdown, in the or
 
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-11-07
+Last changed: 2026-11-15
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -45,11 +45,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the forty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eleven of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
 
 [Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-four presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-seven presets.
 
 ## The control to try first
 
@@ -69,7 +69,7 @@ Nothing about the tuning is hard-coded. For harmonic `n` the just interval is `1
 
 - [**Tuning**TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.](https://benjamindehli.github.io/overtonium/tuning/)
 - [**Controls**Every knob on a channel strip, then the effects on the bar and how to play it from a keyboard, a host or a controller.](https://benjamindehli.github.io/overtonium/controls/)
-- [**Presets**The forty-four that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
+- [**Presets**The forty-seven that ship, what a preset carries, and where your own are kept on each platform.](https://benjamindehli.github.io/overtonium/presets/)
 - [**Install**Installers for macOS and Windows, a zip for Linux, what to do when a host does not see it, and building from source.](https://benjamindehli.github.io/overtonium/install/)
 
 What changed in each version, newest first, and what to know before upgrading are on [the releases page](https://benjamindehli.github.io/overtonium/releases/).
@@ -295,7 +295,7 @@ One held chord, twice. With drift off, each partial stays exactly at its pitch. 
 
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-04
+Last changed: 2026-11-15
 
 # Overtonium controls
 
@@ -314,12 +314,12 @@ Hold the pointer over a row's name in the gutter to see what the row does. The t
 | Control | Range | What it does |
 |---|---|---|
 | TUNE | equal to just | Where this partial sits between the tempered position and the exact ratio. The readout shows the resulting cent offset. On the six octave channels both tunings agree, so the knob has nothing to move and the readout stays at 0.0 |
-| PITCH MOD shape, rate, depth | Eight shapes, 0.01 to 30 Hz, 0 to 1200 cents | Per-partial vibrato |
+| PITCH MOD shape, rate, depth | Eight shapes or another partial, 0.01 to 30 Hz, 0 to 1200 cents or an index of 0 to 12 | Per-partial vibrato, or another partial's wave moving this one's phase |
 | DRIFT | 0 to 25 cents | Smooth random pitch wander, its own stream per partial |
 | GLIDE | Off to 5 s | How long this partial takes to reach a new note, so the partials can arrive one at a time. The L and T switches beside the caption, and the knob's right-click menu, set whether it glides always or only legato, and at a fixed rate or in a fixed time. See [Glide](https://benjamindehli.github.io/overtonium/playing/#glide) |
 | ENVELOPE strike, delay, A, D, S | -100 to +100%, 0 to 5 s, 90° then 0.2 ms to 5 s, 1 ms to 20 s, 0 to 100% | Exponential decay. The harder the key is struck, the sooner and faster STRIKE starts the partial |
 | KEY OFF swell, level, release | 0 to 5 s, 0 to 100%, 1 ms to 20 s | A second envelope that runs when the key is released |
-| AMP MOD shape, rate, depth | Seven shapes, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo |
+| AMP MOD shape, rate, depth | Seven shapes or another partial, 0.01 to 30 Hz, 0 to 100% | Per-partial tremolo, or another partial's wave multiplying this one |
 | VELOCITY | -100 to +100% | How much key velocity scales this partial. Negative inverts it. The dB switch beside the caption picks the curve |
 | KEYBOARD | -200 to +200% | How the level follows the key played. Up to 100% it tilts around middle C, and past 100% the turn moves away from middle C |
 | AFTERTOUCH | -100 to +100% | How much key pressure moves this partial. Negative fades it out |
@@ -342,9 +342,25 @@ Both per-partial modulators have a shape as well as a rate and a depth. You pick
 
 **Amplitude has only one square.** A tremolo only ever lowers the level set by the fader, so a unipolar shape has no second direction to go in. The one square switches across the whole depth. For the same reason, every amplitude shape starts a quarter of a cycle ahead. A note begins at full level and then dips, instead of starting half attenuated.
 
+**Another partial as the source.** The Channel submenu under the amplitude shapes lets a channel follow another partial instead of a tremolo. It lists every partial, its own place unavailable, then the noise channel. That partial's wave multiplies this one sample by sample, which makes the sum and the difference of their two frequencies. On A3, partial 2 following partial 1 is 440 Hz times 220 Hz, which gives 220 Hz and 660 Hz. Every partial is a whole multiple of the note, so the two new frequencies are too, and the result stays in tune. DEPTH goes from none of it at 0% to the product alone at 100%, which is ring modulation, with the partial's own tone gone. In between, the tone is still there with the two new ones beside it. RATE goes dark, as on a muted channel, since the source sets the rate. The screen shows the source's number on a two-digit display, lit in the source's colour.
+
+The source passes on everything that sets its level except its fader and its mute: its envelope, its velocity, aftertouch and KEYBOARD row, and its own AMP MOD. A partial can be muted or pulled all the way down and still modulate, and a source with a tremolo puts that tremolo into what it rings. Along a chain, where the source follows a partial in turn, the products multiply all the way along. When the sum of the two frequencies comes near the top of the audio band, the depth fades out, so the sum cannot fold back down as a tone out of tune. Two partials can follow each other, by AMP MOD, by PITCH MOD or both, and so can a partial and the noise channel. The ones in a loop like that play together a sample at a time, as a DX7 plays its operators, so the first of them hears the others one sample late, the least a loop can be. Round a loop, each passes on less of its own ring the deeper the other links in the loop are. With them at full depth it passes on its own wave alone, since a product fed back into itself dies away, and with any of them at nothing it passes on all of it, as along a chain. A link at no depth counts as no link at all, so turning DEPTH down to nothing sounds the same as choosing a shape instead.
+
+The small lamp beside a channel's number lights while that channel modulates another, so the sources show across the whole mixer. Pointing at a channel lights the numbers of the channels it takes from and of the channels that take from it, each in its own colour. When it is in a loop, every channel in the loop lights in the same colour as the one you point at, since they play together as one.
+
+**A partial as the pitch source.** The pitch shapes have the same Channel submenu. There, the other partial's wave moves this one's phase sample by sample, which is how FM synthesizers make their tones. It spreads the partial into pairs of tones either side of it, one source frequency apart. On A3, partial 2 moved by partial 1 keeps 440 Hz and gains 660 Hz and 880 Hz above it, and 220 Hz below. Every one of them is a whole multiple of the note, so the result stays in tune however deep it goes. DEPTH is then the modulation index, from 0 to 12, rather than cents, and the popup says so. Around 1 the tone gains a few warm pairs, and higher it turns bright and metallic, the way an index does on an FM synthesizer. RATE goes dark, and the source passes on the same things it passes on for amplitude.
+
+The pairs reach about the index plus one source frequencies above the partial. When that would pass the top of the audio band, the index is held back, so nothing folds down out of tune, and a partial already near the top barely moves. A partial whose phase is moved passes its new tones on to any partial that follows it, so partials can be stacked as an FM synthesizer stacks its operators. Host automation still shows the depth in cents, a hundred to each step of the index.
+
+**Feedback.** In the pitch shapes' Channel submenu, a partial's own place is Feedback, which moves a partial's phase by its own wave, as the feedback operator on a DX7 does. It takes the average of the partial's last two samples, which keeps a deep setting from flipping between two values every sample. The partial keeps its pitch and gains its own harmonics, so it stays in tune. As the index rises it turns from a sine towards a sawtooth, at about 1.5 it is close to one, and from about 2 it turns to noise, which grows denser up to 12. The deeper the index and the higher the partial, the further its harmonics reach, so below 2 the index is held where they would fold back from the top of the audio band. A low partial gets to about 2, a partial at 1.8 kHz to about 1.1, and one at 10 kHz stays close to a sine. Past 2 the knob goes straight through to noise at every pitch. On the lo-fi rate nothing is held back. Feeding back makes the wave lean to one side, which would put in an offset, so that is taken out, as the DX7's output does. Feedback passes on the same things as a partial as the source, and a partial set to feedback can be the source for others, muted or not. The screen shows FB in the channel's own colour, the B drawn as seven bars draw it.
+
+**The noise channel as the source.** Both Channel submenus end with **Noise**, the noise channel as it comes out of COLOUR and STRING. For amplitude, noise multiplying a partial spreads it into a band of noise around its own pitch, so a little DEPTH gives a tone some breath and full depth leaves a whistle at the partial's pitch. For pitch, noise moving the phase makes the partial rough and unsteady, and deep enough it turns to noise. Noise has no peak, so the index is read against its level, and dark noise, which is quieter, moves it less than bright. With STRING up, the source is the string, which rings at the fundamental, so the new tones are whole multiples of the note and stay in tune, and they die away as the string does. The noise channel passes on what a partial passes on: its envelope, velocity, aftertouch, KEYBOARD row and its own AMP MOD, but not its fader or mute, so it can be pulled all the way down and still be the source. The screen shows the noise trace, the mark at the head of the noise channel, in its colour.
+
+**A partial as the noise channel's source.** The noise channel's own amplitude menu has the Channel submenu, with all 32 partials. The partial's wave then multiplies the noise, which moves the noise up around the partial's pitch. Following the fundamental, the noise pulses at the note's pitch, which gives a voiced breath or a buzz that follows the key. The noise channel keeps its own fader, envelope and pan. A partial and the noise channel can follow each other, as two partials can.
+
 The square and stepped shapes do not click. A partial's gain changes smoothly across each control block instead of jumping, so each edge takes about two thirds of a millisecond. That is short enough to sound like an edge and long enough not to be heard as a click.
 
-LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo.
+LINK does not change the shapes. It moves a value across the series along a weighted curve, and a list of named shapes cannot be weighted. Instead, the shape menu can set every channel at once. **Set every channel to this** copies the channel's own shape to all the others, and **Set every channel to** lists every shape, so all the channels can change to a new shape in one step without changing one of them first. Either one is a single step to undo. Neither offers another partial, since a channel cannot follow itself. Noise is offered in both, which sets every partial to follow the noise channel, and Feedback in the pitch menu, where every channel takes it from its own partial.
 
 **Shared by all notes** is the other entry in that menu, one for each of the two modulators. It is also the switch beside each SHAPE caption on the left of the mixer, marked with three strokes joining into one. By default each note has its own modulator. Play a chord one note at a time and you get three tremolos, each starting when its own key went down, so they move out of step. With the entry ticked, the modulator belongs to the channel instead. A note that arrives late joins the modulation already running, so the chord moves as one however it was played. An instrument with a single tremolo circuit behaves like this, which is why [Wurli](https://benjamindehli.github.io/overtonium/presets/), Tape Pluck and Soft Trio ship with their tremolo shared, and StyloPoly and Combo Organ with their vibrato.
 
@@ -364,7 +380,7 @@ Patches made before the switch existed keep Classic, so a saved project and a sa
 
 Aftertouch works the same way but **adds** to the fader instead of scaling it, and it ignores velocity. A strip with its fader all the way down is silent until you press into the key, and then it fades in. A negative amount fades an open strip out instead. Both channel pressure and polyphonic aftertouch are accepted, and the higher of the two is used. Pressure is smoothed over about 15 ms, so the steps of seven-bit MIDI are not heard in the gain.
 
-By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings.
+By default the mod wheel also works as aftertouch, because most keyboards have no aftertouch and the wheel is close to hand. A wheel left at rest reads zero, so nothing changes on a controller that does send pressure. To use only one or the other, choose it in the "Aftertouch from" entry in Settings. With Mod wheel, pressure of every kind is left out, polyphonic and MPE pressure included.
 
 ## Following the keyboard, per partial
 
@@ -465,14 +481,14 @@ Each of the rules that divide a strip into groups has a lamp. It shows what the 
 | PITCH MOD | a needle on a track, flat to the left and sharp to the right, showing where modulation, drift and any glide still in progress have put the partial |
 | ENVELOPE | how far up its envelope the partial is, while the key is down |
 | KEY OFF | the same, once the key is up and the key-off stage has taken over |
-| AMP MOD | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth |
+| AMP MOD | how far the tremolo has lowered the level, so it pulses at the tremolo's rate and swings further at greater depth. With a partial as the source, how deep the modulation goes |
 | OUTPUT | one long lamp in three parts, one for each row below it: the left shows how much of the partial velocity has left, the middle how much the keyboard row has left on the key being played, and the right what pressure on the key is adding |
 
 The lamps read the voice pool, not the knobs, so they show what a note is doing, not a setting, and nothing pulses when nothing is sounding. They follow the loudest voice on that partial, the same one the meter follows. The output rule has one long lamp in three parts, one for each row below it and in the same order. VELOCITY can only reduce the level, so its lamp shows what the row leaves: full when velocity has taken nothing from the partial, dark when it has taken all of it, and full at every velocity when the knob is at the centre. KEYBOARD reads the same way, for the key being played, and follows a glide across. AFTERTOUCH adds level instead, so its lamp is dark at rest and lights up as you press into the key, whichever direction that row is set to push. The needle's scale is fixed and the same on every strip, so you can compare two channels by eye. Full deflection is 225 cents. That covers a vibrato and a drift at full depth, but not the widest the depth knob reaches. A square set to jump an octave pushes the needle to the end of its track, and so does a wide glide until it is within a couple of semitones of its note. With a scale wide enough for an octave, an ordinary vibrato would not move the needle at all.
 
 ### Meters
 
-Each channel meters the actual output of its partial, on a decibel scale down to -48 dB. The envelope, tremolo, velocity, aftertouch and mute or solo all show in it, and you can watch the spectrum change as a note decays. The meter fills the fader's own track instead of sitting beside it, and the fader cap is drawn as translucent glass so the meter shows through it. It shows the loudest instance of the partial across the sounding voices, not the sum, so it shows the shape of the patch instead of hitting the top as soon as you play a chord.
+Each channel meters the actual output of its partial, on a decibel scale down to -48 dB. The envelope, tremolo, velocity, aftertouch and mute or solo all show in it, and you can watch the spectrum change as a note decays. The meter fills the fader's own track instead of sitting beside it, and the fader cap is drawn as translucent glass so the meter shows through it. It shows the loudest instance of the partial across the sounding voices, not the sum, so it shows the shape of the patch instead of hitting the top as soon as you play a chord. On the noise channel with STRING up, it also shows the string ringing after the noise that struck it has died away.
 
 ### Colour and hover
 
@@ -482,13 +498,15 @@ Channels are coloured by interval class, in chromatic order along a narrow range
 
 A channel you cannot hear, because it is muted or because another channel is soloed, turns its lights off. Its knob rings, both readouts and the macro columns beside its fader go dark, and its waveform screens switch off. The pointer on each knob and the fader cap still show where they are set, and M and S stay lit, since one of them is usually what silenced it.
 
+A silenced channel that still modulates one you can hear, directly or along a chain, keeps its knobs, its tuning readout and its waveform screens lit, since its settings still change the sound. Only its fader and its level readout go dark, since only its own output is off. A link at no depth does not count.
+
 ### Folding the mixer down
 
 Clicking a section heading in the caption gutter folds that group of rows away on every channel at once. Clicking that section's rule on any strip does the same, so you do not have to move to the gutter and then find the partial you were working on again. Pointing at a rule shows the same hand pointer as a heading and lights that section's caption and its disclosure mark, so you can see what the click would fold before you click. The window shrinks by exactly the height of those rows. Pitch modulation, envelope, key off, amp mod and output can each be folded. The tuning at the top and the faders at the bottom always stay. A folded heading keeps its activity lamp, so a hidden group still shows whether it is doing anything. The fold state is saved with the session, not with the patch.
 
 ## The noise channel
 
-A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest.
+A noise channel, marked with a noise trace where the others have a number, sits on the right, after the series. It has the same envelope, tremolo, velocity, keyboard, aftertouch, pan, mute, solo, level and meter as a partial, and takes part in solo alongside them. It is not part of the harmonic series, so it has no tuning, pitch modulation or drift of its own. COLOUR takes the place of the tuning row, and a string takes the rest. It can be the source of a partial's amplitude or pitch modulation, and a partial can be the source of its amplitude modulation. See [the modulators](https://benjamindehli.github.io/overtonium/controls/#modulators).
 
 COLOUR tilts the noise from a dark rumble at one end, through flat in the middle, to a bright hiss at the other. The middle is fully flat, not just less filtered. Each voice runs its own noise stream, so playing a chord does not layer eight copies of the identical signal.
 
@@ -500,7 +518,7 @@ The envelope sets how the string is played. A noise envelope a few milliseconds 
 
 Page: Overtonium effects: character, echo, reverb, converter and CLIP
 URL: https://benjamindehli.github.io/overtonium/effects/
-Last changed: 2026-11-07
+Last changed: 2026-11-15
 
 # Overtonium effects
 
@@ -534,7 +552,7 @@ Each character is also a rack of thirty-two oscillators, not one oscillator used
 
 The button lights in the character's own colour, so you can tell which one is chosen at a glance. FM, PD and 6581 light in a colour of the instrument they were measured from: FM in the green of the synthesizer's membrane buttons, PD in the colour of the model name printed on the synthesizer, and 6581 in the blue of the startup screen of the computer the chip was made for. The others are spread as far apart in hue as they go. Pure does not light, because it adds nothing.
 
-Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Thirty-nine of the forty-four [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
+Character is part of the patch, not part of the setup, so a preset can change it and saving a preset stores it. Forty-two of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/) use one, so most of what you load already uses a circuit or a recording, not the plain sine.
 
 ## Wobble
 
@@ -548,7 +566,7 @@ The resonator is eighty-eight sympathetic strings, one for each key of a piano f
 
 **MIX** goes from the instrument alone to the resonator alone, as on the echo and the reverb. On a held chord the level stays about the same as you turn it up. At 100 % only the resonator is left, so short notes lose their attack there. **DECAY** sets how long a free string rings, from 200 ms to 10 s. The level stays about the same at any setting. **DAMP** sets how quickly the high end dies away. A damper stops its string over 0.8 s at the bottom of the keyboard and 0.25 s at the top, or sooner if DECAY is shorter, so a released bass key leaves the short hum of a felt damper on a heavy string. A string freed only by the pedal gets much less of the signal than a held key's string, so the pedal adds a bloom under a chord instead of making it louder.
 
-The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck, 8-bit Choir, Soft Trio, Pendulum and Chapel use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
+The resonator is part of the patch. Metallic Piano, Space Cowboy, KarplusStrong, Tape Pluck, 8-bit Choir, Soft Trio, Pendulum, Chapel and FM Perc Piano use it, and the other factory presets have it off. With eight voices it uses about one percent of a core with the pedal up, and about five percent with every string freed by the pedal.
 
 ## Bus drive
 
@@ -596,7 +614,7 @@ Horizontal, and split into left and right. The two channels are identical until 
 
 Page: Playing Overtonium: MPE, automation, macros and MIDI Learn
 URL: https://benjamindehli.github.io/overtonium/playing/
-Last changed: 2026-11-07
+Last changed: 2026-11-11
 
 # Playing Overtonium
 
@@ -783,7 +801,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `H1 Tune to H32 Tune` | `h01_tune to h32_tune` | Equal temp. to Just | Just |
 | `H1 Pitch Mod Rate to H32 Pitch Mod Rate` | `h01_pmRate to h32_pmRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Pitch Mod Depth to H32 Pitch Mod Depth` | `h01_pmDepth to h32_pmDepth` | 0 ct to 1200 ct | 0 ct |
-| `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random | Sine |
+| `H1 Pitch Mod Shape to H32 Pitch Mod Shape` | `h01_pmShape to h32_pmShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Square (up), Sample & Hold, Random, Partial 1, Partial 2, Partial 3, Partial 4, Partial 5, Partial 6, Partial 7, Partial 8, Partial 9, Partial 10, Partial 11, Partial 12, Partial 13, Partial 14, Partial 15, Partial 16, Partial 17, Partial 18, Partial 19, Partial 20, Partial 21, Partial 22, Partial 23, Partial 24, Partial 25, Partial 26, Partial 27, Partial 28, Partial 29, Partial 30, Partial 31, Partial 32, Noise | Sine |
 | `H1 Glide to H32 Glide` | `h01_glide to h32_glide` | Off to 5.00 s | Off |
 | `H1 Drift to H32 Drift` | `h01_drift to h32_drift` | 0 ct to 25 ct | 0 ct |
 | `H1 Strike Velocity to H32 Strike Velocity` | `h01_strike to h32_strike` | -100 % to +100 % | 0 % |
@@ -796,7 +814,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `H1 Release to H32 Release` | `h01_release to h32_release` | 1.0 ms to 20.00 s | 400 ms |
 | `H1 Amp Mod Rate to H32 Amp Mod Rate` | `h01_amRate to h32_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `H1 Amp Mod Depth to H32 Amp Mod Depth` | `h01_amDepth to h32_amDepth` | 0 % to 100 % | 0 % |
-| `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
+| `H1 Amp Mod Shape to H32 Amp Mod Shape` | `h01_amShape to h32_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random, Partial 1, Partial 2, Partial 3, Partial 4, Partial 5, Partial 6, Partial 7, Partial 8, Partial 9, Partial 10, Partial 11, Partial 12, Partial 13, Partial 14, Partial 15, Partial 16, Partial 17, Partial 18, Partial 19, Partial 20, Partial 21, Partial 22, Partial 23, Partial 24, Partial 25, Partial 26, Partial 27, Partial 28, Partial 29, Partial 30, Partial 31, Partial 32, Noise | Sine |
 | `H1 Velocity to H32 Velocity` | `h01_vel to h32_vel` | -100 % to +100 % | 0 % |
 | `H1 Aftertouch to H32 Aftertouch` | `h01_aftertouch to h32_aftertouch` | -100 % to +100 % | 0 % |
 | `H1 Mute to H32 Mute` | `h01_mute to h32_mute` | Off or on | Off |
@@ -820,7 +838,7 @@ All 884 as the host lists them, with a control that every partial or every macro
 | `Noise Release` | `noise_release` | 1.0 ms to 20.00 s | 400 ms |
 | `Noise Amp Mod Rate` | `noise_amRate` | 0.01 Hz to 30.0 Hz | 4.00 Hz |
 | `Noise Amp Mod Depth` | `noise_amDepth` | 0 % to 100 % | 0 % |
-| `Noise Amp Mod Shape` | `noise_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random | Sine |
+| `Noise Amp Mod Shape` | `noise_amShape` | Sine, Triangle, Sawtooth, Reverse Sawtooth, Square, Sample & Hold, Random, Partial 1, Partial 2, Partial 3, Partial 4, Partial 5, Partial 6, Partial 7, Partial 8, Partial 9, Partial 10, Partial 11, Partial 12, Partial 13, Partial 14, Partial 15, Partial 16, Partial 17, Partial 18, Partial 19, Partial 20, Partial 21, Partial 22, Partial 23, Partial 24, Partial 25, Partial 26, Partial 27, Partial 28, Partial 29, Partial 30, Partial 31, Partial 32 | Sine |
 | `Noise Velocity` | `noise_vel` | -100 % to +100 % | 0 % |
 | `Noise Aftertouch` | `noise_aftertouch` | -100 % to +100 % | 0 % |
 | `Noise Mute` | `noise_mute` | Off or on | Off |
@@ -882,13 +900,13 @@ Two things to expect. A control jumps to the controller's current position inste
 
 ---
 
-Page: Overtonium presets: the forty-four that ship, and saving your own
+Page: Overtonium presets: the forty-seven that ship, and saving your own
 URL: https://benjamindehli.github.io/overtonium/presets/
-Last changed: 2026-11-08
+Last changed: 2026-11-15
 
 # Overtonium presets
 
-Forty-four presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
+Forty-seven presets ship with the plugin. All but a handful were set up on the panel and converted directly from the saved file. What ships is exactly what was played, not an approximation written afterwards.
 
 ## Hear them played
 
@@ -914,11 +932,11 @@ Straight to one of them:
 
 ## What ships
 
-Forty-four presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
+Forty-seven presets. Only two of them are versions of one patch, and they are the place to start: **Just Saw** and **Equal Saw** are identical except for [TUNE](https://benjamindehli.github.io/overtonium/tuning/), and they sound nothing alike.
 
 Each clip plays the same thing: a spread C major chord, played a note at a time and released all at once. This makes it easy to listen through them in order. The clips are rendered by the plugin, not recorded, so they always match what it does. The levels are the ones each preset sets, not matched to each other. Nothing downloads until you press play.
 
-Thirty-nine of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
+Forty-two of them use one of the twelve [oscillator characters](https://benjamindehli.github.io/overtonium/effects/#character). The character is part of the patch like everything else here, so what you hear is the preset as it ships. Keep two of the twelve in mind while listening. Bulb is only audible when the pitch moves, and Op-amp only affects partials above a kilohertz. Both do more when you play them on a keyboard than in a clip of a held chord.
 
 **2-bit Fuzz Organ**
 
@@ -984,9 +1002,21 @@ A round electric piano with bright chimes above it, at 16 kHz and 8 bits, so the
 
 Just Saw with every partial moved to equal temperament
 
+**FM KarplusStrong**
+
+KarplusStrong's struck string with two partials on FM over it, the fundamental and the octave, each modulating the other's pitch and level, which gives the string a synthetic, metallic edge. The two partials are panned to opposite sides. It goes into a short bucket brigade echo and a small room, through Print
+
+**FM Perc Piano**
+
+A struck FM piano that follows velocity closely. Played softly it is close to a sine, and played hard it is bright and punchy with a lot of overtones, as the partials that modulate it come up with velocity. Three partials are heard, each driven by another, and two silent partials feed back on themselves to drive them. The noise channel's string starts each note with a short strike. It goes into a tape echo, the room and the resonator's octave strings, at 10 bits through Console
+
 **FM Piano**
 
 The electric piano sound of an FM synthesizer such as the DX7, not the instrument it imitates, on FM
+
+**FM String Machine**
+
+A string machine on FM. The fundamental feeds back on its own pitch, which turns its sine into something close to a sawtooth, and it modulates the next three partials. The octave and the twelfth are panned apart and drift, so they waver like an ensemble, and aftertouch brings up the fourth partial. It goes into a bucket brigade echo and the modulated plate, at 10 bits through Cassette
 
 **Glass Armonica**
 
@@ -1237,11 +1267,23 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-11-08
+Last changed: 2026-11-17
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.18.0, 17 November 2026
+
+**Partials that modulate each other (#144 to #148).** The shape menus have a Channel submenu. On AMP MOD another partial rings this one, and on PITCH MOD it moves its phase, as FM synthesizers do, with DEPTH as the index. Every new tone is a whole multiple of the note, so the result stays in tune. A partial's own place in the pitch menu is Feedback, which turns a sine towards a sawtooth and then to noise. The noise channel can be the source, and a partial can be its source.
+
+**Loops and the mixer (#150 to #152).** Partials that follow each other play together a sample at a time, as a DX7 plays its operators. A lamp beside a channel's number lights while it modulates another, pointing at a channel lights the channels it is linked to, and the shape screen shows the source's number. A muted channel that still modulates stays lit.
+
+**Three new presets and a darker panel.** FM KarplusStrong, FM Perc Piano and FM String Machine, forty-seven in all. The channels and sidebar are darker, the captions brighter, and the noise channel is a warm white.
+
+**Fixes.** "Aftertouch from: Mod wheel" now leaves out MPE and polyphonic pressure too (#153), and the noise channel's meter shows the string ringing (#156).
+
+**Before upgrading.** The AMP MOD and PITCH MOD shape lists grow, so automation drawn on them before lands on a different shape. MIDI program changes from 16 up land later. 884 parameters.
 
 ## 1.17.0, 9 November 2026
 

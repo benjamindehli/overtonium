@@ -4,8 +4,8 @@
 
 | Version | Supported |
 | ------- | --------- |
-| 1.17.x  | yes       |
-| < 1.17  | no        |
+| 1.18.x  | yes       |
+| < 1.18  | no        |
 
 Fixes go into the next release rather than into patches for older ones. This is a one-person project and there is no long-term support branch to promise.
 

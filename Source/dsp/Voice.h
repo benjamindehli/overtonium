@@ -241,7 +241,13 @@ public:
     return partialPeaks;
   }
 
+  /// The noise channel's envelope against its gain, which is what reaches
+  /// the resonator. See getNoiseMeterPeak for what is heard.
   float getNoisePeak() const noexcept { return noisePeak; }
+
+  /// The louder of that and the Karplus-Strong string as heard, which rings
+  /// on long after the burst that strikes it. For the meter.
+  float getNoiseMeterPeak() const noexcept { return noiseMeterPeak; }
 
   /// Where each partial's envelope stands, signed by which half of it is
   /// running: positive on the way in, negative once the key is up.
@@ -328,10 +334,30 @@ public:
               const SharedModulation &shared = {}) noexcept;
 
 private:
+  /// See renderNoise.
+  struct NoiseRun;
+
   /// Adds the noise channel and its string into the buffers.
-  void renderNoise(float *left, float *right, int len, const SynthParams &,
-                   float pressure, const SharedModulation &shared,
-                   int block) noexcept;
+  ///
+  /// @param source  whether a partial follows it, so it writes its ring even
+  ///                while unheard
+  /// @param ringFrom  the partial whose wave multiplies it, or -1 for none or
+  ///                for a link at no depth. See NoiseParams::amSource.
+  /// @param backEnd  how much of that ring a loop keeps out of what it passes
+  ///                on, by the end of the block. See Voice::render.
+  /// @param foldAliases  on the lo-fi rate, where folding is wanted
+  /// @param defer  where to set the block up, when the noise channel is in a
+  ///                loop, which then plays it a sample at a time with
+  ///                tickNoise and finishNoise. Says whether it did.
+  bool renderNoise(float *left, float *right, int len, const SynthParams &,
+                   float pressure, const SharedModulation &shared, int block,
+                   bool source, int ringFrom, float backEnd, bool foldAliases,
+                   NoiseRun *defer) noexcept;
+
+  /// One sample of a block renderNoise set up, at n in the block, and what
+  /// is left to do once the block is played.
+  void tickNoise(NoiseRun &, int n) noexcept;
+  void finishNoise(const NoiseRun &) noexcept;
 
   /// Adds the leaking wheels on Wheel. foldAliases is true on the lo-fi rate,
   /// where the Nyquist fade is skipped.
@@ -391,6 +417,39 @@ private:
     /// cents, on VCO. Kept from note to note, since it is the oscillator that
     /// wanders and not the note. See kVcoWanderCents.
     double wanderCents = 0.0;
+
+    /// Its frequency in the last block it played, which a partial it
+    /// modulates reads for the Nyquist guard. See OscParams::amSource.
+    double lastFreq = 0.0;
+
+    /// How deep another partial's wave was multiplying this one at the end of
+    /// the last block, so the depth ramps rather than steps.
+    float lastRingDepth = 0.0f;
+
+    /// How much of that ring a loop was keeping out of what this partial
+    /// passes on at the end of the last block, so it ramps rather than steps.
+    /// See Voice::render.
+    float lastLoopBack = 0.0f;
+
+    /// How far another partial's wave was moving this one's phase at the end
+    /// of the last block, in 2^-32 of a turn per unit of the wave, so the
+    /// index ramps rather than steps.
+    float lastPhaseDepth = 0.0f;
+
+    /// Its last two samples as a modulator, for a partial that moves its own
+    /// phase. The average of the two is what moves it, as on the DX7, which
+    /// keeps a deep index from hunting between two values every sample.
+    std::array<float, 2> fedBack{};
+
+    /// The offset feeding its own phase back puts in the wave, followed so it
+    /// can be taken out. See Voice::render.
+    float fedMean = 0.0f;
+
+    /// What this partial passed on as a modulator was scaled by at the end of
+    /// the last block: its velocity, aftertouch, KEYBOARD row, tremolo and
+    /// half-pedal, everything its level has but the fader and the mute.
+    /// Below zero until a note's first block sets it.
+    float lastSourceGain = -1.0f;
   };
 
   /// The noise channel, with its own envelope and random stream, so each note
@@ -415,10 +474,39 @@ private:
     KeyboardCache keyboard;
     float lastGain = 0.0f;
     bool gainPrimed = false;
+
+    /// The pitch of its string in the last block, which a partial it
+    /// modulates reads for the Nyquist guard, or nothing while the string is
+    /// off, since noise has no pitch to fold out of tune. See
+    /// Partial::lastFreq.
+    double lastFreq = 0.0;
+
+    /// The same two as a partial's. See Partial::lastRingDepth and
+    /// Partial::lastSourceGain.
+    float lastRingDepth = 0.0f;
+    float lastLoopBack = 0.0f;
+    float lastSourceGain = -1.0f;
   };
 
   std::array<Partial, kNumHarmonics> partials{};
   std::array<float, kNumHarmonics> partialPeaks{};
+
+  /// What each partial that modulates another one gave over the last
+  /// kControlBlock samples: its wave through its envelope and everything else
+  /// that sets its level but the fader and the mute, so a muted or faded
+  /// partial can still modulate. One ring per partial,
+  /// all read and written at ringAt plus the sample's place in the block. A
+  /// partial plays after the ones it follows, so it reads their samples from
+  /// the same block. The partials of a loop play together a sample at a
+  /// time, and one that reads a partial playing after it in the loop reads
+  /// that partial's last sample. See Voice::render.
+  ///
+  /// The noise channel has the last ring, at kNoiseSource.
+  std::array<std::array<float, kControlBlock>, kNumHarmonics + 1> ringSource{};
+  int ringAt = 0;
+
+  static_assert((kControlBlock & (kControlBlock - 1)) == 0,
+                "the rings wrap with a mask");
 
   /// Read by the strip lamps, not by anything that makes sound. Each is a
   /// value the render loop already has, so capturing it is only a store.
@@ -445,6 +533,7 @@ private:
   std::array<float, kMaxPowerBlocks> blockPowers{};
 
   float noisePeak = 0.0f;
+  float noiseMeterPeak = 0.0f;
   float noiseEnvelope = 0.0f;
   float noiseTremolo = 0.0f;
   float noiseVelocity = 0.0f;

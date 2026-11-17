@@ -237,23 +237,25 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
 
   for (int i = 0; i < ovt::kNumHarmonics; ++i) {
     pitchShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 8;
+        entriesOf(ovt::params::oscParamId(ovt::params::pmShapeSuffix, i)) == 41;
     ampShapes +=
-        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 7;
+        entriesOf(ovt::params::oscParamId(ovt::params::amShapeSuffix, i)) == 40;
   }
 
   check(pitchShapes == ovt::kNumHarmonics,
-        "every channel's pitch modulator offers 8 shapes (" +
+        "every channel's pitch modulator offers 8 shapes, 32 partials and "
+        "the noise channel (" +
             std::to_string(pitchShapes) + " of " +
             std::to_string(ovt::kNumHarmonics) + ")");
 
   check(ampShapes == ovt::kNumHarmonics,
-        "every channel's amplitude modulator offers 7 (" +
+        "every channel's amplitude modulator offers 7 shapes, 32 partials "
+        "and the noise channel (" +
             std::to_string(ampShapes) + " of " +
             std::to_string(ovt::kNumHarmonics) + ")");
 
-  check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 7,
-        "and so does the noise channel's");
+  check(entriesOf(ovt::params::noiseParamId(ovt::params::amShapeSuffix)) == 39,
+        "and the noise channel's the 7 shapes and the 32 partials");
 
   // The amplitude has one shape fewer on purpose, since a unipolar square has
   // no second direction to go in.
@@ -2562,11 +2564,29 @@ void testAftertouchMidi(OvertoniumProcessor &p) {
   const auto released = renderBlocks(p, 40, 512, release);
   check(released.peak < pressed.peak, "letting go fades them back out");
 
+  const auto setPolySource = [&p](ovt::params::AftertouchSource s) {
+    auto *param = p.apvts.getParameter(ovt::params::atSourceId);
+    param->setValueNotifyingHost(param->convertTo0to1((float)s));
+  };
+
   // Polyphonic aftertouch has to reach the voice holding that note.
   juce::MidiBuffer poly;
   poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 127), 0);
   const auto polyPressed = renderBlocks(p, 20, 512, poly);
   check(polyPressed.peak > 0.01f, "polyphonic aftertouch reaches the voice");
+
+  // Held at full while the setting moves: pressure only takes it too, and the
+  // wheel alone leaves it out.
+  setPolySource(ovt::params::AftertouchSource::ChannelPressure);
+  check(renderBlocks(p, 20, 512).peak > 0.01f,
+        "set to channel pressure, polyphonic aftertouch still reaches it");
+
+  setPolySource(ovt::params::AftertouchSource::ModWheel);
+  renderBlocks(p, 20, 512);
+  check(renderBlocks(p, 20, 512).peak < 1.0e-4f,
+        "set to the mod wheel, polyphonic aftertouch is left out");
+
+  setPolySource(ovt::params::AftertouchSource::Either);
 
   poly.clear();
   poly.addEvent(juce::MidiMessage::aftertouchChange(1, 57, 0), 0);
@@ -3178,6 +3198,27 @@ void testMpe(OvertoniumProcessor &p) {
 
     check(pressed > 0.01f, "pressure on its own channel brings it in");
 
+    // Aftertouch from the wheel alone leaves the note's own pressure out,
+    // though the Playing bar still shows it. The first stretch lets the
+    // smoothing settle.
+    setParam(ovt::params::atSourceId,
+             (float)ovt::params::AftertouchSource::ModWheel);
+    play(16, {});
+    play(8, {});
+
+    check(peak() < 0.01f,
+          "set to the mod wheel, a note's own pressure is left out (" +
+              std::to_string(peak()) + ")");
+    check(p.getPressurePosition() > 0.9f,
+          "while the Playing bar still shows the pressure");
+
+    setParam(ovt::params::atSourceId,
+             (float)ovt::params::AftertouchSource::Either);
+    play(16, {});
+    play(8, {});
+
+    check(peak() > 0.01f, "set back to Either, it comes in again");
+
     setParam(ovt::params::oscParamId(ovt::params::volumeSuffix, 0), 1.0f);
     setParam(ovt::params::oscParamId(ovt::params::atSuffix, 0), 0.0f);
   }
@@ -3595,14 +3636,16 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
   std::vector<SegmentDisplay *> displays;
   displays = descendantsOf<SegmentDisplay>(*editor);
 
-  // Three on the bar (the two converter readouts and the preset name), two on
-  // each of the thirty-two channels, the level on the noise strip, and one per
-  // macro in the panel. Then five in the Playing bar (the voices, the voices in
-  // use, bend range, aftertouch and slide) and sixteen in the Tuning bar (the
-  // temperament, root, reference, the twelve pitch classes and the drift). The
-  // macro and bar displays are built whether or not they are in use.
+  // Three on the bar (the two converter readouts and the preset name), four on
+  // each of the thirty-two channels (the tuning, the level and the source's
+  // number in each of the two shape screens), the level and the shape screen
+  // on the noise strip, and one per macro in the panel. Then five in the
+  // Playing bar (the voices, the voices in use, bend range, aftertouch and
+  // slide) and sixteen in the Tuning bar (the temperament, root, reference,
+  // the twelve pitch classes and the drift). The macro, bar and source
+  // displays are built whether or not they are in use.
   check(displays.size() ==
-            3 + 2 * ovt::kNumHarmonics + 1 + ovt::params::kNumMacros + 5 + 16,
+            3 + 4 * ovt::kNumHarmonics + 2 + ovt::params::kNumMacros + 5 + 16,
         "every readout is a segment display now (" +
             std::to_string(displays.size()) + ")");
 
@@ -3639,10 +3682,15 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
     return;
 
   // The readouts are the strip's own children, so they are found by walking
-  // one strip rather than by being handed out.
-  const auto onFirst = descendantsOf<SegmentDisplay>(*strips.front());
+  // one strip rather than by being handed out. Not the source's number inside
+  // each shape screen.
+  std::vector<SegmentDisplay *> onFirst;
+  for (auto *d : descendantsOf<SegmentDisplay>(*strips.front()))
+    if (dynamic_cast<ovt::ui::ShapeButton *>(d->getParentComponent()) ==
+        nullptr)
+      onFirst.push_back(d);
 
-  check(onFirst.size() == 2, "a channel carries two of them (" +
+  check(onFirst.size() == 2, "a channel carries two readouts (" +
                                  std::to_string(onFirst.size()) + ")");
   if (onFirst.size() != 2)
     return;
@@ -3769,7 +3817,10 @@ void testSegmentReadouts(OvertoniumProcessor &p) {
       param->setValueNotifyingHost(param->convertTo0to1(blend));
 
     std::vector<SegmentDisplay *> on;
-    on = descendantsOf<SegmentDisplay>(*strips[(size_t)channel]);
+    for (auto *d : descendantsOf<SegmentDisplay>(*strips[(size_t)channel]))
+      if (dynamic_cast<ovt::ui::ShapeButton *>(d->getParentComponent()) ==
+          nullptr)
+        on.push_back(d);
 
     return on.empty() ? juce::String() : on.front()->getReading();
   };
@@ -3951,11 +4002,14 @@ void testThePresetDisplaySpells(OvertoniumProcessor &) {
       {"Struck Bell", "STRUCKBLL"},
       {"8-bit Choir", "8-BITCHOR"},
       {"Combo Organ", "COMBOORGN"},
+      {"FM Perc Piano", "FMPERCPIN"},
 
       // And a cut on top of both, which is the longest name there is.
       {"2-bit Fuzz Organ", "2-BTFZZRG"},
       {"KarplusStrong", "KRPLSSTRN"},
       {"Synth Ensemble", "SYNTHNSMB"},
+      {"FM KarplusStrong", "FMKRPLSST"},
+      {"FM String Machine", "FMSTRNGMC"},
   };
 
   int wrong = 0;
@@ -6300,6 +6354,29 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
           "harmonic " + std::to_string(harmonic) + " is one of them");
 }
 
+/// The Channel submenu of a shape menu, where the partials, Feedback and the
+/// noise channel are listed, or null.
+const juce::PopupMenu *channelSubmenu(const juce::PopupMenu &menu) {
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Channel" && it.getItem().subMenu != nullptr)
+      return it.getItem().subMenu.get();
+  return nullptr;
+}
+
+/// The display a shape button shows its source's number on.
+ovt::ui::SegmentDisplay *sourceDigitsOf(ovt::ui::ShapeButton &button) {
+  for (auto *child : button.getChildren())
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
+      return d;
+  return nullptr;
+}
+
+/// Whether a knob's ring is lit. A rate a partial source has no use for goes
+/// dark, as a silenced channel's knobs do, rather than being disabled.
+bool ringLit(const juce::Slider &knob) {
+  return !(bool)knob.getProperties()["unlit"];
+}
+
 /// Whether each modulator is one circuit the whole keyboard hears.
 ///
 /// A global switch reached from a per-channel menu, so this checks that the
@@ -6310,6 +6387,578 @@ void testOctaveChannelsSayTuneDoesNothing(OvertoniumProcessor &p) {
 /// without choosing it on one channel first, and either entry comes back in one
 /// undo step. Driven through the ids the menu carries, since opening it needs a
 /// window.
+void testAmpFromAPartial(OvertoniumProcessor &p) {
+  section("A partial as the amplitude source");
+
+  using ovt::params::amShapeSuffix;
+  using ovt::params::oscParamId;
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto id = oscParamId(amShapeSuffix, 2);
+  const auto stored = [&] {
+    return juce::roundToInt(p.apvts.getParameter(id)->convertFrom0to1(
+        p.apvts.getParameter(id)->getValue()));
+  };
+
+  check(ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(0)] ==
+                "Partial 1" &&
+            ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(31)] ==
+                "Partial 32",
+        "the partials follow the shapes in the stored list, 1 to 32");
+  check(ovt::params::ampSourcePartial(0) == -1 &&
+            ovt::params::ampSourcePartial(ovt::params::ampSourceIndex(4)) == 4,
+        "and a stored index reads back as a shape or a partial");
+
+  struct NoLink final : ovt::ui::LinkTarget {
+    bool isLinkEnabled() const override { return false; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu(const juce::String &) override {}
+    bool scrollParameters(int) override { return false; }
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct NoHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  NoLink link;
+  NoHover hover;
+  juce::Component popupParent;
+
+  // Channel 3, whose menu offers every partial but the third.
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 2);
+  auto &button = strip.getAmShape();
+
+  const juce::PopupMenu *partials = nullptr;
+  bool ticked = true;
+  int shapes = 0;
+  int setThis = 0;
+  bool setThisEnabled = false;
+  auto menu = button.buildMenu();
+
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+
+    if (item.text == "Channel" && item.subMenu != nullptr) {
+      partials = item.subMenu.get();
+      ticked = item.isTicked;
+    } else if (item.text == "Set every channel to this") {
+      setThis = item.itemID;
+      setThisEnabled = item.isEnabled;
+    } else if (item.subMenu == nullptr && !item.isSeparator &&
+               item.itemID > 0 && item.itemID < 1000) {
+      ++shapes;
+    }
+  }
+
+  check(shapes == (int)ovt::params::kAmpShapes.size(),
+        "the menu lists the seven shapes as before");
+  check(partials != nullptr && !ticked,
+        "then a Channel submenu, not ticked while a shape is chosen");
+
+  if (partials == nullptr)
+    return;
+
+  juce::StringArray offered, listed;
+  int third = 0;
+  bool ownShut = false;
+  for (juce::PopupMenu::MenuItemIterator it(*partials); it.next();) {
+    const auto &item = it.getItem();
+    if (item.isSeparator)
+      continue;
+    listed.add(item.text);
+    if (item.isEnabled)
+      offered.add(item.text);
+    if (item.text == "Partial 3")
+      ownShut = !item.isEnabled;
+    if (item.text == "Partial 5")
+      third = item.itemID;
+  }
+
+  check(offered.size() == 32 && !offered.contains("Partial 3") &&
+            offered[0] == "Partial 1" && offered[30] == "Partial 32" &&
+            offered[31] == "Noise",
+        "which offers every partial but the channel's own, then the noise "
+        "channel (" +
+            std::to_string(offered.size()) + ")");
+  check(ownShut && listed.size() == 33 && listed[2] == "Partial 3",
+        "and keeps the channel's own place, unavailable, so the list lines up "
+        "with the channel numbers");
+
+  check(ringLit(strip.getAmRate()), "the rate is live on a shape");
+
+  // A plain click on a shape screen opens its menu, which takes the pointer
+  // away without telling the strip, so the strip lets go of its hover then.
+  {
+    strip.setBounds(0, 0, ovt::ui::kStripWidth, 600);
+    const juce::Point<float> at{10.0f, 10.0f};
+    const auto now = juce::Time::getCurrentTime();
+    const auto event = [&](juce::Component &origin) {
+      return juce::MouseEvent(juce::Desktop::getInstance().getMainMouseSource(),
+                              at, juce::ModifierKeys(), 0.0f, 0.0f, 0.0f, 0.0f,
+                              0.0f, &strip, &origin, now, at, now, 1, false);
+    };
+
+    strip.mouseEnter(event(strip));
+    const bool before = strip.isHovered();
+    strip.mouseDown(event(button));
+    check(before && !strip.isHovered(),
+          "clicking a shape screen lets go of the strip's hover");
+  }
+
+  button.chooseFromMenu(third);
+
+  check(stored() == ovt::params::ampSourceIndex(4) &&
+            button.selectedPartial() == 4 &&
+            button.currentName() == "Partial 5",
+        "picking Partial 5 stores it and names it");
+
+  {
+    auto *digits = sourceDigitsOf(button);
+    check(digits != nullptr && digits->isVisible() &&
+              digits->getReading() == "5" && digits->isActive() &&
+              digits->howManyBars() == ovt::ui::SegmentDisplay::Bars::Seven &&
+              digits->getLampColour() ==
+                  ovt::ui::intervalColour(ovt::harmonic(4).pitchClass),
+          "and its screen shows 5 on seven bars, lit in partial 5's colour");
+
+    strip.setSilencedByOthers(true);
+    button.setSize(36, 18);
+    juce::Image canvas(juce::Image::ARGB, 36, 18, true);
+    juce::Graphics g(canvas);
+    button.paintEntireComponent(g, false);
+    check(digits != nullptr && !digits->isActive(),
+          "which goes dark on a silenced channel");
+    strip.setSilencedByOthers(false);
+    button.paintEntireComponent(g, false);
+    check(digits != nullptr && digits->isActive(), "and lights again after");
+  }
+  check(!ringLit(strip.getAmRate()),
+        "and darkens the rate, which a partial has no use for");
+
+  strip.setSilencedByOthers(true);
+  strip.setSilencedByOthers(false);
+  check(!ringLit(strip.getAmRate()) && ringLit(strip.getPmRate()),
+        "and a mute or solo let go relights the rest but leaves the rate dark");
+
+  // Muted, but modulating a channel that is heard.
+  juce::Slider *stripFader = nullptr;
+  for (auto *s : descendantsOf<juce::Slider>(strip))
+    if (s->getSliderStyle() == juce::Slider::LinearVertical)
+      stripFader = s;
+
+  strip.setSilencedByOthers(true, true);
+  check(stripFader != nullptr && ringLit(strip.getPmRate()) &&
+            !ringLit(*stripFader) && !ringLit(strip.getAmRate()),
+        "a muted channel feeding one that is heard keeps its knobs lit, but "
+        "not its fader or the idle rate");
+  strip.setSilencedByOthers(true, false);
+  check(!ringLit(strip.getPmRate()),
+        "and they go dark once it feeds nothing that is heard");
+  strip.setSilencedByOthers(false);
+
+  bool tickedNow = false, fiveTicked = false;
+  bool everyEnabled = true;
+  menu = button.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+    const auto &item = it.getItem();
+    if (item.text == "Channel" && item.subMenu != nullptr) {
+      tickedNow = item.isTicked;
+      for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+        if (sub.getItem().text == "Partial 5")
+          fiveTicked = sub.getItem().isTicked;
+    }
+    if (item.text == "Set every channel to this")
+      everyEnabled = item.isEnabled;
+  }
+
+  check(tickedNow && fiveTicked, "the submenu and Partial 5 are ticked");
+  check(setThisEnabled && !everyEnabled,
+        "and setting every channel to this is offered for a shape only");
+
+  // The entry does nothing even if asked, so no channel follows itself.
+  button.chooseFromMenu(setThis);
+  check(stored() == ovt::params::ampSourceIndex(4) &&
+            juce::roundToInt(
+                p.apvts.getParameter(oscParamId(amShapeSuffix, 4))
+                    ->convertFrom0to1(
+                        p.apvts.getParameter(oscParamId(amShapeSuffix, 4))
+                            ->getValue())) == 0,
+        "and choosing it anyway changes nothing");
+
+  // Back to a shape from the host, as automation would.
+  p.apvts.getParameter(id)->setValueNotifyingHost(0.0f);
+  check(button.selectedPartial() == -1 && ringLit(strip.getAmRate()),
+        "a shape set from outside lights the rate again");
+  check(sourceDigitsOf(button) != nullptr &&
+            !sourceDigitsOf(button)->isVisible(),
+        "and the screen goes back to drawing the shape");
+
+  // The pitch modulator has the same submenu after its eight shapes.
+  auto &pitch = strip.getPmShape();
+  const auto pitchId = oscParamId(ovt::params::pmShapeSuffix, 2);
+  int pitchPartials = 0, partialOne = 0;
+  menu = pitch.buildMenu();
+  juce::StringArray pitchListed;
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator sub(*channels); sub.next();) {
+      if (sub.getItem().isSeparator)
+        continue;
+      pitchListed.add(sub.getItem().text);
+      if (sub.getItem().text.startsWith("Partial "))
+        ++pitchPartials;
+      if (sub.getItem().text == "Partial 1")
+        partialOne = sub.getItem().itemID;
+    }
+
+  check(pitchPartials == 31,
+        "the pitch modulator offers the other 31 partials too");
+  check(pitchListed.size() == 33 && pitchListed[2] == "Feedback" &&
+            pitchListed[32] == "Noise",
+        "with Feedback in the channel's own place and the noise channel last");
+
+  const auto depthText = [&] {
+    return strip.getPmDepth().getTextFromValue(300.0);
+  };
+
+  check(ringLit(strip.getPmRate()) && depthText().endsWith("ct"),
+        "its rate is live and its depth reads in cents on a shape (" +
+            depthText().toStdString() + ")");
+
+  pitch.chooseFromMenu(partialOne);
+
+  const auto pitchStored =
+      juce::roundToInt(p.apvts.getParameter(pitchId)->convertFrom0to1(
+          p.apvts.getParameter(pitchId)->getValue()));
+
+  check(pitchStored == ovt::params::pitchSourceIndex(0) &&
+            pitch.selectedPartial() == 0 && !ringLit(strip.getPmRate()),
+        "picking Partial 1 stores it and darkens the pitch rate");
+  check(depthText() == "Index 3.00",
+        "and the depth reads as the modulation index (" +
+            depthText().toStdString() + ")");
+
+  // Feedback, the channel's own partial, is offered in the pitch menu only,
+  // and in its "Set every channel to" submenu.
+  const auto feedbackIds = [](const juce::PopupMenu &m) {
+    std::pair<int, int> ids{0, 0};
+    if (const auto *channels = channelSubmenu(m))
+      for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+        if (it.getItem().text == "Feedback")
+          ids.first = it.getItem().itemID;
+    for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
+      const auto &item = it.getItem();
+      if (item.text == "Set every channel to" && item.subMenu != nullptr)
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          if (sub.getItem().text == "Feedback")
+            ids.second = sub.getItem().itemID;
+    }
+    return ids;
+  };
+
+  const auto [feedback, everyFeedback] = feedbackIds(pitch.buildMenu());
+  const auto ampFeedback = feedbackIds(button.buildMenu());
+  check(feedback != 0 && everyFeedback != 0 && ampFeedback.first == 0 &&
+            ampFeedback.second == 0,
+        "the pitch menu offers feedback, and the amplitude menu does not");
+
+  pitch.chooseFromMenu(feedback);
+
+  const auto storedPitch = [&](int channel) {
+    auto *param =
+        p.apvts.getParameter(oscParamId(ovt::params::pmShapeSuffix, channel));
+    return juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  };
+
+  check(storedPitch(2) == ovt::params::pitchSourceIndex(2) &&
+            pitch.feedsBack() && pitch.selectedPartial() == 2 &&
+            pitch.currentName() == "Feedback" && !ringLit(strip.getPmRate()) &&
+            depthText() == "Index 3.00",
+        "picking Feedback stores the channel's own partial, darkens the rate "
+        "and reads the depth as the index");
+  {
+    auto *digits = sourceDigitsOf(pitch);
+    check(digits != nullptr && digits->isVisible() &&
+              digits->getReading() == "F8" &&
+              digits->getLampColour() ==
+                  ovt::ui::intervalColour(ovt::harmonic(2).pitchClass),
+          "and its screen shows FB, as seven bars draw it, in its own colour");
+  }
+
+  bool setThisLive = false, feedbackTicked = false;
+  menu = pitch.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Set every channel to this")
+      setThisLive = it.getItem().isEnabled;
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+      if (it.getItem().text == "Feedback")
+        feedbackTicked = it.getItem().isTicked;
+  check(setThisLive && feedbackTicked,
+        "Feedback is ticked, and setting every channel to this is offered");
+
+  pitch.chooseFromMenu(everyFeedback);
+  bool everyOwn = true;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    everyOwn = everyOwn && storedPitch(i) == ovt::params::pitchSourceIndex(i);
+  check(everyOwn, "setting every channel to Feedback gives each its own");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
+/// Which silenced channels still modulate one that is heard, and so keep
+/// their lights.
+void testFeedingHeard(OvertoniumProcessor &p) {
+  section("Channels that feed one that is heard");
+
+  using ovt::params::oscParamId;
+  using namespace ovt::params;
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  const auto set = [&p](const juce::String &id, float plain) {
+    auto *param = p.apvts.getParameter(id);
+    param->setValueNotifyingHost(param->convertTo0to1(plain));
+  };
+
+  // 2 rings from 1, 3 is moved by 2, 5 rings from the noise channel, and the
+  // noise channel rings from 6.
+  set(oscParamId(amShapeSuffix, 1), (float)ampSourceIndex(0));
+  set(oscParamId(amDepthSuffix, 1), 0.5f);
+  set(oscParamId(pmShapeSuffix, 2), (float)pitchSourceIndex(1));
+  set(oscParamId(pmDepthSuffix, 2), 300.0f);
+  set(oscParamId(amShapeSuffix, 4), (float)ampSourceIndex(ovt::kNoiseSource));
+  set(oscParamId(amDepthSuffix, 4), 0.5f);
+  set(noiseParamId(amShapeSuffix), (float)ampSourceIndex(5));
+  set(noiseParamId(amDepthSuffix), 0.5f);
+
+  const auto sources = p.parameters().modulationSources();
+  check(sources[1][0] == 0 && sources[1][1] == -1 && sources[2][0] == -1 &&
+            sources[2][1] == 1 && sources[4][0] == ovt::kNoiseSource &&
+            sources[ovt::kNoiseSource][0] == 5 &&
+            sources[ovt::kNoiseSource][1] == -1 && sources[0][0] == -1,
+        "each channel's sources are read by amplitude and then by pitch, the "
+        "noise channel's among them, which mark the channels that modulate");
+
+  Cache::ChannelFlags heard{};
+  heard.fill(false);
+  heard[2] = true;
+
+  auto feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
+  check(feeding[1] && feeding[0] && !feeding[2] && !feeding[3],
+        "with only 3 heard, 2 and 1 feed it along the chain");
+  check(!feeding[4] && !feeding[ovt::kNoiseSource] && !feeding[5],
+        "and the noise channel and 6, feeding only 5, do not");
+
+  heard[4] = true;
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
+  check(feeding[ovt::kNoiseSource] && feeding[5],
+        "with 5 heard as well, so do the noise channel and 6 through it");
+
+  set(oscParamId(amDepthSuffix, 1), 0.0f);
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
+  check(feeding[1] && !feeding[0],
+        "a link at no depth feeds nothing, as in the voice");
+
+  set(oscParamId(amShapeSuffix, 1), (float)ampSourceIndex(1));
+  set(oscParamId(amDepthSuffix, 1), 0.5f);
+  check(p.parameters().modulationSources()[1][0] == -1,
+        "following itself for amplitude is no source");
+
+  heard.fill(false);
+  feeding = Cache::feedingHeard(p.parameters().modulationSources(), heard);
+  bool none = true;
+  for (const bool f : feeding)
+    none = none && !f;
+  check(none, "with nothing heard, nothing feeds");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  // Loops, from links written out by hand: 2 and 3 follow each other, 8, 9
+  // and 10 go round, 5 follows 2 without being followed, and the noise
+  // channel and 12 follow each other.
+  Cache::Sources links{};
+  for (auto &both : links)
+    both = {-1, -1};
+
+  links[1] = {2, -1};
+  links[2] = {-1, 1};
+  links[4] = {1, -1};
+  links[7] = {-1, 9};
+  links[8] = {-1, 7};
+  links[9] = {8, -1};
+  links[11] = {ovt::kNoiseSource, -1};
+  links[ovt::kNoiseSource] = {11, -1};
+
+  const auto loops = Cache::loopsOf(links);
+  check(loops[1] == 1 && loops[2] == 1,
+        "two channels following each other are one loop, named by the lower");
+  check(loops[7] == 7 && loops[8] == 7 && loops[9] == 7,
+        "three going round are one loop, though 8 does not follow 9 directly");
+  check(loops[4] == -1 && loops[0] == -1,
+        "one that follows a loop without being followed is in none");
+  check(loops[11] == 11 && loops[ovt::kNoiseSource] == 11,
+        "the noise channel can be in a loop with a partial");
+
+  links[2] = {-1, -1};
+  check(Cache::loopsOf(links)[1] == -1, "and a link taken away opens the loop");
+}
+
+/// The noise channel as a source in a partial's two menus, and the partials
+/// as sources in the noise channel's amplitude menu.
+void testNoiseAsSource(OvertoniumProcessor &p) {
+  section("The noise channel as a source and a target");
+
+  using ovt::kNoiseSource;
+  using ovt::params::amShapeSuffix;
+  using ovt::params::oscParamId;
+  using ovt::params::pmShapeSuffix;
+
+  check(ovt::params::ampSourceNames()[ovt::params::ampSourceIndex(
+            kNoiseSource)] == "Noise" &&
+            ovt::params::pitchSourceNames()[ovt::params::pitchSourceIndex(
+                kNoiseSource)] == "Noise" &&
+            ovt::params::ampSourcePartial(
+                ovt::params::ampSourceIndex(kNoiseSource)) == kNoiseSource,
+        "Noise follows the partials in both stored lists and reads back");
+  check(ovt::params::noiseAmpSourceNames().size() == 39 &&
+            !ovt::params::noiseAmpSourceNames().contains("Noise"),
+        "and the noise channel's list has the partials but not itself");
+
+  struct NoLink final : ovt::ui::LinkTarget {
+    bool isLinkEnabled() const override { return false; }
+    void linkDragStarted(ovt::ui::Role, int) override {}
+    void linkValueChanged(ovt::ui::Role, int, float) override {}
+    void linkDragEnded(ovt::ui::Role, int) override {}
+    void showLinkMenu(const juce::String &) override {}
+    bool scrollParameters(int) override { return false; }
+    bool drawStarted(juce::Point<int>) override { return false; }
+    void drawMovedTo(juce::Point<int>) override {}
+    void drawEnded() override {}
+  };
+
+  struct NoHover final : ovt::ui::HoverTarget {
+    void hoverChanged(int, ovt::ui::Row) override {}
+  };
+
+  NoLink link;
+  NoHover hover;
+  juce::Component popupParent;
+
+  const auto stored = [&p](const juce::String &id) {
+    auto *param = p.apvts.getParameter(id);
+    return juce::roundToInt(param->convertFrom0to1(param->getValue()));
+  };
+
+  // The ids of an entry, and of the same entry under "Set every channel to".
+  const auto idsOf = [](const juce::PopupMenu &m, const juce::String &text) {
+    std::pair<int, int> ids{0, 0};
+    if (const auto *channels = channelSubmenu(m))
+      for (juce::PopupMenu::MenuItemIterator it(*channels); it.next();)
+        if (it.getItem().text == text)
+          ids.first = it.getItem().itemID;
+    for (juce::PopupMenu::MenuItemIterator it(m); it.next();) {
+      const auto &item = it.getItem();
+      if (item.text == "Set every channel to" && item.subMenu != nullptr)
+        for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+          if (sub.getItem().text == text)
+            ids.second = sub.getItem().itemID;
+    }
+    return ids;
+  };
+
+  ovt::ui::ChannelStrip strip(p.apvts, link, hover, popupParent, 2);
+  auto &amp = strip.getAmShape();
+  auto &pitch = strip.getPmShape();
+
+  const auto [ampNoise, everyAmpNoise] = idsOf(amp.buildMenu(), "Noise");
+  const auto [pitchNoise, everyPitchNoise] = idsOf(pitch.buildMenu(), "Noise");
+  check(ampNoise != 0 && everyAmpNoise != 0 && pitchNoise != 0 &&
+            everyPitchNoise != 0,
+        "a partial's two menus offer Noise, and to set every channel to it");
+
+  amp.chooseFromMenu(ampNoise);
+  check(stored(oscParamId(amShapeSuffix, 2)) ==
+                ovt::params::ampSourceIndex(kNoiseSource) &&
+            amp.selectedPartial() == kNoiseSource &&
+            amp.currentName() == "Noise" && !ringLit(strip.getAmRate()),
+        "picking Noise for amplitude stores it, names it and darkens the rate");
+  check(sourceDigitsOf(amp) != nullptr && !sourceDigitsOf(amp)->isVisible(),
+        "and draws the noise channel's trace rather than a number");
+
+  pitch.chooseFromMenu(pitchNoise);
+  check(stored(oscParamId(pmShapeSuffix, 2)) ==
+                ovt::params::pitchSourceIndex(kNoiseSource) &&
+            !ringLit(strip.getPmRate()) &&
+            strip.getPmDepth().getTextFromValue(300.0) == "Index 3.00",
+        "and for pitch, where the depth reads as the index");
+
+  {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    check(out.osc[2].amSource == kNoiseSource &&
+              out.osc[2].pmSource == kNoiseSource,
+          "the snapshot names the noise channel as both sources");
+  }
+
+  bool setThisLive = false;
+  auto menu = amp.buildMenu();
+  for (juce::PopupMenu::MenuItemIterator it(menu); it.next();)
+    if (it.getItem().text == "Set every channel to this")
+      setThisLive = it.getItem().isEnabled;
+  check(setThisLive, "with Noise chosen, every channel can be set to it");
+
+  amp.chooseFromMenu(everyAmpNoise);
+  bool everyNoise = true;
+  for (int i = 0; i < ovt::kNumHarmonics; ++i)
+    everyNoise = everyNoise && stored(oscParamId(amShapeSuffix, i)) ==
+                                   ovt::params::ampSourceIndex(kNoiseSource);
+  check(everyNoise && stored(ovt::params::noiseParamId(amShapeSuffix)) == 0,
+        "setting every channel to Noise moves every partial, not the noise "
+        "channel");
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+
+  // The noise channel's own menu offers every partial, and not itself.
+  ovt::ui::NoiseStrip noise(p.apvts, hover, popupParent);
+  auto &noiseShape = noise.getAmShape();
+  int offered = 0, partialOne = 0;
+  menu = noiseShape.buildMenu();
+  if (const auto *channels = channelSubmenu(menu))
+    for (juce::PopupMenu::MenuItemIterator sub(*channels); sub.next();) {
+      if (!sub.getItem().text.startsWith("Partial "))
+        continue;
+      ++offered;
+      if (sub.getItem().text == "Partial 1")
+        partialOne = sub.getItem().itemID;
+    }
+
+  const auto noiseIds = idsOf(menu, "Noise");
+  check(offered == 32 && noiseIds.first == 0 && noiseIds.second == 0 &&
+            ringLit(noise.getAmRate()),
+        "the noise channel's menu offers all 32 partials and not itself (" +
+            std::to_string(offered) + ")");
+
+  noiseShape.chooseFromMenu(partialOne);
+  {
+    ovt::SynthParams out;
+    p.parameters().snapshot(out, 0.0f);
+    check(stored(ovt::params::noiseParamId(amShapeSuffix)) ==
+                  ovt::params::ampSourceIndex(0) &&
+              noiseShape.selectedPartial() == 0 &&
+              !ringLit(noise.getAmRate()) && out.noise.amSource == 0,
+          "picking Partial 1 there stores it, darkens the rate and reaches the "
+          "snapshot");
+  }
+
+  ovt::presets::apply(p.apvts, presetIndex("Init"));
+}
+
 void testSetEveryChannelTo(OvertoniumProcessor &p) {
   section("Set every channel to a shape");
 
@@ -9976,7 +10625,7 @@ void testTuningBar(OvertoniumProcessor &p) {
   SegmentDisplay *temperament = nullptr, *root = nullptr, *reference = nullptr;
   ovt::ui::LabelledKnob *retune = nullptr;
   for (auto *child : bar->getChildren()) {
-    if (auto *d = dynamic_cast<SegmentDisplay *>(child)) {
+    if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child)) {
       const auto t = d->getTitle();
       if (t.startsWith("Temperament"))
         temperament = d;
@@ -11606,7 +12255,7 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
       // The converter readouts, which count. The preset name is a display on
       // this bar too and does not sit under the meter, and it is told apart
       // by having the cells to spell with.
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+      if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
         if (d->howManyBars() == SegmentDisplay::Bars::Seven)
           under.add(child->getBounds());
 
@@ -11659,7 +12308,7 @@ void testTopBarAlignment(OvertoniumProcessor &p) {
     // The two that have a unit to name. The preset display is the third on
     // this bar and has none: a name is not measured in anything.
     for (auto *child : bar.getChildren())
-      if (auto *d = dynamic_cast<SegmentDisplay *>(child))
+      if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
         if (d->howManyBars() == SegmentDisplay::Bars::Seven)
           named += SegmentDisplay::hasRoomForUnit(child->getWidth()) ? 1 : 0;
 
@@ -14171,6 +14820,9 @@ int main(int argc, char **argv) {
   testPresetsTellTheHostOnlyWhatChanged(processor);
   testShapeButtonFollowsTheParameter(processor);
   testSetEveryChannelTo(processor);
+  testAmpFromAPartial(processor);
+  testNoiseAsSource(processor);
+  testFeedingHeard(processor);
   testFirstProgramIsReachable();
   testPresetNameOutlivesTheWindow();
   testTheToolOutlivesTheWindow(processor);

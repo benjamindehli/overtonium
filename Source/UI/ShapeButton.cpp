@@ -25,6 +25,17 @@ constexpr int kInPhase = 1001;
 
 /// The first id of the "Set every channel to" submenu, one per shape after it.
 constexpr int kEveryChannelTo = 2000;
+
+/// The first id of the partials in the "Channel" submenu, one per partial.
+constexpr int kPartialFrom = 3000;
+
+/// Following its own partial, and setting every channel to follow its own.
+constexpr int kFeedback = 1002;
+constexpr int kEveryChannelFeedback = 1003;
+
+/// Following the noise channel, and setting every channel to.
+constexpr int kNoise = 1004;
+constexpr int kEveryChannelNoise = 1005;
 } // namespace
 
 void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
@@ -124,14 +135,27 @@ void ShapeButton::drawShape(juce::Graphics &g, juce::Rectangle<float> area,
 ShapeButton::ShapeButton(juce::AudioProcessorValueTreeState &state,
                          const juce::String &parameterId, const char *suffix,
                          juce::Span<const LfoShape> shapes,
-                         juce::StringArray shapeNames)
-    : apvts(state), id(parameterId), sharedSuffix(suffix), offered(shapes),
-      names(std::move(shapeNames)) {
+                         juce::StringArray shapeNames, int ownPartial,
+                         bool offersFeedback)
+    : apvts(state), id(parameterId), sharedSuffix(suffix),
+      partialOf(ownPartial), feedbackOffered(offersFeedback && ownPartial >= 0),
+      offered(shapes), names(std::move(shapeNames)) {
   setWantsKeyboardFocus(false);
 
+  // Drawn over the button, which still takes every click.
+  sourceDigits.setInterceptsMouseClicks(false, false);
+  addChildComponent(sourceDigits);
+  showSource();
+
   if (auto *param = apvts.getParameter(id))
-    attachment = std::make_unique<juce::ParameterAttachment>(
-        *param, [this](float) { repaint(); });
+    attachment =
+        std::make_unique<juce::ParameterAttachment>(*param, [this](float) {
+          showSource();
+          repaint();
+
+          if (onChange != nullptr)
+            onChange();
+        });
 }
 
 int ShapeButton::selectedIndex() const {
@@ -143,17 +167,86 @@ LfoShape ShapeButton::selectedShape() const {
   return offered[(size_t)selectedIndex()];
 }
 
-juce::String ShapeButton::currentName() const { return names[selectedIndex()]; }
+int ShapeButton::selectedPartial() const {
+  if (partialOf < 0)
+    return -1;
+
+  // The partials follow the shapes in the parameter's list, and the noise
+  // channel follows them.
+  auto partial = settings::choiceIndex(apvts, id) - (int)offered.size();
+
+  if (partial < 0 || partial > kNoiseSource)
+    partial = -1;
+
+  // Following itself is feedback where that is offered. Elsewhere it turns
+  // the modulation off, which the menu cannot ask for, so it reads as the
+  // shape underneath.
+  return partial == partialOf && !feedbackOffered ? -1 : partial;
+}
+
+bool ShapeButton::offersNoise() const {
+  return partialOf >= 0 && partialOf < kNoiseSource;
+}
+
+bool ShapeButton::feedsBack() const {
+  return feedbackOffered && selectedPartial() == partialOf;
+}
+
+juce::String ShapeButton::currentName() const {
+  if (feedsBack())
+    return "Feedback";
+
+  const auto partial = selectedPartial();
+
+  if (partial == kNoiseSource)
+    return "Noise";
+
+  return partial >= 0 ? "Partial " + juce::String(partial + 1)
+                      : names[selectedIndex()];
+}
 
 void ShapeButton::paint(juce::Graphics &g) {
   LookKey key;
-  key.add(selectedIndex()).add(hovered).add(getProperties());
+  key.add(selectedIndex())
+      .add(selectedPartial())
+      .add(hovered)
+      .add(getProperties());
 
   looks.paint(g, *this, key,
               [this](juce::Graphics &into) { paintShape(into); });
 }
 
+void ShapeButton::resized() {
+  // The display's own recess sits a pixel inside its bounds, so this puts it
+  // where the button draws its screen.
+  sourceDigits.setBounds(getLocalBounds().reduced(2, 1));
+}
+
+void ShapeButton::showSource() {
+  const auto partial = selectedPartial();
+  const bool digits = partial >= 0 && partial != kNoiseSource;
+
+  sourceDigits.setVisible(digits);
+
+  if (!digits)
+    return;
+
+  // Seven bars have no B, so feedback shows as an F and an 8, which is how a
+  // B looks on them.
+  sourceDigits.setLampColour(intervalColour(harmonic(partial).pitchClass));
+  sourceDigits.setReading(
+      feedsBack() ? juce::String("F8") : juce::String(partial + 1),
+      !(bool)getProperties().getWithDefault("unlit", false));
+}
+
 void ShapeButton::paintShape(juce::Graphics &g) {
+  // Lit or dark with the rest of the channel, which only sets a property.
+  showSource();
+
+  // The source's number is a display of its own. See showSource.
+  if (sourceDigits.isVisible())
+    return;
+
   const auto area = getLocalBounds().toFloat().reduced(3.0f, 2.0f);
 
   paintRecess(g, area, 2.0f);
@@ -164,29 +257,78 @@ void ShapeButton::paintShape(juce::Graphics &g) {
   if ((bool)getProperties().getWithDefault("unlit", false))
     return;
 
+  const auto ink = colours::accent.withAlpha(hovered ? 1.0f : 0.88f);
+
+  // Following the noise channel: its trace, the mark that stands in for its
+  // number at the head of its strip, in its colour.
+  if (selectedPartial() == kNoiseSource) {
+    const auto markWidth = area.getHeight() * 1.1f;
+    drawNoiseTrace(
+        g, area.withSizeKeepingCentre(markWidth, area.getHeight() * 0.45f),
+        noiseColour.withAlpha(hovered ? 1.0f : 0.88f), 1.2f);
+    return;
+  }
+
   // The same accent the tuning digits light in.
-  drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(),
-            colours::accent.withAlpha(hovered ? 1.0f : 0.88f));
+  drawShape(g, area.reduced(3.0f, 2.5f), selectedShape(), ink);
 }
 
 juce::PopupMenu ShapeButton::buildMenu() const {
   juce::PopupMenu m;
 
-  const auto current = selectedIndex();
+  const auto partial = selectedPartial();
+  const auto feedback = feedsBack();
+  const auto current = partial >= 0 ? -1 : selectedIndex();
 
-  for (int i = 0; i < names.size(); ++i)
+  for (int i = 0; i < (int)offered.size(); ++i)
     m.addItem(i + 1, names[i], true, i == current);
+
+  // Another channel's wave, on a channel that can follow one: every partial,
+  // then the noise channel. A partial's own place in the list is Feedback
+  // where that is offered, and otherwise stays, unavailable, so the list
+  // always lines up with the channel numbers.
+  if (partialOf >= 0) {
+    juce::PopupMenu channels;
+
+    for (int j = 0; j < kNumHarmonics; ++j) {
+      if (j != partialOf)
+        channels.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
+                         true, j == partial);
+      else if (feedbackOffered)
+        channels.addItem(kFeedback, "Feedback", true, feedback);
+      else
+        channels.addItem(kPartialFrom + j, "Partial " + juce::String(j + 1),
+                         false, false);
+    }
+
+    if (offersNoise()) {
+      channels.addSeparator();
+      channels.addItem(kNoise, "Noise", true, partial == kNoiseSource);
+    }
+
+    m.addSubMenu("Channel", channels, true, nullptr, partial >= 0);
+  }
 
   // LINK cannot reach this control, so the menu sets every channel instead,
   // either to this channel's shape or to any shape without choosing it here
-  // first.
+  // first. Not to another partial, which no channel can follow as itself,
+  // but to feedback, which each channel takes from its own, and to the noise
+  // channel, which every partial can follow.
   m.addSeparator();
-  m.addItem(kEveryChannel, "Set every channel to this");
+  m.addItem(kEveryChannel, "Set every channel to this",
+            partial < 0 || feedback ||
+                (partial == kNoiseSource && offersNoise()));
 
   juce::PopupMenu every;
 
-  for (int i = 0; i < names.size(); ++i)
+  for (int i = 0; i < (int)offered.size(); ++i)
     every.addItem(kEveryChannelTo + i, names[i]);
+
+  if (offersNoise())
+    every.addItem(kEveryChannelNoise, "Noise");
+
+  if (feedbackOffered)
+    every.addItem(kEveryChannelFeedback, "Feedback");
 
   m.addSubMenu("Set every channel to", every);
 
@@ -244,6 +386,31 @@ void ShapeButton::applyToEveryChannel(int index) {
   params::moveAsOneStep(moves);
 }
 
+void ShapeButton::applyNoiseToEveryChannel() {
+  std::vector<params::Move> moves;
+
+  // The noise channel cannot follow itself, so it is left out.
+  for (int i = 0; i < kNumHarmonics; ++i)
+    if (auto *param = apvts.getParameter(params::oscParamId(sharedSuffix, i)))
+      moves.emplace_back(
+          param,
+          param->convertTo0to1((float)((int)offered.size() + kNoiseSource)));
+
+  params::moveAsOneStep(moves);
+}
+
+void ShapeButton::applyFeedbackToEveryChannel() {
+  std::vector<params::Move> moves;
+
+  // The noise channel has no partial of its own to follow, so it is left out.
+  for (int i = 0; i < kNumHarmonics; ++i)
+    if (auto *param = apvts.getParameter(params::oscParamId(sharedSuffix, i)))
+      moves.emplace_back(
+          param, param->convertTo0to1((float)((int)offered.size() + i)));
+
+  params::moveAsOneStep(moves);
+}
+
 void ShapeButton::mouseDown(const juce::MouseEvent &e) {
   // Right-click is left to reach the strip underneath, which opens its menu.
   if (e.mods.isPopupMenu())
@@ -251,6 +418,10 @@ void ShapeButton::mouseDown(const juce::MouseEvent &e) {
 
   if (apvts.getParameter(id) == nullptr)
     return;
+
+  // The menu takes the pointer, and this screen is not told it left.
+  hovered = false;
+  repaint();
 
   auto m = buildMenu();
   m.setLookAndFeel(&getLookAndFeel());
@@ -265,14 +436,64 @@ void ShapeButton::chooseFromMenu(int result) {
   if (result <= 0)
     return;
 
-  if (result == kEveryChannel)
-    return applyToEveryChannel(selectedIndex());
+  if (result == kEveryChannel) {
+    if (feedsBack())
+      applyFeedbackToEveryChannel();
+    else if (selectedPartial() == kNoiseSource && offersNoise())
+      applyNoiseToEveryChannel();
+    else if (selectedPartial() < 0)
+      applyToEveryChannel(selectedIndex());
+
+    return;
+  }
+
+  if (result == kEveryChannelFeedback) {
+    if (feedbackOffered)
+      applyFeedbackToEveryChannel();
+
+    return;
+  }
+
+  if (result == kEveryChannelNoise) {
+    if (offersNoise())
+      applyNoiseToEveryChannel();
+
+    return;
+  }
+
+  if (result == kNoise) {
+    if (offersNoise() && attachment != nullptr)
+      attachment->setValueAsCompleteGesture(
+          (float)((int)offered.size() + kNoiseSource));
+
+    return;
+  }
+
+  if (result == kFeedback) {
+    if (feedbackOffered && attachment != nullptr)
+      attachment->setValueAsCompleteGesture(
+          (float)((int)offered.size() + partialOf));
+
+    return;
+  }
 
   if (result == kInPhase)
     return setInPhase(!inPhase());
 
-  if (result >= kEveryChannelTo && result < kEveryChannelTo + names.size())
+  if (result >= kEveryChannelTo &&
+      result < kEveryChannelTo + (int)offered.size())
     return applyToEveryChannel(result - kEveryChannelTo);
+
+  if (result >= kPartialFrom && result < kPartialFrom + kNumHarmonics) {
+    if (partialOf >= 0 && attachment != nullptr)
+      attachment->setValueAsCompleteGesture(
+          (float)((int)offered.size() + result - kPartialFrom));
+
+    return;
+  }
+
+  if (result - 1 >= (int)offered.size())
+    return;
 
   if (attachment != nullptr)
     attachment->setValueAsCompleteGesture((float)(result - 1));

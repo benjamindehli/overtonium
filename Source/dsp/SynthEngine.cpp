@@ -1652,12 +1652,12 @@ void SynthEngine::sumChunk(float *left, float *right, int numFrames,
       into.keyboards[i] = keyboards[i];
     }
 
-    if (!into.noiseClaimed || v.getNoisePeak() > into.noisePeak ||
-        (exactly(v.getNoisePeak(), into.noisePeak) &&
+    if (!into.noiseClaimed || v.getNoiseMeterPeak() > into.noisePeak ||
+        (exactly(v.getNoiseMeterPeak(), into.noisePeak) &&
          v.getAge() > into.noiseAge)) {
       into.noiseClaimed = true;
       into.noiseAge = v.getAge();
-      into.noisePeak = v.getNoisePeak();
+      into.noisePeak = v.getNoiseMeterPeak();
       into.noiseEnvelope = v.getNoiseEnvelope();
       into.noiseTremolo = v.getNoiseTremolo();
       into.noiseVelocity = v.getNoiseVelocity();

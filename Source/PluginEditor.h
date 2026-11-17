@@ -237,6 +237,7 @@ public:
 
   // ---- ovt::ui::HoverTarget ----
   void hoverChanged(int stripIndex, ovt::ui::Row) override;
+  void columnHoverChanged() override;
 
   /// Sets the window back to the size that shows all 32 channels. In the
   /// Settings menu beside the zoom. Public so a test can call it.
@@ -335,6 +336,13 @@ private:
   /// Lights the control LINK is moving, or would move if you grabbed the one
   /// under the pointer.
   void updateLinkGlow();
+
+  /// Marks every channel that modulates another, and lights the numbers of
+  /// the channels linked to the one under the pointer. See modulation.
+  void updateModulationMarks();
+
+  /// Where each channel takes its modulation from, read with mute and solo.
+  ovt::params::Cache::Sources modulation{};
 
   /// Hands the strips a pointer that says what a drag would do to them.
   void updateLinkCursor();

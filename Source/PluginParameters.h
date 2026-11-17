@@ -255,6 +255,35 @@ inline const std::array<LfoShape, 7> kAmpShapes{
 juce::StringArray pitchShapeNames();
 juce::StringArray ampShapeNames();
 
+/// What a harmonic channel's amplitude modulator can follow: the shapes in
+/// kAmpShapes, then each of the partials, "Partial 1" to "Partial 32", then
+/// the noise channel, "Noise".
+juce::StringArray ampSourceNames();
+
+/// What the noise channel's amplitude modulator can follow: the shapes and
+/// the partials, the same list without "Noise".
+juce::StringArray noiseAmpSourceNames();
+
+/// The source, 0 to 31 for a partial or kNoiseSource for the noise channel,
+/// that a stored amplitude shape index stands for, or -1 for one of the
+/// shapes.
+int ampSourcePartial(int index);
+
+/// The stored index that stands for partial @p index0, or for the noise
+/// channel at kNoiseSource.
+inline int ampSourceIndex(int index0) {
+  return (int)kAmpShapes.size() + index0;
+}
+
+/// The same for the pitch modulator: the shapes in kPitchShapes, then each of
+/// the partials, then the noise channel.
+juce::StringArray pitchSourceNames();
+int pitchSourcePartial(int index);
+
+inline int pitchSourceIndex(int index0) {
+  return (int)kPitchShapes.size() + index0;
+}
+
 /// "h07_tune" for index0 == 6. Zero-padded so the IDs sort naturally.
 juce::String oscParamId(const char *suffix, int index0);
 
@@ -485,6 +514,25 @@ struct Cache {
 
   /// Whether legato is on, from its switch or the old Legato choice.
   bool legatoValue() const;
+
+  /// One flag for each partial and, at kNoiseSource, the noise channel.
+  using ChannelFlags = std::array<bool, kNumHarmonics + 1>;
+
+  /// Where each channel takes its modulation from, by amplitude and then by
+  /// pitch, as a partial or kNoiseSource, or -1 for none. A link at no depth
+  /// is none, as in the voice, and so is following itself, which is feedback.
+  using Sources = std::array<std::array<int, 2>, kNumHarmonics + 1>;
+  Sources modulationSources() const;
+
+  /// The channels that are not heard themselves but modulate one that is,
+  /// directly or along a chain of others, given which channels are heard. A
+  /// link at no depth is no link, as in the voice.
+  static ChannelFlags feedingHeard(const Sources &, const ChannelFlags &heard);
+
+  /// The loop each channel is in, named by its lowest member, or -1 for one
+  /// in none. A loop is two or more channels that each reach the others along
+  /// the links, which the voice plays together a sample at a time.
+  static std::array<int, kNumHarmonics + 1> loopsOf(const Sources &);
 };
 
 /// The voice count each polyphony choice allows, in parameter order. The

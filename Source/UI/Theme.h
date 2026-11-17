@@ -52,6 +52,17 @@ using dm::ui::strokeGlowing;
 using LinkableSlider = dm::ui::Slider;
 using OvertoniumLookAndFeel = dm::ui::LookAndFeel;
 
+/// The grey captions beside and under the knobs: the row names down the left
+/// and the noise channel's own knob names. Lighter than colours::textDim so
+/// they read easily against the dark channels.
+inline const juce::Colour captionText{0xff9aa2aa};
+
+/// The noise channel's colour: a warm white, like an incandescent bulb,
+/// outside the interval palette since noise is not part of the harmonic
+/// series. Kept pale enough that it is not taken for one of the partials'
+/// oranges or yellows.
+inline const juce::Colour noiseColour{0xffc2b8a6};
+
 /// Colour for an interval class, so the eye can group octaves, fifths and
 /// thirds across 32 strips. The twelve classes run in chromatic order along a
 /// band from blue through magenta and red to yellow.
@@ -84,6 +95,11 @@ void drawTuningForkIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
 /// Three strokes merging into one: several notes hearing one modulator. For
 /// the gutter switch that shares a modulator between all notes.
 void drawSharedIcon(juce::Graphics &, juce::Rectangle<float>, juce::Colour);
+/// The noise channel's mark, a jagged trace across `area`, where a numbered
+/// channel has its number. The same fixed sequence wherever it is drawn.
+void drawNoiseTrace(juce::Graphics &, juce::Rectangle<float> area, juce::Colour,
+                    float stroke);
+
 /// The arrow, alone for the plain pointer and with a mark beside it for the
 /// other two. Drawn rather than taken from the cursor images, whose offsets
 /// from their hotspots differ.
@@ -427,6 +443,10 @@ struct HoverTarget {
   /// @param stripIndex  the partial under the pointer, or -1 for the noise
   ///                    channel, which sits outside the series.
   virtual void hoverChanged(int stripIndex, Row row) = 0;
+
+  /// Called when the pointer arrives on a column or leaves it, the noise
+  /// channel's included. See StripColumn::isHovered.
+  virtual void columnHoverChanged() {}
 };
 
 /// An opaque lid over a column's pinned header, so a control scrolled under

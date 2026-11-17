@@ -37,6 +37,15 @@ inline const char *glideModeName(GlideMode m) {
   return m == GlideMode::Time ? "Fixed time" : "Fixed rate";
 }
 
+/// How a pitch modulator's depth reads while a partial is its source: the
+/// modulation index, a hundredth of the cents the knob stores, so 0 to 12.
+/// See OscParams::pmSource.
+inline constexpr float kCentsPerIndex = 100.0f;
+
+/// What OscParams::amSource and pmSource hold for the noise channel as the
+/// source, the place after the 32 partials.
+inline constexpr int kNoiseSource = kNumHarmonics;
+
 /// A per-block snapshot of one channel strip. Plain data, since the DSP core
 /// does not use JUCE.
 struct OscParams {
@@ -45,6 +54,15 @@ struct OscParams {
   float pmRateHz = 4.0f;
   LfoShape pmShape = LfoShape::Sine;
   float pmDepthCents = 0.0f;
+  /// The partial, 0 to 31, or the noise channel at kNoiseSource, whose wave
+  /// moves this one's phase in place of the vibrato, as FM synthesizers do, or
+  /// -1 for the vibrato. It passes on what
+  /// it passes on as an amplitude source, see amSource. pmDepthCents is then
+  /// read as the modulation index, a hundredth of it, so 0 to 12. The rate is
+  /// not used. Naming itself moves its phase by its own last two samples, as
+  /// the DX7's feedback operator does, which turns the sine towards a
+  /// sawtooth and, past an index of 2, to noise.
+  int pmSource = -1;
   /// Depth of the smooth random pitch wander, in cents. Each partial of each
   /// note gets its own rate, so nothing locks together.
   float driftCents = 0.0f;
@@ -75,6 +93,19 @@ struct OscParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f; ///< 0..1 tremolo depth
+  /// The partial, 0 to 31, or the noise channel at kNoiseSource, whose wave
+  /// multiplies this one in place of the tremolo, or -1 for the tremolo. The
+  /// noise channel passes on what comes out of it after COLOUR and STRING.
+  /// What it passes on has everything that
+  /// sets its level but its fader and its mute: its envelope, velocity,
+  /// aftertouch, KEYBOARD row and its own amplitude modulation, which along a
+  /// chain is the partial before it, and round a loop less of it the deeper
+  /// the loop's other links are (see Voice::render). At an amDepth of 0 the
+  /// link counts as none. amDepth goes
+  /// from none of it at 0 to the product
+  /// alone, ring modulation, at 1. The rate is not used. Naming itself turns
+  /// the modulation off.
+  int amSource = -1;
   /// How strongly key velocity scales this partial, -1 to 1. Positive means
   /// harder is louder, negative means softer is louder. Zero by default, so
   /// velocity is something a patch asks for. See GlobalParams::velocityCurve.
@@ -112,6 +143,9 @@ struct NoiseParams {
   float amRateHz = 4.0f;
   LfoShape amShape = LfoShape::Sine;
   float amDepth = 0.0f;
+  /// The partial, 0 to 31, whose wave multiplies the channel in place of the
+  /// tremolo, or -1 for the tremolo. See OscParams::amSource.
+  int amSource = -1;
   float velAmount = 0.0f;
   float atAmount = 0.0f;
   float keyAmount = 0.0f;
@@ -149,7 +183,12 @@ struct GlobalParams {
   bool adaptiveHome = false;
 
   float bendSemitones = 0.0f; ///< current pitch-bend offset
-  float aftertouch = 0.0f;    ///< current channel pressure, 0..1
+  /// Channel pressure, the mod wheel or the higher of the two, 0..1, as
+  /// "Aftertouch from" chooses.
+  float aftertouch = 0.0f;
+  /// Whether each note's own pressure, polyphonic aftertouch or MPE, counts as
+  /// well. Off when "Aftertouch from" is the mod wheel alone.
+  bool notePressure = true;
   /// Whether a partial starting from silence starts its cycle at a rising zero
   /// crossing, the softest onset. Off, it carries on from wherever its phase
   /// was.
