@@ -1267,11 +1267,23 @@ Overtonium is free software under the AGPLv3, which follows from JUCE. The whole
 
 Page: Overtonium releases: what changed in each version
 URL: https://benjamindehli.github.io/overtonium/releases/
-Last changed: 2026-11-08
+Last changed: 2026-11-17
 
 # Overtonium releases
 
 What changed in each version, newest first. Each one links to its full notes, which say more and carry the installing and upgrading detail as well.
+
+## 1.18.0, 17 November 2026
+
+**Partials that modulate each other (#144 to #148).** The shape menus have a Channel submenu. On AMP MOD another partial rings this one, and on PITCH MOD it moves its phase, as FM synthesizers do, with DEPTH as the index. Every new tone is a whole multiple of the note, so the result stays in tune. A partial's own place in the pitch menu is Feedback, which turns a sine towards a sawtooth and then to noise. The noise channel can be the source, and a partial can be its source.
+
+**Loops and the mixer (#150 to #152).** Partials that follow each other play together a sample at a time, as a DX7 plays its operators. A lamp beside a channel's number lights while it modulates another, pointing at a channel lights the channels it is linked to, and the shape screen shows the source's number. A muted channel that still modulates stays lit.
+
+**Three new presets and a darker panel.** FM KarplusStrong, FM Perc Piano and FM String Machine, forty-seven in all. The channels and sidebar are darker, the captions brighter, and the noise channel is a warm white.
+
+**Fixes.** "Aftertouch from: Mod wheel" now leaves out MPE and polyphonic pressure too (#153), and the noise channel's meter shows the string ringing (#156).
+
+**Before upgrading.** The AMP MOD and PITCH MOD shape lists grow, so automation drawn on them before lands on a different shape. MIDI program changes from 16 up land later. 884 parameters.
 
 ## 1.17.0, 9 November 2026
 
