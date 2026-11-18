@@ -73,7 +73,9 @@ sed "s/__VERSION__/$version/g" "$here/distribution.xml" \
   > "$work/distribution.xml"
 
 if [ -n "$identity" ]; then
-  productbuild \
+  # --timestamp asks Apple's timestamp server, which can fail for a while
+  # when nothing here is wrong.
+  "$here/retry.sh" 4 30 productbuild \
     --distribution "$work/distribution.xml" \
     --package-path "$work" \
     --resources "$work/resources" \

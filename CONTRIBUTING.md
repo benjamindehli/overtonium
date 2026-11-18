@@ -232,6 +232,8 @@ Each of those is counted before and after it is rewritten, and the job fails if 
 
 Before committing, the step rebuilds the site and reformats the install page and the feed with Prettier. A longer version number can push a line past Prettier's wrap width, and the format job checks `main` on every push, including this one.
 
+The site is not published while a release is on its way. Once the release branch is merged, the pages on `main` describe a version that is not out yet, so they wait. When the commit above is pushed, the release workflow publishes the site, which [the project page](#the-project-page) describes.
+
 **Signing.** The macOS side signs and notarises when the repository has the secrets for it. When it does not, it falls back to an ad-hoc signature, so the workflow can be tested before any of the secrets exist. An ad-hoc signature is what lets a bundle load at all on Apple Silicon, which refuses unsigned ones outright. But it is not notarisation, and a download still has to be opened past Gatekeeper.
 
 | Secret                                 | What it is                                                                        |
@@ -246,11 +248,17 @@ Before committing, the step rebuilds the site and reformats the install page and
 
 Base64-encode a certificate with `base64 -i cert.p12 | pbcopy`. The two certificates are different. Application signs the bundles, Installer signs the `.pkg`, and notarisation rejects a package signed with the wrong one.
 
+Every step that reaches Apple's servers is tried up to four times, with a pause of 30 seconds that doubles each time, through `packaging/macos/retry.sh`. That covers the signatures, since `--timestamp` asks Apple's timestamp server, and submitting to the notary service, waiting for it, asking for the result and stapling. Apple's servers sometimes fail for a while with errors that look like a fault in the setup, such as a 401 from `notarytool` or "A timestamp was expected but was not found" from `codesign`. When all four attempts fail, check Apple's system status before changing the secrets. A 403 that says a required agreement is missing or has expired is not a fault on Apple's side. The account holder has to accept the new agreement on the Apple Developer site, and then the failed jobs can be run again. A package the notary service rejects is not submitted again, and its log is printed in the job.
+
 The Windows installer is not signed, so SmartScreen tells the user the publisher is unknown, and they have to choose "More info" and then "Run anyway". A certificate that removes the warning is an ongoing cost, so the release notes explain the warning instead.
 
 ### The project page
 
-`docs/` is served by GitHub Pages from the `main` branch, with one folder per URL so the site has addresses like `/tuning/` instead of `/tuning.html`. GitHub serves exactly what is in the repository, with no build step on its side, and `.nojekyll` stops GitHub running Jekyll over it.
+`docs/` is the site, with one folder per URL so it has addresses like `/tuning/` instead of `/tuning.html`. It is published by `.github/workflows/pages.yml` exactly as it is committed, with no build step.
+
+**The site is published only while it names the version that is out.** A push to `main` that changes `docs/` publishes it when the version in `project(Overtonium VERSION ...)` is the one in `docs/latest.json`. Between releases the two agree, so a fix to a page goes out within a minute or two. Once a release branch is merged they differ, and the site stays as it was until the release workflow has published the release, written its version into `docs/latest.json` and pushed that. A push from a workflow starts no other workflow, so the release workflow then calls the Pages workflow itself. A run that does not publish says why in a notice on the run. The Pages workflow can also be run by hand from the Actions tab, with the same check.
+
+This needs two settings on GitHub. Under Settings, Pages, the source is "GitHub Actions". Under Settings, Environments, `github-pages`, the deployment branches and tags allow the tag pattern `v*` as well as `main`, since the release workflow runs on a tag.
 
 **The parts every page shares are generated.** `python3 Tools/build_site.py` rewrites them in place, from `Tools/site_data.py` and from what the source code already contains:
 
@@ -275,7 +283,7 @@ Everything between those parts is ordinary HTML that you edit directly. An edit 
 
 **A page's last-modified day changes when its text does.** `Tools/site_dates.json` holds a hash of the text in each page's `<main>` and the day it last changed. When the text changes, the build gives the page today's date, in UTC, and the sitemap and the page's `dateModified` both use it. A change to the head, the rail, the footer or the markup around the text leaves the day alone, because it does not change what the page says. The hash is checked too, so a page edited without rebuilding fails CI instead of keeping an old date. The day comes from this file, not from git, because a CI checkout has no history to read it from.
 
-**Search engines are told when a page changes.** `.github/workflows/indexnow.yml` runs on every push to `main` that changes `docs/sitemap.xml`, which is every push that changes what a page says. It waits until the published sitemap matches the committed one, then sends [IndexNow](https://www.indexnow.org/) every page the sitemap dates today or yesterday, so Bing and the engines that share its index fetch it again straight away. Pages publishes the site through a workflow GitHub runs itself, which nothing can follow, hence the wait. The release workflow's own commit to `main` starts no workflow, so the release workflow calls this one at its end. The key is the one served at the root of `benjamindehli.github.io`, which covers every address on that host. It can also be run by hand from the Actions tab.
+**Search engines are told when a page changes.** Once the Pages workflow has published a push that changed `docs/sitemap.xml`, which is every push that changes what a page says, it calls `.github/workflows/indexnow.yml`. That waits until the published sitemap matches the committed one, then sends [IndexNow](https://www.indexnow.org/) every page the sitemap dates today or yesterday, so Bing and the engines that share its index fetch it again straight away. After a release it sends every page, since the pages the release branch changed may be dated days earlier. The key is the one served at the root of `benjamindehli.github.io`, which covers every address on that host. It can also be run by hand from the Actions tab.
 
 `llms.txt` is a summary of the project for language models, in the format [llmstxt.org](https://llmstxt.org/) describes: what the instrument is, then links to each page with a line saying what is on it, then the key facts in one place. `llms-full.txt` is the whole site as Markdown in one file, for a model that would rather read everything than follow links. `robots.txt` names both, because no crawler is required to look for them. The facts in `llms.txt` are prose in the data file, and are worth checking when a release changes what the plugin can do. The counts and the preset list in them are filled in from the source.
 

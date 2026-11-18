@@ -254,7 +254,9 @@ jobs:
               args+=(--sign -)
             fi
 
-            codesign "${args[@]}" "$bundle"
+            # --timestamp asks Apple's timestamp server, which can fail for a
+            # while when nothing here is wrong, so a failure is tried again.
+            packaging/macos/retry.sh 4 30 codesign "${args[@]}" "$bundle"
             codesign --verify --strict "$bundle"
             echo "signed $bundle"
           done
@@ -388,14 +390,36 @@ jobs:
             exit 0
           fi
 
-          xcrun notarytool submit "Overtonium-$VERSION-macOS.pkg" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait
+          pkg="Overtonium-$VERSION-macOS.pkg"
+          auth=(--apple-id "$APPLE_ID" --password "$APPLE_PASSWORD" --team-id "$APPLE_TEAM_ID")
+          retry=packaging/macos/retry.sh
 
-          xcrun stapler staple "Overtonium-$VERSION-macOS.pkg"
-          xcrun stapler validate "Overtonium-$VERSION-macOS.pkg"
+          # Submitting, waiting and asking for the result are three calls, so
+          # a fault on Apple's side is tried again at the call it hit. A
+          # second submission after a failed one does no harm. A package
+          # Apple rejects is never submitted again: the result says so, and
+          # the log says why.
+          id=$($retry 4 30 xcrun notarytool submit "$pkg" "${auth[@]}" \
+                 --output-format json \
+               | python3 -c 'import json, sys; print(json.load(sys.stdin)["id"])')
+          echo "submitted as $id"
+
+          $retry 4 30 xcrun notarytool wait "$id" "${auth[@]}" --timeout 30m \
+            || echo "::warning::the wait for $id ended with an error, asking for the result"
+
+          status=$($retry 4 30 xcrun notarytool info "$id" "${auth[@]}" \
+                     --output-format json \
+                   | python3 -c 'import json, sys; print(json.load(sys.stdin)["status"])')
+
+          if [ "$status" != "Accepted" ]; then
+            xcrun notarytool log "$id" "${auth[@]}" || true
+            echo "::error::notarisation of $id ended as $status"
+            exit 1
+          fi
+
+          # Stapling fetches the ticket from Apple too.
+          $retry 4 30 xcrun stapler staple "$pkg"
+          xcrun stapler validate "$pkg"
 
           # What a machine downloading it will actually decide.
           spctl --assess --type install -vv "Overtonium-$VERSION-macOS.pkg"
@@ -500,7 +524,7 @@ jobs:
       # crawler. It was hand-edited until 1.6.1, and was already a day out.
       #
       # main rather than the tag, since the tag is a detached head and the
-      # Pages site is served from the branch.
+      # Pages site is published from the branch, by the site job below.
       - name: Point the update feed, the download links and the metadata at this release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -624,12 +648,19 @@ jobs:
           git commit -m "Point the site at $GITHUB_REF_NAME"
           git push origin main
 
-  # The commit above changed the sitemap, but a push from a workflow starts no
-  # other workflow, so the one that tells IndexNow is called from here.
-  indexnow:
-    name: Tell IndexNow
+  # The site is published only while it names the version that is out, so
+  # the pages a release branch changed wait for the commit above. A push from a
+  # workflow starts no other workflow, so the one that publishes the site, and
+  # then tells IndexNow, is called from here.
+  site:
+    name: Publish the site
     needs: publish
     if: github.ref_type == 'tag'
-    uses: ./.github/workflows/indexnow.yml
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/pages.yml
     with:
       ref: main
+      every_page: true

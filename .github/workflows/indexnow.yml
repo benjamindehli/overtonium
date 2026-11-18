@@ -5,25 +5,28 @@ name: IndexNow
 # just changed, so they fetch them again now rather than whenever their crawler
 # next comes round.
 #
-# On a push to main that changes the sitemap, which is every push that changes
-# what a page says, since the sitemap carries the day each page last did. Pages
-# publishes this site through a workflow GitHub runs itself, which no other
-# workflow can follow, so this waits for the published sitemap to match the
-# committed one instead, and a crawler sent straight away finds the new page.
-#
-# The release workflow's own commit to main starts nothing, as no push from a
-# workflow does, so it calls this one when it has pushed.
+# Called by the Pages workflow once it has published the site, after a push
+# that changed the sitemap, which is every push that changes what a page says,
+# and after a release, about every page. It still waits for the published
+# sitemap to match the committed one, since the deployment can report done a
+# little before every server has the new pages.
 on:
-  push:
-    branches: [main]
-    paths: ["docs/sitemap.xml"]
   workflow_call:
     inputs:
       ref:
         description: The commit whose sitemap to read.
         type: string
         required: false
+      every_page:
+        description: Send every page in the sitemap, not only those changed today or yesterday.
+        type: boolean
+        default: false
   workflow_dispatch:
+    inputs:
+      every_page:
+        description: Send every page in the sitemap, not only those changed today or yesterday.
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -44,13 +47,14 @@ jobs:
       # host covers every address on it, /overtonium/ included. The key is
       # public by design: anyone can read it from that file.
       #
-      # Only pages the sitemap dates today or yesterday are sent. The site
-      # builder dates a page by the UTC day it ran, so a page edited just
-      # before midnight and pushed just after is still sent, and sending a
-      # page twice does no harm.
+      # Only pages the sitemap dates today or yesterday are sent, unless every
+      # page is asked for. The site builder dates a page by the UTC day it
+      # ran, so a page edited just before midnight and pushed just after is
+      # still sent, and sending a page twice does no harm.
       - name: Send the pages that changed
         env:
           KEY: a842ed43022d4f0db0527dbde835b9ad
+          EVERY_PAGE: ${{ inputs.every_page || false }}
         run: |
           python3 - <<'PY'
           import datetime
@@ -69,17 +73,20 @@ jobs:
           today = datetime.datetime.now(datetime.timezone.utc).date()
           recent = {str(today), str(today - datetime.timedelta(days=1))}
 
+          every_page = os.environ["EVERY_PAGE"] == "true"
+
           urls = [loc for loc, day in re.findall(
               r"<loc>([^<]+)</loc>\s*<lastmod>([^<]+)</lastmod>", committed)
-              if day in recent]
+              if every_page or day in recent]
 
           if not urls:
               print("no page changed today or yesterday, nothing to send")
               sys.exit(0)
 
-          # Pages usually publishes within a minute or two. Ten minutes is far
-          # past that, and after it the pages are sent anyway rather than not
-          # at all: a crawler that comes a little early fetches again later.
+          # The site is usually being served within a minute of the
+          # deployment. Ten minutes is far past that, and after it the pages
+          # are sent anyway rather than not at all: a crawler that comes a
+          # little early fetches again later.
           for attempt in range(40):
               try:
                   request = urllib.request.Request(
