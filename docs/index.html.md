@@ -1,6 +1,6 @@
 Page: Overtonium, a free 32-partial additive synthesizer plugin
 URL: https://benjamindehli.github.io/overtonium/
-Last changed: 2026-11-15
+Last changed: 2026-11-17
 
 # Overtonium, a 32-partial additive overtone synthesizer
 
@@ -37,11 +37,11 @@ The whole instrument. Thirty-two channels, a noise channel pinned on the right, 
 
 ## What it sounds like
 
-Eleven of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing. This is the only recording of it being played.
+Eight of the forty-seven [factory presets](https://benjamindehli.github.io/overtonium/presets/), played on an Expressive E Osmose, with nothing on the output except the plugin's own effects. It shows the Karplus-Strong string, Adaptive tuning, and FM and ring modulation between the partials. All the other audio on this site is the plugin rendering a chord to a file. That keeps those clips accurate, but it cannot show how the plugin responds to playing.
 
-[Video: Overtonium sound examples](https://www.youtube.com/watch?v=L1oYdPxGlGA)
+[Video: Karplus-Strong, Adaptive tuning, FM and AM in Overtonium](https://www.youtube.com/watch?v=6scfdVeF3D8)
 
-[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eleven, and a clip of every one of the forty-seven presets.
+[The presets page](https://benjamindehli.github.io/overtonium/presets/#video) has a chapter link for each of the eight, an earlier video of eleven others, and a clip of every one of the forty-seven presets.
 
 ## The control to try first
 
