@@ -1,0 +1,148 @@
+name: Pages
+
+# Publishes docs/ as the project site, and only while the site describes the
+# version that is out.
+#
+# The site used to be served straight from the main branch, so it changed the
+# moment a release branch was merged. The pages then described a version that
+# did not exist yet, and the install page linked to downloads that were not
+# there, until the release workflow had built, signed and published it. That
+# is half an hour on a good day. When Apple's servers failed during 1.18.0 it
+# was most of a day.
+#
+# So a push to main publishes only when the version in CMakeLists.txt is the
+# one docs/latest.json names. Between releases the two agree, and a fix to the
+# pages goes out straight away. Once a release branch is merged they differ
+# until the release workflow has published the release and written its version
+# into docs/latest.json. A push from a workflow starts no other workflow, so
+# the release workflow calls this one itself once it has pushed.
+on:
+  push:
+    branches: [main]
+    paths: ["docs/**"]
+  workflow_call:
+    inputs:
+      ref:
+        description: The commit to publish.
+        type: string
+        required: true
+      every_page:
+        description: Tell IndexNow about every page, not only those changed today or yesterday.
+        type: boolean
+        default: false
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check the site names a released version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.versions.outputs.publish }}
+      notify: ${{ steps.sitemap.outputs.notify }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - name: Compare the project version with the update feed
+        id: versions
+        run: |
+          project=$(sed -n 's/^project(Overtonium VERSION \([0-9][0-9.]*\).*/\1/p' CMakeLists.txt)
+          site=$(python3 -c 'import json; print(json.load(open("docs/latest.json"))["version"])')
+
+          if [ -z "$project" ] || [ -z "$site" ]; then
+            echo "::error::could not read the versions, project '$project', site '$site'"
+            exit 1
+          fi
+
+          if [ "$project" = "$site" ]; then
+            echo "the site names $site, the version that is out, publishing"
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::not publishing: the project is $project and the site still names $site, so the release is not out yet. The release workflow publishes the site when it is."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # IndexNow is told after a push that changed the sitemap, which is every
+      # push that changed what a page says. A release tells it about every
+      # page, since the pages its branch changed may be dated days before the
+      # release and were not published then. A run started by hand tells it
+      # nothing, and IndexNow has a button of its own.
+      #
+      # When the release workflow calls this, the event is still its own tag
+      # push, so every_page is looked at first.
+      - name: See whether to tell IndexNow
+        id: sitemap
+        if: github.event_name == 'push'
+        env:
+          EVERY_PAGE: ${{ inputs.every_page || false }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVERY_PAGE" = "true" ]; then
+            echo "a release, telling IndexNow about every page"
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+             || ! git fetch --quiet --no-tags --depth=1 origin "$BEFORE"; then
+            echo "no earlier commit to compare with, telling IndexNow"
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- docs/sitemap.xml; then
+            echo "the sitemap is unchanged"
+            echo "notify=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "the sitemap changed"
+            echo "notify=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  deploy:
+    name: Publish
+    needs: check
+    if: needs.check.outputs.publish == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    # One deployment at a time. A newer one waiting replaces an older one
+    # waiting, which is right, since both publish main.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    # The environment GitHub creates for Pages lets only main deploy. The
+    # release workflow runs on a tag, so the environment also allows tags
+    # matching v*, which CONTRIBUTING describes.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      # The pages are committed as they are served, so there is nothing to
+      # build. Hidden files stay out, which only drops .nojekyll, and a site
+      # published from an artefact is never run through Jekyll anyway.
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
+
+  indexnow:
+    name: Tell IndexNow
+    needs: [check, deploy]
+    if: needs.check.outputs.notify == 'true'
+    uses: ./.github/workflows/indexnow.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
+      every_page: ${{ inputs.every_page || false }}
