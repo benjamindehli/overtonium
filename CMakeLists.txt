@@ -27,7 +27,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # By default JUCE is downloaded at configure time. Point -DJUCE_PATH=/path/to/JUCE at a
 # local checkout to skip the download (useful offline or for CI caching).
 #
-# JUCE 9.0.5, fetched as the archive of the commit its tag points to and checked against
+# JUCE 9.0.6, fetched as the archive of the commit its tag points to and checked against
 # that archive's hash. A tag can be moved and a commit cannot, and the hash fails the
 # configure if what arrives is not what was checked.
 # ------------------------------------------------------------------------------------------
@@ -45,8 +45,8 @@ else()
 
     include(FetchContent)
     FetchContent_Declare(JUCE
-        URL      https://github.com/juce-framework/JUCE/archive/d60b7a78030661574a615b586d9325ba7a7fa7dd.tar.gz
-        URL_HASH SHA256=8237b2976871982eb9107fd67b576d95bf02355d99540a0127c4e7c001ecd9f5)
+        URL      https://github.com/juce-framework/JUCE/archive/654bdbc7a9db0dae90849b44abe91f339e9f0768.tar.gz
+        URL_HASH SHA256=152ac7a137bf738454ee49309ae969d0ae3abdeef7ebf1fb0c479c1f9ccc39b9)
     FetchContent_MakeAvailable(JUCE)
 endif()
 
@@ -257,7 +257,7 @@ target_link_libraries(Overtonium
 # they are built with these options too. That was read the other way round here
 # for a while. When a JUCE release warns, nothing in this repository can fix
 # the warning, so it is silenced for the one JUCE file and the one check, as
-# below the function for JUCE 9.0.5, and our own code keeps it.
+# below the function for JUCE's alert window code, and our own code keeps it.
 # ------------------------------------------------------------------------------------------
 option(OVERTONIUM_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" ON)
 
@@ -284,7 +284,7 @@ endfunction()
 
 overtonium_set_warnings_as_errors(Overtonium)
 
-# JUCE 9.0.5's alert window code takes a reference to the first button in a Span
+# JUCE's alert window code takes a reference to the first button in a Span
 # that getButtons() returns by value. The reference points into the options
 # object, not the Span, so it is sound, but GCC 13's dangling-reference check
 # warns about any reference that comes through a temporary. Silenced for that
