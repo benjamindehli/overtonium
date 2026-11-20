@@ -452,17 +452,19 @@ jobs:
 
       # The log is checked rather than only the exit status. Recovery is left
       # on so one run reports everything it finds, and that means a run can
-      # report a fault and still exit zero. detect_leaks is asked for
-      # explicitly rather than relied on, since it is on by default on Linux
-      # and off elsewhere, and this job should not quietly stop checking for
-      # them if it ever moves.
+      # report a fault and still exit zero. That is also why ctest runs with
+      # -V: it otherwise prints a test's output only when the test fails, so a
+      # report from a test that still passed would never reach the log.
+      # detect_leaks is asked for explicitly rather than relied on, since it is
+      # on by default on Linux and off elsewhere, and this job should not
+      # quietly stop checking for them if it ever moves.
       - name: Run both suites
         env:
           ASAN_OPTIONS: detect_leaks=1:detect_stack_use_after_return=1
           UBSAN_OPTIONS: print_stacktrace=1
         run: |
           set -o pipefail
-          ctest --test-dir build-san --output-on-failure 2>&1 | tee sanitizer.log
+          ctest --test-dir build-san -V 2>&1 | tee sanitizer.log
 
       - name: Fail on anything the sanitizers reported
         run: |
