@@ -1575,6 +1575,14 @@ void testBusStageFollowsTheCharacter(OvertoniumProcessor &p) {
         "so the plugin reports only the bus stage (" +
             std::to_string(p.getLatencySamples()) + " samples)");
 
+  // Before any host has prepared it, since a host may ask that early.
+  {
+    const auto fresh = std::make_unique<OvertoniumProcessor>();
+    check(fresh->getLatencySamples() == ovt::BusDrive::kLatency,
+          "a new instance reports the bus stage before it is prepared (" +
+              std::to_string(fresh->getLatencySamples()) + " samples)");
+  }
+
   if (ahead == nullptr)
     return;
 

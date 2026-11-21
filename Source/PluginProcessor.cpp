@@ -84,6 +84,11 @@ OvertoniumProcessor::OvertoniumProcessor()
   paramCache.connect(apvts);
   mpeInstrument.addListener(this);
 
+  // The bus stage's latency, which is the same at every rate, known before the
+  // host prepares the plugin. A host that asks before it activates the plugin
+  // gets the right answer too. prepareToPlay adds the lookahead when it is on.
+  setLatencySamples(ovt::BusDrive::kLatency);
+
   // Listens to itself to tell a person's edits from automation. See
   // audioProcessorParameterChangeGestureBegin.
   addListener(this);
