@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-21",
+                "dateModified": "2026-11-23",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/playing/#breadcrumb"
                 }
@@ -680,7 +680,9 @@
                                         latency on every shape. Only the Limiter, Console, Cassette and Print use the lookahead, but the latency must
                                         not change with the patch. The plugin always reports its latency to your host, so the host can line it up with
                                         your other tracks: 12 samples for the bus stage, a quarter of a millisecond at 48 kHz, and two milliseconds
-                                        more with this on. The only setting here that changes what it reports
+                                        more with this on. Some hosts leave an instrument's latency uncompensated below a threshold: Bitwig Studio
+                                        does so under 64 samples, so it lines Overtonium up only with this on. The only setting here that changes what
+                                        it reports
                                     </td>
                                 </tr>
                                 <tr>
