@@ -9561,10 +9561,11 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
   }
 
   check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
-            !st::apply(apvts, 820) && !st::apply(apvts, st::kTemperament + 9) &&
+            !st::apply(apvts, 810) && !st::apply(apvts, 820) &&
+            !st::apply(apvts, st::kTemperament + 9) &&
             !st::apply(apvts, st::kVoices),
-        "undo, zoom, Fit all 32 channels and ids past a list are left to the "
-        "menu");
+        "undo, zoom, custom zoom, Fit all 32 channels and ids past a list are "
+        "left to the menu");
 
   // Legato from the voice list's old entry: one voice and the switch, and
   // unticking keeps the one voice and drops the switch.
@@ -11869,6 +11870,25 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     return found;
   };
 
+  // The text of the custom item, ticked or not.
+  const auto customItem = [&bar]() {
+    auto menu = bar->buildSettingsMenu();
+    std::string found;
+
+    for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+      const auto &item = it.getItem();
+
+      if (item.text != "Zoom" || item.subMenu == nullptr)
+        continue;
+
+      for (juce::PopupMenu::MenuItemIterator sub(*item.subMenu); sub.next();)
+        if (sub.getItem().text.startsWith("Custom"))
+          found += sub.getItem().text.toStdString();
+    }
+
+    return found;
+  };
+
   // Every zoom the menu offers, in turn, ending at 100% for whatever runs next.
   for (const auto factor : {1.25f, 0.75f, 2.0f, 1.5f, 1.75f, 1.0f}) {
     const auto reads = std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
@@ -11877,6 +11897,33 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
 
     check(ticked() == reads,
           "the window at " + reads + " ticks " + reads + " (" + ticked() + ")");
+    check(customItem() == "Custom...", "and the custom item at " + reads +
+                                           " reads Custom... (" + customItem() +
+                                           ")");
+  }
+
+  // A typed zoom ticks the custom item alone, which shows the size, and the
+  // window scales by it from the same layout size.
+  {
+    const auto layoutWidth = (float)editor->getWidth();
+    const auto layoutHeight = (float)editor->getHeight();
+
+    for (const auto factor : {0.82f, 0.9f, 0.5f, 1.1f}) {
+      const auto reads =
+          "Custom: " + std::to_string(juce::roundToInt(factor * 100.0f)) + "%";
+
+      bar->onZoomChanged(factor);
+
+      check(ticked() == reads,
+            "a window at " + reads + " ticks only that (" + ticked() + ")");
+      check(std::abs(editor->getWidth() -
+                     juce::roundToInt(layoutWidth * factor)) <= 1 &&
+                std::abs(editor->getHeight() -
+                         juce::roundToInt(layoutHeight * factor)) <= 1,
+            "and the window at " + reads + " is the 100% window scaled");
+    }
+
+    bar->onZoomChanged(1.0f);
   }
 
   // At every zoom the window still goes down to the smallest it goes at 100%,
@@ -11928,9 +11975,52 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
             editor->getHeight() == leftHeight,
         "a window closed at 200% opens again at 200% and the same size");
 
+  // A window left at a typed zoom opens again at that zoom.
+  if (bar != nullptr)
+    bar->onZoomChanged(0.82f);
+
+  base.reset();
+  base = openEditor(p);
+  editor = base.get();
+  bar = editor != nullptr ? findTopBar(*editor) : nullptr;
+
+  check(bar != nullptr && ticked() == "Custom: 82%",
+        "a window closed at 82% opens again at 82% (" +
+            (bar != nullptr ? ticked() : std::string()) + ")");
+
   // Back to 100% for whatever runs next, since the zoom is kept in the state.
   if (bar != nullptr)
     bar->onZoomChanged(1.0f);
+}
+
+/// What the Custom zoom box makes of what is typed into it.
+void testZoomFromText() {
+  section("The custom zoom reads what is typed");
+
+  using ovt::ui::TopBar;
+
+  for (const auto &[text, percent] :
+       std::vector<std::pair<const char *, int>>{{"82", 82},
+                                                 {"90%", 90},
+                                                 {" 82 % ", 82},
+                                                 {"82.6", 83},
+                                                 {"82,4", 82},
+                                                 {"50", 50},
+                                                 {"200", 200},
+                                                 {"30", 50},
+                                                 {"250", 200},
+                                                 {"0", 50},
+                                                 {"100000", 200}}) {
+    const auto factor = TopBar::zoomFromText(text);
+
+    check(factor.has_value() && juce::roundToInt(*factor * 100.0f) == percent,
+          std::string("\"") + text + "\" reads as " + std::to_string(percent) +
+              "%");
+  }
+
+  for (const auto *text : {"", " ", "%", "abc", "82x", "8.2.1", ".", "-82"})
+    check(!TopBar::zoomFromText(text).has_value(),
+          std::string("\"") + text + "\" leaves the zoom as it is");
 }
 
 /// That every word the bar has to say fits in the button that says it.
@@ -14790,6 +14880,7 @@ int main(int argc, char **argv) {
   testSettingsMenu(processor);
   testFitAllChannels(processor);
   testZoomTickFollowsTheZoom(processor);
+  testZoomFromText();
   testDrawingAcrossTheFaders(processor);
   testSelectingChannels(processor);
   testToolButtonShowsTheTool(processor);

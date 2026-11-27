@@ -79,6 +79,7 @@ enum SettingsMenuId : int {
   kCheckForUpdates = 702,
   kUpdateAvailable = 703,
   kZoomBase = 800,
+  kZoomCustom = 810,
   kFitAllChannels = 820,
 };
 
@@ -862,6 +863,66 @@ void TopBar::askForPresetName() {
       }));
 }
 
+std::optional<float> TopBar::zoomFromText(const juce::String &text) {
+  auto number = text.trim();
+
+  if (number.endsWithChar('%'))
+    number = number.dropLastCharacters(1).trim();
+
+  // A comma as well as a point, for the keyboards that type one.
+  number = number.replaceCharacter(',', '.');
+
+  // getDoubleValue reads "abc" as 0 and "82x" as 82, so the text is checked
+  // first: digits with at most one point, and at least one digit.
+  if (!number.containsAnyOf("0123456789") ||
+      !number.containsOnly("0123456789.") ||
+      number.indexOfChar('.') != number.lastIndexOfChar('.'))
+    return std::nullopt;
+
+  const auto percent =
+      juce::jlimit(50, 200, juce::roundToInt(number.getDoubleValue()));
+
+  return (float)percent / 100.0f;
+}
+
+void TopBar::askForZoom() {
+  zoomWindow = std::make_unique<juce::AlertWindow>(
+      "Zoom", "Size in percent, from 50 to 200.",
+      juce::MessageBoxIconType::NoIcon, this);
+
+  zoomWindow->setLookAndFeel(&getLookAndFeel());
+  zoomWindow->addTextEditor("zoom",
+                            juce::String(juce::roundToInt(zoom * 100.0f)));
+  zoomWindow->addButton("OK", 1, juce::KeyPress(juce::KeyPress::returnKey));
+  zoomWindow->addButton("Cancel", 0, juce::KeyPress(juce::KeyPress::escapeKey));
+
+  if (auto *field = zoomWindow->getTextEditor("zoom")) {
+    field->setInputRestrictions(6, "0123456789.,%");
+    field->selectAll();
+  }
+
+  // A SafePointer for the same reason as in askForPresetName.
+  juce::Component::SafePointer<TopBar> self(this);
+
+  zoomWindow->enterModalState(
+      true, juce::ModalCallbackFunction::create([self](int result) {
+        if (self == nullptr)
+          return;
+
+        const auto text = self->zoomWindow != nullptr
+                              ? self->zoomWindow->getTextEditorContents("zoom")
+                              : juce::String();
+
+        self->zoomWindow.reset();
+
+        if (result != 1 || !self->onZoomChanged)
+          return;
+
+        if (const auto factor = zoomFromText(text))
+          self->onZoomChanged(*factor);
+      }));
+}
+
 juce::String TopBar::versionLine() {
   // OVERTONIUM_VERSION comes from project() in CMakeLists, which the release
   // workflow checks against the tag.
@@ -949,13 +1010,25 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
             settings::isOn(apvts, params::adaptiveHomeId));
 
   juce::PopupMenu zooms;
+  bool zoomListed = false;
 
   for (int i = 0; i < (int)std::size(kZoomChoices); ++i) {
     const auto percent = juce::roundToInt(kZoomChoices[i] * 100.0f);
+    const bool isZoom = std::abs(kZoomChoices[i] - zoom) < 0.005f;
 
-    zooms.addItem(kZoomBase + i, juce::String(percent) + "%", true,
-                  std::abs(kZoomChoices[i] - zoom) < 0.01f);
+    zooms.addItem(kZoomBase + i, juce::String(percent) + "%", true, isZoom);
+    zoomListed = zoomListed || isZoom;
   }
+
+  // Any other size, typed in. When the zoom is none of the sizes above, the
+  // item shows it and is ticked.
+  const auto customName =
+      zoomListed
+          ? juce::String("Custom...")
+          : "Custom: " + juce::String(juce::roundToInt(zoom * 100.0f)) + "%";
+
+  zooms.addSeparator();
+  zooms.addItem(kZoomCustom, customName, true, !zoomListed);
 
   m.addSeparator();
   m.addSectionHeader("Output");
@@ -995,6 +1068,9 @@ void TopBar::showSettingsMenu() {
 
                     if (result == kFitAllChannels)
                       return onFitAllChannels ? onFitAllChannels() : void();
+
+                    if (result == kZoomCustom)
+                      return askForZoom();
 
                     if (result >= kZoomBase) {
                       const auto index = result - kZoomBase;
