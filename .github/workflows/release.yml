@@ -69,6 +69,8 @@ jobs:
     name: ${{ matrix.name }}
     needs: verify
     runs-on: ${{ matrix.os }}
+    # Empty for macOS and Windows, which then run on the runner itself.
+    container: ${{ matrix.container || '' }}
     timeout-minutes: 90
 
     strategy:
@@ -77,18 +79,38 @@ jobs:
         include:
           - name: macOS
             os: macos-latest
+          # Built in an Ubuntu 22.04 container rather than on the runner
+          # itself. A Linux program needs at least the glibc and libstdc++ of
+          # the system it was built on, and ubuntu-latest moves to each new
+          # Ubuntu, so a build made there loads only on systems as new as the
+          # runner. See glibc_floor.py, which checks the result.
           - name: Linux
             os: ubuntu-latest
+            container: ubuntu:22.04
           - name: Windows
             os: windows-latest
 
     steps:
+      # A bare Ubuntu image has no git, so checkout would fetch a tarball
+      # without the history, and no certificates to fetch anything over HTTPS.
+      - name: Prepare the container
+        if: matrix.container
+        timeout-minutes: 10
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y git ca-certificates curl
+
       - uses: actions/checkout@v7
 
+      # The compiler, CMake and the tools the later steps call come with the
+      # runner image, so a container has to ask for them.
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
         timeout-minutes: 10
         uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: >-
+            ${{ matrix.container && 'build-essential cmake python3 zip zstd' || '' }}
 
       - name: Fetch JUCE
         id: juce
@@ -176,6 +198,14 @@ jobs:
 
           echo "checked $found binaries"
           exit $status
+
+      # Every Linux file is read for the newest glibc and libstdc++ it asks
+      # for, so a build that would not load on Ubuntu 22.04 is not published.
+      - name: Check the Linux binaries load on Ubuntu 22.04
+        if: runner.os == 'Linux'
+        run: |
+          python3 .github/scripts/glibc_floor.py --self-test
+          python3 .github/scripts/glibc_floor.py build/Overtonium_artefacts/Release
 
       # A release is exactly when it is worth knowing the tests still pass,
       # even though the same commit has usually been through them already.

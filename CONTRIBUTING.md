@@ -8,9 +8,11 @@ By taking part you agree to the [code of conduct](CODE_OF_CONDUCT.md). For how t
 
 ## Before a pull request
 
-CI runs six jobs on every push and pull request: the build and both test suites on all three platforms, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. A seventh, pluginval against a sanitized plugin, runs weekly and when started by hand. Each one can be run locally, and this section says how.
+CI runs seven jobs on every push and pull request: the build and both test suites on all three platforms, the Linux build as the release makes it, formatting, the sanitizers, the DSP core on its own, the structured data on the site, and the counts in the docs. An eighth, pluginval against a sanitized plugin, runs weekly and when started by hand. Each one can be run locally, and this section says how.
 
 **The tests pass.** `ctest --test-dir build --build-config Release` runs both suites.
+
+**The Linux build loads on Ubuntu 22.04.** The release builds Linux in an Ubuntu 22.04 container with GCC 11, because a Linux program needs at least the glibc and libstdc++ of the system it was built on. The "Linux, as released" job builds the same way, runs both suites and then `python3 .github/scripts/glibc_floor.py build/Overtonium_artefacts/Release`, which fails if any file asks for a newer glibc or libstdc++ than Ubuntu 22.04 has. A build on a newer system always fails that check, so locally it is only worth running inside an Ubuntu 22.04 container.
 
 **Warnings are errors.** This is the default, so a plain `cmake -B build` already gives you the build CI does, with nothing extra to run. A build tree keeps the setting it was configured with, so if one was configured with `-DOVERTONIUM_WARNINGS_AS_ERRORS=OFF`, reconfigure it with `ON` or delete it.
 
@@ -209,7 +211,7 @@ The notes for the release page come from `release-notes/`, one file per version,
 
 The heading is checked as well as the filename. Otherwise, copying the previous release's notes to a new name and forgetting to edit them would reach the release page.
 
-Each platform gets an installer where a sensible one exists, and next to it a zip holding every format it can build, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary for Apple Silicon and Intel. Linux gets VST3, LV2 and Standalone, and Windows gets VST3 and Standalone. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be installed separately. Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips are still provided, for anyone without administrator rights or with their own plugin folders. Linux gets only the zip, because there is no install location that distributions agree on. The tests run before anything is packaged, so a tag that fails them produces no release.
+Each platform gets an installer where a sensible one exists, and next to it a zip holding every format it can build, plus the readme and the licence. macOS gets VST3, AU and Standalone as a universal binary for Apple Silicon and Intel. Linux gets VST3, LV2 and Standalone, built in an Ubuntu 22.04 container so they load on that release and every newer one, and Windows gets VST3 and Standalone. macOS gets a `.pkg` built by `packaging/macos/build-pkg.sh`, with a chooser so VST3, the Audio Unit and the standalone can be installed separately. Windows gets an `.exe` from `packaging/windows/overtonium.iss`. The zips are still provided, for anyone without administrator rights or with their own plugin folders. Linux gets only the zip, because there is no install location that distributions agree on. The tests run before anything is packaged, so a tag that fails them produces no release.
 
 You can also start the same workflow by hand from the Actions tab. That builds the archives and uploads them to the run without publishing anything. Use it to test the packaging without using up a version number.
 
