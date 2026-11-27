@@ -3,6 +3,7 @@
 #include <array>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -179,6 +180,12 @@ public:
   /// The Settings menu as data, so tests can walk it without a window.
   juce::PopupMenu buildSettingsMenu();
 
+  /// The zoom typed into the Custom zoom box, as a factor. Whole percentages
+  /// from 50 to 200: a decimal is rounded, a value past either end is set to
+  /// that end, and a "%" after the number is allowed. Empty when the text is
+  /// not a number, so the zoom stays as it is.
+  static std::optional<float> zoomFromText(const juce::String &text);
+
   /// The clipper's machines, and applying a choice from that menu.
   juce::PopupMenu buildClipMenu();
   void chooseClip(int id);
@@ -266,6 +273,9 @@ private:
   /// take typing.
   void askForPresetName();
 
+  /// Asks for a zoom in percent and hands it to onZoomChanged.
+  void askForZoom();
+
   /// Related controls sit together in a bordered group.
   enum Group {
     VoiceGroup = 0,
@@ -349,7 +359,7 @@ private:
   /// back mean something.
   juce::Array<juce::File> userPresetFiles;
 
-  std::unique_ptr<juce::AlertWindow> nameWindow;
+  std::unique_ptr<juce::AlertWindow> nameWindow, zoomWindow;
   GlowButton echoButton, reverbButton, clipButton;
 
   /// The zoom, set from the Settings menu.
