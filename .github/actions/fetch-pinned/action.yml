@@ -45,12 +45,21 @@ runs:
         echo "url=$url" >> "$GITHUB_OUTPUT"
         echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
+        # The home directory, for the cache key below, with the slashes
+        # changed so it reads as one word.
+        echo "home=$(echo "$HOME" | tr / -)" >> "$GITHUB_OUTPUT"
+
+    # The key names the home directory as well as the system. The cache puts
+    # files back at the absolute path they were saved from, and a job in a
+    # container has its home at /github/home, not the runner's /home/runner.
+    # With one key for both, a container job restored the runner's copy to
+    # /home/runner, skipped the download and found nothing in its own home.
     - name: Restore from the cache
       id: cache
       uses: actions/cache@v6
       with:
         path: ~/${{ inputs.name }}-${{ steps.pin.outputs.sha }}
-        key: ${{ inputs.name }}-${{ steps.pin.outputs.sha }}-${{ runner.os }}
+        key: ${{ inputs.name }}-${{ steps.pin.outputs.sha }}-${{ runner.os }}${{ steps.pin.outputs.home }}
 
     # GitHub builds these archives on demand and its archive service answers
     # with a 504 now and then. One retry, which is all CMake makes, is not
