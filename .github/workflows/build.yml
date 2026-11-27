@@ -326,6 +326,71 @@ jobs:
           xvfb-run -a ./vst3-validator \
             build/Overtonium_artefacts/Release/VST3/Overtonium.vst3
 
+  # The Linux build as the release makes it, in an Ubuntu 22.04 container, so
+  # a pull request finds out before a tag does whether that older compiler
+  # still builds the plugin, and whether the result still loads on 22.04.
+  # The Linux job above stays on ubuntu-latest, since the newest compiler
+  # warns about the most and the committed clips are rendered there.
+  #
+  # Warnings are not errors here, the same as in the release. GCC 11 warns
+  # about some things the newer compiler does not, and the job above already
+  # holds the code to no warnings.
+  linux-release:
+    name: Linux, as released
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    timeout-minutes: 45
+
+    steps:
+      # A bare Ubuntu image has no git, so checkout would fetch a tarball
+      # without the history, and no certificates to fetch anything over HTTPS.
+      - name: Prepare the container
+        timeout-minutes: 10
+        run: |
+          apt-get update
+          apt-get install --no-install-recommends -y git ca-certificates curl
+
+      - uses: actions/checkout@v7
+
+      - name: Install Linux dependencies
+        timeout-minutes: 10
+        uses: ./.github/actions/linux-deps
+        with:
+          extra-packages: build-essential cmake python3
+
+      - name: Fetch JUCE
+        id: juce
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: JUCE
+
+      - name: Fetch dehli-musikk-plugin-core
+        id: core
+        uses: ./.github/actions/fetch-pinned
+        with:
+          name: dm_plugin_core
+
+      - name: Configure
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DOVERTONIUM_WARNINGS_AS_ERRORS=OFF
+          -DOVERTONIUM_INSTALL_AFTER_BUILD=OFF
+          -DOVERTONIUM_BUILD_TOOLS=OFF
+          -DJUCE_PATH=${{ steps.juce.outputs.path }}
+          -DFETCHCONTENT_SOURCE_DIR_DM_PLUGIN_CORE=${{ steps.core.outputs.path }}
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Test
+        run: ctest --test-dir build --build-config Release --output-on-failure
+
+      - name: Check the Linux binaries load on Ubuntu 22.04
+        run: |
+          python3 .github/scripts/glibc_floor.py --self-test
+          python3 .github/scripts/glibc_floor.py build/Overtonium_artefacts/Release
+
   format:
     name: Formatting
     runs-on: ubuntu-latest

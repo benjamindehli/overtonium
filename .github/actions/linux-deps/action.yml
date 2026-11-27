@@ -21,15 +21,24 @@ runs:
       shell: bash
       env:
         EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+        # tzdata, pulled in on a bare Ubuntu image, otherwise stops to ask
+        # for a time zone.
+        DEBIAN_FRONTEND: noninteractive
       run: |
-        sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
+        # A container job runs as root and its image has no sudo.
+        sudo=sudo
+        if [ "$(id -u)" -eq 0 ]; then
+          sudo=
+        fi
+
+        $sudo tee /etc/apt/apt.conf.d/99-overtonium-timeouts >/dev/null <<'CONF'
         Acquire::Retries "3";
         Acquire::http::Timeout "20";
         Acquire::https::Timeout "20";
         CONF
 
         for attempt in 1 2 3; do
-          if sudo apt-get update; then
+          if $sudo apt-get update; then
             break
           fi
 
@@ -39,7 +48,7 @@ runs:
 
         # Split on spaces on purpose, one package a word.
         # shellcheck disable=SC2086
-        sudo apt-get install --no-install-recommends -y \
+        $sudo apt-get install --no-install-recommends -y \
           libasound2-dev libfreetype-dev libfontconfig1-dev libx11-dev \
           libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev \
           libxcomposite-dev libgl-dev libcurl4-openssl-dev \
