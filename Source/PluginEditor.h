@@ -7,6 +7,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include "ChannelCopy.h"
 #include "PluginProcessor.h"
 #include "UI/ChannelStrip.h"
 #include "UI/LookAndFeel.h"
@@ -211,6 +212,19 @@ public:
   void linkDragEnded(ovt::ui::Role, int sourceIndex) override;
 
   void showLinkMenu(const juce::String &parameterId) override;
+  void showChannelMenu(int channel) override;
+
+  /// Copy and paste from a channel's menu, through the system clipboard.
+  ///
+  /// @param choice  channelmenu::kCopy, kPaste or kPasteSelected
+  void chooseChannelItem(int channel, int choice);
+
+  /// Sets one channel, or every selected channel, to a copy, as one undo
+  /// step. Public so a test can call it, since the clipboard needs a display.
+  ///
+  /// @param toSelection  every selected channel rather than this one
+  void pasteChannel(const ovt::channelcopy::Settings &, int channel,
+                    bool toSelection);
 
   /// The MIDI Learn items alone, for controls LINK does not gang: the bars and
   /// the noise channel.

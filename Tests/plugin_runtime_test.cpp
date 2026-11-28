@@ -23,10 +23,12 @@
 #include <thread>
 #include <vector>
 
+#include "ChannelCopy.h"
 #include "PluginEditor.h"
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "UI/ChannelMenu.h"
 #include "UI/ChannelStrip.h"
 #include "UI/GlideMenu.h"
 #include "UI/LearnMenu.h"
@@ -8072,12 +8074,18 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
 
   struct CountingLink final : ovt::ui::LinkTarget {
     int opened = 0;
+    int channelMenus = 0;
+    int channelAsked = -1;
 
     bool isLinkEnabled() const override { return true; }
     void linkDragStarted(ovt::ui::Role, int) override {}
     void linkValueChanged(ovt::ui::Role, int, float) override {}
     void linkDragEnded(ovt::ui::Role, int) override {}
     void showLinkMenu(const juce::String &) override { ++opened; }
+    void showChannelMenu(int channel) override {
+      ++channelMenus;
+      channelAsked = channel;
+    }
     // Nowhere to scroll, so the wheel falls through.
     bool scrollParameters(int) override { return false; }
 
@@ -8152,6 +8160,36 @@ void testOneRightClickOpensOneMenu(OvertoniumProcessor &p) {
       check(link.opened == 1, "and a right-click on a knob still opens it (" +
                                   std::to_string(link.opened) + ")");
     }
+  }
+
+  // ---- and on the channel's number, which offers copy and paste ------------
+  {
+    link.opened = 0;
+
+    ovt::ui::ChannelStrip third(p.apvts, link, hover, popupParent, 2);
+    third.setSize(40, 900);
+
+    const auto when = juce::Time::getCurrentTime() + juce::RelativeTime(2.0);
+    const juce::Point<float> onNumber((float)third.getWidth() / 2.0f, 10.0f);
+    const juce::MouseEvent e(
+        juce::Desktop::getInstance().getMainMouseSource(), onNumber,
+        juce::ModifierKeys(juce::ModifierKeys::rightButtonModifier),
+        juce::MouseInputSource::defaultPressure,
+        juce::MouseInputSource::defaultOrientation,
+        juce::MouseInputSource::defaultRotation,
+        juce::MouseInputSource::defaultTiltX,
+        juce::MouseInputSource::defaultTiltY, &third, &third, when, onNumber,
+        when, 1, false);
+
+    third.mouseDown(e);
+    third.mouseDown(e);
+
+    check(link.channelMenus == 1 && link.channelAsked == 2 && link.opened == 0,
+          "a right-click on channel 3's number opens one channel menu for "
+          "channel 3 (" +
+              std::to_string(link.channelMenus) + " for channel " +
+              std::to_string(link.channelAsked + 1) + ", " +
+              std::to_string(link.opened) + " plain)");
   }
 }
 
@@ -11993,6 +12031,264 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     bar->onZoomChanged(1.0f);
 }
 
+/// Copy and paste a channel: what a copy holds, the text it travels as, what a
+/// paste changes, and that a paste is one undo step. Driven below the
+/// clipboard, which needs a display. See ovt::channelcopy.
+void testChannelCopyAndPaste(OvertoniumProcessor &p) {
+  section("Copy and paste a channel");
+
+  namespace cc = ovt::channelcopy;
+  auto &apvts = p.apvts;
+  auto &undo = p.undo();
+
+  const auto normalised = [&apvts](const juce::String &suffix, int channel) {
+    auto *param = apvts.getParameter(
+        ovt::params::oscParamId(suffix.toRawUTF8(), channel));
+    return param != nullptr ? param->getValue() : -1.0f;
+  };
+
+  // ---- which parameters a copy holds ---------------------------------------
+  {
+    juce::String suffix;
+
+    check(cc::isCopied("h01_attack", suffix) && suffix == "attack" &&
+              cc::isCopied("h32_pan", suffix) && suffix == "pan",
+          "a partial's own settings are copied");
+    check(!cc::isCopied("h01_mute", suffix) &&
+              !cc::isCopied("h01_solo", suffix),
+          "its mute and solo are not");
+    check(!cc::isCopied("noise_attack", suffix) &&
+              !cc::isCopied("macro1_amount", suffix) &&
+              !cc::isCopied("hx1_attack", suffix) &&
+              !cc::isCopied("h01", suffix),
+          "nor is anything that is not a partial's");
+  }
+
+  ovt::presets::apply(apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+
+  // Every setting of channel 3 moved off its default, each to its own value.
+  int onChannel = 0;
+  int step = 0;
+
+  for (auto *base : p.getParameters()) {
+    auto *param = dynamic_cast<juce::RangedAudioParameter *>(base);
+    juce::String suffix;
+
+    if (param == nullptr || !param->getParameterID().startsWith("h03_"))
+      continue;
+
+    ++onChannel;
+
+    if (!cc::isCopied(param->getParameterID(), suffix))
+      continue;
+
+    const auto value = std::fmod(0.13f + 0.37f * (float)++step, 1.0f);
+    param->setValueNotifyingHost(value);
+  }
+
+  if (auto *mute = apvts.getParameter("h03_mute"))
+    mute->setValueNotifyingHost(1.0f);
+
+  // The pitch shape a plain shape, and the amplitude shape following the
+  // channel itself, which is feedback. The partials follow the shapes in the
+  // list and the noise channel follows them.
+  auto *pitchShape = apvts.getParameter("h03_pmShape");
+  auto *ampShape = apvts.getParameter("h03_amShape");
+  const auto lastOf = [](juce::RangedAudioParameter *param) {
+    return juce::roundToInt(param->getNormalisableRange().end);
+  };
+  const auto selfOn = [&lastOf](juce::RangedAudioParameter *param,
+                                int channel) {
+    return lastOf(param) - (ovt::kNumHarmonics - channel);
+  };
+
+  pitchShape->setValueNotifyingHost(pitchShape->convertTo0to1(1.0f));
+  ampShape->setValueNotifyingHost(
+      ampShape->convertTo0to1((float)selfOn(ampShape, 2)));
+
+  check(ovt::params::ampSourcePartial(juce::roundToInt(
+            ampShape->convertFrom0to1(ampShape->getValue()))) == 2,
+        "channel 3's amplitude shape follows channel 3");
+
+  undo.clearUndoHistory();
+
+  const auto copied = cc::read(apvts, 2);
+
+  check((int)copied.size() == onChannel - 2 && copied.count("mute") == 0 &&
+            copied.count("solo") == 0,
+        "a copy holds every setting of the channel but mute and solo (" +
+            std::to_string(copied.size()) + " of " + std::to_string(onChannel) +
+            ")");
+
+  // ---- the text it travels as ----------------------------------------------
+  const auto text = cc::toText(copied);
+  const auto read = cc::fromText(text);
+
+  bool same = read.has_value() && read->size() == copied.size();
+
+  if (same)
+    for (const auto &[suffix, value] : copied)
+      same = same && read->count(suffix) == 1 &&
+             std::abs(read->at(suffix) - value) <= 0.0f;
+
+  check(same, "the text reads back to exactly the same values");
+
+  check(copied.count("amShape") == 1 && copied.at("amShape") < 0.0f &&
+            copied.count("pmShape") == 1 && copied.at("pmShape") > 0.5f,
+        "following itself is copied as itself, and a plain shape as itself");
+
+  check(!text.containsChar(',') && !text.containsChar('\n'),
+        "on one line, with points and not commas for decimals");
+
+  for (const auto *bad :
+       {"", "hello", "<Other attack=\"1\"/>", "<OvertoniumChannel/>",
+        "<OvertoniumChannel attack=\"abc\"/>",
+        "<OvertoniumChannel attack=\"1\""})
+    check(!cc::fromText(bad).has_value(),
+          std::string("\"") + bad + "\" is not a copy");
+
+  // ---- a paste --------------------------------------------------------------
+  auto base = openEditor(p);
+  auto *editor = base.get();
+
+  check(editor != nullptr, "the editor opens to paste with");
+  if (editor == nullptr)
+    return;
+
+  // Every setting the same as channel 3's, and the amplitude shape following
+  // the channel itself, as channel 3's follows channel 3.
+  const auto matches = [&](int channel) {
+    for (const auto &[suffix, value] : copied)
+      if (suffix != "amShape" && std::abs(normalised(suffix, channel) -
+                                          normalised(suffix, 2)) > 1.0e-6f)
+        return false;
+
+    auto *shape = apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::amShapeSuffix, channel));
+
+    return juce::roundToInt(shape->convertFrom0to1(shape->getValue())) ==
+           selfOn(shape, channel);
+  };
+
+  auto fresh = std::make_unique<OvertoniumProcessor>();
+  ovt::presets::apply(fresh->apvts, presetIndex("Init"));
+
+  const auto atInit = [&](int channel) {
+    for (const auto &[suffix, value] : copied) {
+      auto *param = fresh->apvts.getParameter(
+          ovt::params::oscParamId(suffix.toRawUTF8(), channel));
+
+      if (param == nullptr ||
+          std::abs(normalised(suffix, channel) - param->getValue()) > 1.0e-6f)
+        return false;
+    }
+
+    return true;
+  };
+
+  check(!matches(5) && atInit(5), "channel 6 starts out different");
+
+  editor->pasteChannel(*read, 5, false);
+
+  check(matches(5), "pasting sets channel 6 to channel 3");
+  check(normalised("mute", 5) < 0.5f, "and leaves its mute as it was");
+  check(atInit(4) && atInit(6), "and does not touch the channels beside it");
+
+  check(undo.undo() && atInit(5), "one undo takes the whole paste back");
+  check(!undo.canUndo(), "which was one step");
+
+  // Pasting onto a channel that already matches makes no second step.
+  editor->pasteChannel(*read, 5, false);
+  editor->pasteChannel(*read, 5, false);
+
+  check(undo.undo() && atInit(5) && !undo.canUndo(),
+        "pasting the same copy twice is one step");
+
+  // ---- to the selected channels -------------------------------------------
+  auto *target = dynamic_cast<ovt::ui::LinkTarget *>(editor);
+
+  check(target != nullptr, "the editor takes selections");
+  if (target == nullptr)
+    return;
+
+  for (const auto channel : {10, 12}) {
+    target->selectionStarted(channel, {});
+    target->selectionEnded();
+  }
+
+  editor->pasteChannel(*read, 0, true);
+
+  check(matches(10) && matches(12), "pasting to the selection sets both");
+  check(atInit(11) && atInit(0),
+        "and neither the channel between them nor the one clicked");
+  check(undo.undo() && atInit(10) && atInit(12) && !undo.canUndo(),
+        "and one undo takes both back");
+
+  // Unpicked again, for whatever runs next.
+  for (const auto channel : {10, 12}) {
+    target->selectionStarted(channel, {});
+    target->selectionEnded();
+  }
+
+  // ---- a copy from another version ----------------------------------------
+  {
+    auto *attack = apvts.getParameter(
+        ovt::params::oscParamId(ovt::params::attackSuffix, 7));
+    const auto top = attack->getNormalisableRange().end;
+
+    const cc::Settings odd{
+        {"attack", top * 1000.0f}, {"mute", 1.0f}, {"somethingNew", 3.0f}};
+    const auto moves = cc::movesFor(apvts, odd, 7);
+
+    check(moves.size() == 1 && moves[0].first == attack &&
+              moves[0].second >= 1.0f - 1.0e-6f,
+          "a copy sets only the settings it holds and the channel has, past "
+          "the range set to its end, and never mute");
+  }
+
+  // ---- the menu, as data ---------------------------------------------------
+  {
+    namespace cm = ovt::ui::channelmenu;
+
+    const auto items = [](const cm::Offer &offer) {
+      juce::PopupMenu menu;
+      cm::appendItems(menu, offer);
+      std::string out;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+        const auto &item = it.getItem();
+
+        if (item.itemID != 0)
+          out += item.text.toStdString() +
+                 (item.isEnabled ? " (on); " : " (off); ");
+      }
+
+      return out;
+    };
+
+    cm::Offer nothing;
+    nothing.channel = 4;
+    nothing.hasSelection = true;
+
+    check(items(nothing) == "Copy channel 5 (on); Paste to channel 5 (off); "
+                            "Paste to selected channels (off); ",
+          "with nothing copied, only Copy is offered (" + items(nothing) + ")");
+
+    cm::Offer copiedOne;
+    copiedOne.channel = 4;
+    copiedOne.canPaste = true;
+
+    check(items(copiedOne) == "Copy channel 5 (on); Paste to channel 5 (on); "
+                              "Paste to selected channels (off); ",
+          "with a copy and no selection, paste to the channel only (" +
+              items(copiedOne) + ")");
+  }
+
+  ovt::presets::apply(apvts, presetIndex("Init"));
+  undo.clearUndoHistory();
+}
+
 /// What the Custom zoom box makes of what is typed into it.
 void testZoomFromText() {
   section("The custom zoom reads what is typed");
@@ -14934,6 +15230,7 @@ int main(int argc, char **argv) {
   testUndo(processor);
   testAutomationLeavesNoHistory(processor);
   testUndoGrouping(processor);
+  testChannelCopyAndPaste(processor);
   testCharacterControl(processor);
   testStandaloneWindow(processor);
   testBusLayouts(processor);

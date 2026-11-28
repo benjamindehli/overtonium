@@ -1,6 +1,6 @@
 Page: Overtonium controls: every knob on a channel strip
 URL: https://benjamindehli.github.io/overtonium/controls/
-Last changed: 2026-11-15
+Last changed: 2026-11-28
 
 # Overtonium controls
 
@@ -168,6 +168,8 @@ LINK gangs the 32 partials only. The noise channel has no tuning, pitch modulati
 **Hovering over a strip** shows the partial it belongs to: the harmonic number, the interval that harmonic makes with the fundamental, how many semitones above the played note its tempered position is, and how far the exact ratio is from that in cents. It is that channel's row in [the table of the series](https://benjamindehli.github.io/overtonium/tuning/), shown in the mixer. The mute and solo buttons show which harmonic they would silence.
 
 **Right-clicking anywhere in the mixer** opens the LINK menu. On the mute and solo buttons, a right-click offers to mute or solo only that channel, or to clear every mute or every solo at once, instead.
+
+**Right-clicking a channel's number** adds Copy and Paste for that channel at the top of the menu. A copy holds every setting on the strip except mute and solo, and Paste sets another channel to it in one step to undo. With channels picked, Paste to selected channels sets all of them at once. A channel that modulates itself is copied as feedback, so it pastes as feedback on the new channel. The copy goes on the clipboard as text, so it pastes into another Overtonium too. The noise channel has different controls and cannot be copied or pasted to.
 
 **Option-click or Alt-click** on M or S mutes or solos only that channel, and turns the switch off on every other channel, the noise channel included. Doing it again on the channel that is already alone turns it off, so the same click goes in and out of hearing one partial. Either way it is a single step to undo.
 

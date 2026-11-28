@@ -2,6 +2,7 @@
 #include "UI/LearnMenu.h"
 #include "UI/SettingsMenus.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "Presets.h"
@@ -1689,6 +1690,67 @@ void OvertoniumEditor::showMacroMenu(int macro) {
 
 void OvertoniumEditor::showLinkMenu(const juce::String &parameterId) {
   topBar.showLinkMenu(nullptr, parameterId, &plugin().midiLearn, currentTool());
+}
+
+void OvertoniumEditor::showChannelMenu(int channel) {
+  ui::channelmenu::Offer offer;
+  offer.channel = channel;
+  offer.canPaste =
+      channelcopy::fromText(juce::SystemClipboard::getTextFromClipboard())
+          .has_value();
+  offer.hasSelection =
+      std::find(selection.begin(), selection.end(), true) != selection.end();
+
+  // A SafePointer, since the menu can outlive the window.
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
+  offer.choose = [self, channel](int choice) {
+    if (self != nullptr)
+      self->chooseChannelItem(channel, choice);
+  };
+
+  topBar.showLinkMenu(nullptr, {}, &plugin().midiLearn, currentTool(), &offer);
+}
+
+void OvertoniumEditor::chooseChannelItem(int channel, int choice) {
+  auto &apvts = plugin().apvts;
+
+  if (choice == ui::channelmenu::kCopy) {
+    juce::SystemClipboard::copyTextToClipboard(
+        channelcopy::toText(channelcopy::read(apvts, channel)));
+    return;
+  }
+
+  // Read again rather than kept from when the menu opened, since the
+  // clipboard may have changed while it was open.
+  const auto copied =
+      channelcopy::fromText(juce::SystemClipboard::getTextFromClipboard());
+
+  if (copied.has_value())
+    pasteChannel(*copied, channel, choice == ui::channelmenu::kPasteSelected);
+}
+
+void OvertoniumEditor::pasteChannel(const channelcopy::Settings &copied,
+                                    int channel, bool toSelection) {
+  auto &apvts = plugin().apvts;
+  std::vector<params::Move> moves;
+
+  for (int i = 0; i < kNumHarmonics; ++i) {
+    if (toSelection ? !selection[(size_t)i] : i != channel)
+      continue;
+
+    for (const auto &move : channelcopy::movesFor(apvts, copied, i))
+      moves.push_back(move);
+  }
+
+  if (moves.empty())
+    return;
+
+  const auto name = toSelection
+                        ? juce::String("Paste to selected channels")
+                        : "Paste to channel " + juce::String(channel + 1);
+
+  plugin().recordEdit(name, [&moves] { params::moveAsOneStep(moves); });
 }
 
 void OvertoniumEditor::updateLinkCursor() {

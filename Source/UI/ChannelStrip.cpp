@@ -506,6 +506,13 @@ void ChannelStrip::mouseDown(const juce::MouseEvent &e) {
   if (echoOfTheSameClick)
     return;
 
+  // On the channel's number, the menu offers copy and paste for the channel.
+  if (headerCap.getBounds().contains(
+          e.getEventRelativeTo(this).getPosition())) {
+    link.showChannelMenu(index);
+    return;
+  }
+
   link.showLinkMenu(learn::parameterIdAt(e.originalComponent));
 }
 

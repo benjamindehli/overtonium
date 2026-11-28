@@ -483,6 +483,16 @@ struct LinkTarget {
   ///                     MIDI Learn items from this. See ui::learn.
   virtual void showLinkMenu(const juce::String &parameterId) = 0;
 
+  /// Pops the same menu for a right-click on a channel's number, with the
+  /// channel's copy and paste at the top. Without them where nothing offers
+  /// copy and paste.
+  ///
+  /// @param channel  0 to kNumHarmonics - 1
+  virtual void showChannelMenu(int channel) {
+    juce::ignoreUnused(channel);
+    showLinkMenu({});
+  }
+
   /// A wheel over a column, which scrolls the parameters. Through the editor
   /// because every column and the gutter must scroll together.
   ///

@@ -11,6 +11,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../MidiLearn.h"
+#include "ChannelMenu.h"
 #include "ChannelStrip.h"
 #include "LookAndFeel.h"
 #include "Theme.h"
@@ -134,8 +135,11 @@ public:
   /// @param map           where a learned binding goes
   /// @param tool          the tool now chosen. No default, so callers cannot
   ///                      leave it out.
+  /// @param channel       copy and paste for the channel whose number was
+  ///                      right-clicked, put at the top, or nullptr.
   void showLinkMenu(juce::Component *anchor, const juce::String &parameterId,
-                    MidiLearn *map, PointerTool tool);
+                    MidiLearn *map, PointerTool tool,
+                    const channelmenu::Offer *channel = nullptr);
 
   /// The bar's height at this width, since it reflows onto further rows when
   /// the groups do not fit across one. Static because the editor needs it
