@@ -519,10 +519,20 @@ void TopBar::setMacroCount(int made) {
 
 void TopBar::showLinkMenu(juce::Component *anchor,
                           const juce::String &parameterId, MidiLearn *map,
-                          PointerTool tool) {
+                          PointerTool tool, const channelmenu::Offer *channel) {
   const LinkSettings settings{linkOn, scope, curve, hasSelection};
 
-  auto m = buildToolMenu(tool, settings);
+  juce::PopupMenu m;
+
+  // The channel's own items first, since the click was on its number.
+  if (channel != nullptr)
+    channelmenu::appendItems(m, *channel);
+
+  // Named, since the iterator keeps a reference to the menu it walks.
+  const auto toolMenu = buildToolMenu(tool, settings);
+
+  for (juce::PopupMenu::MenuItemIterator it(toolMenu); it.next();)
+    m.addItem(it.getItem());
 
   // MIDI Learn items are added to the end of the LINK menu.
   auto *parameter = dynamic_cast<juce::RangedAudioParameter *>(
@@ -553,8 +563,14 @@ void TopBar::showLinkMenu(juce::Component *anchor,
   // and closing the window dismisses it with a call to this.
   juce::Component::SafePointer<TopBar> self(this);
 
-  m.showMenuAsync(options, [self, settings, map, parameter](int result) {
+  // Copied, since the offer the caller made does not outlive this call.
+  const auto offer = channel != nullptr ? *channel : channelmenu::Offer{};
+
+  m.showMenuAsync(options, [self, settings, map, parameter, offer](int result) {
     if (self == nullptr || result == 0)
+      return;
+
+    if (channelmenu::applyChoice(result, offer))
       return;
 
     if (map != nullptr && learn::applyChoice(result, *map, parameter))
