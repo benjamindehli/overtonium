@@ -420,6 +420,14 @@ PlayingBar::PlayingBar(juce::AudioProcessorValueTreeState &state,
   wheelNeedle.setTitle("Mod wheel");
   pressureNeedle.setTitle("Pressure");
 
+  // Read from what the needles show, when a screen reader asks.
+  bendNeedle.setValueText([this] {
+    return bendText(shown.bend,
+                    settings::choiceIndex(apvts, params::bendRangeId));
+  });
+  wheelNeedle.setValueText([this] { return percentText(shown.wheel); });
+  pressureNeedle.setValueText([this] { return percentText(shown.pressure); });
+
   // The two pedals one above the other in one column, as tall as the group,
   // which leaves the bar on one row. See resized.
   addGroup({{&sustain, 80, {}, true},
@@ -517,6 +525,30 @@ void PlayingBar::resized() {
   sostenuto.setVisible(sustain.isVisible());
 
   pushNeedles();
+}
+
+juce::String PlayingBar::bendText(float bend, int range) {
+  const auto tenths =
+      juce::roundToInt(juce::jlimit(-1.0f, 1.0f, bend) * (float)range * 10.0f);
+
+  if (tenths == 0)
+    return "0 semitones";
+
+  // Whole semitones without a decimal.
+  const auto size = std::abs(tenths);
+  auto number = juce::String(size / 10);
+
+  if (size % 10 != 0)
+    number << "." << juce::String(size % 10);
+
+  return (tenths > 0 ? "+" : "-") + number +
+         (size == 10 ? " semitone" : " semitones");
+}
+
+juce::String PlayingBar::percentText(float amount) {
+  return juce::String(
+             juce::roundToInt(juce::jlimit(0.0f, 1.0f, amount) * 100.0f)) +
+         "%";
 }
 
 void PlayingBar::pushNeedles() {

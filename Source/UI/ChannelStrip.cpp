@@ -144,6 +144,36 @@ bool ActivityNeedle::push(float position) {
   return true;
 }
 
+std::unique_ptr<juce::AccessibilityHandler>
+ActivityNeedle::createAccessibilityHandler() {
+  if (valueText == nullptr)
+    return juce::Component::createAccessibilityHandler();
+
+  // Read only, since the needle shows a controller and not a setting. The
+  // value is asked for when a screen reader reads it, and no event is sent
+  // when the needle moves, so a moving controller does not talk over
+  // everything else.
+  struct Value final : juce::AccessibilityTextValueInterface {
+    explicit Value(const ActivityNeedle &needleIn) : needle(needleIn) {}
+
+    bool isReadOnly() const override { return true; }
+    juce::String getCurrentValueAsString() const override {
+      return needle.valueText != nullptr ? needle.valueText() : juce::String();
+    }
+    void setValueAsString(const juce::String &) override {}
+
+    const ActivityNeedle &needle;
+  };
+
+  // Static text, which a screen reader reads as it is. JUCE has no level
+  // indicator role, and a progress bar is wrong: JUCE hands it the value as
+  // text with no range, and VoiceOver reads a progress indicator without a
+  // range as "busy".
+  return std::make_unique<juce::AccessibilityHandler>(
+      *this, juce::AccessibilityRole::staticText, juce::AccessibilityActions(),
+      juce::AccessibilityHandler::Interfaces(std::make_unique<Value>(*this)));
+}
+
 void ActivityNeedle::showCentre(bool show) {
   if (show == centreMark)
     return;

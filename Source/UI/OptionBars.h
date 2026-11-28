@@ -177,6 +177,18 @@ public:
   const SegmentDisplay &inUseDisplay() const { return inUse; }
   const ScreenSwitch &sustainLamp() const { return sustain; }
   const ScreenSwitch &sostenutoLamp() const { return sostenuto; }
+  /// What a screen reader reads on PITCH: the bend in semitones with a sign,
+  /// to a tenth, such as "+1.5 semitones".
+  ///
+  /// @param bend   -1 to 1 against the BEND range
+  /// @param range  the BEND range in semitones
+  static juce::String bendText(float bend, int range);
+
+  /// What it reads on WHEEL and PRESSURE, such as "25%".
+  ///
+  /// @param amount  0 to 1
+  static juce::String percentText(float amount);
+
   const ActivityNeedle &bendMeter() const { return bendNeedle; }
   const ActivityNeedle &wheelMeter() const { return wheelNeedle; }
   const ActivityNeedle &pressureMeter() const { return pressureNeedle; }
