@@ -21,6 +21,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <vector>
 
 #include "ChannelCopy.h"
@@ -12031,6 +12032,134 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
     bar->onZoomChanged(1.0f);
 }
 
+/// That a screen reader can read PITCH, WHEEL and PRESSURE, and not only
+/// find them: each gives its value, read only, and the needles on the strips
+/// stay without one.
+void testPlayingMetersReadAloud(OvertoniumProcessor &p) {
+  section("The Playing bar's meters read aloud");
+
+  using ovt::ui::PlayingBar;
+
+  // ---- the words -----------------------------------------------------------
+  for (const auto &[bend, range, words] :
+       std::vector<std::tuple<float, int, std::string>>{
+           {0.0f, 2, "0 semitones"},
+           {0.5f, 2, "+1 semitone"},
+           {-0.5f, 2, "-1 semitone"},
+           {1.0f, 2, "+2 semitones"},
+           {0.37f, 12, "+4.4 semitones"},
+           {-1.0f, 24, "-24 semitones"},
+           {0.001f, 2, "0 semitones"},
+           {3.0f, 2, "+2 semitones"}})
+    check(PlayingBar::bendText(bend, range).toStdString() == words,
+          std::to_string(bend) + " of a " + std::to_string(range) +
+              " semitone range reads \"" + words + "\" (" +
+              PlayingBar::bendText(bend, range).toStdString() + ")");
+
+  for (const auto &[amount, words] : std::vector<std::pair<float, std::string>>{
+           {0.0f, "0%"}, {0.25f, "25%"}, {0.996f, "100%"}, {1.5f, "100%"}})
+    check(PlayingBar::percentText(amount).toStdString() == words,
+          std::to_string(amount) + " reads \"" + words + "\"");
+
+  // ---- on the bar ----------------------------------------------------------
+  p.applyFactoryPreset(presetIndex("Init"));
+
+  auto *range = p.apvts.getParameter(ovt::params::bendRangeId);
+  range->setValueNotifyingHost(range->convertTo0to1(12.0f));
+
+  auto base = openEditor(p);
+  auto *editor = base.get();
+
+  check(editor != nullptr, "the editor opens");
+  if (editor == nullptr)
+    return;
+
+  PlayingBar *bar = nullptr;
+  std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *b = dynamic_cast<PlayingBar *>(child))
+        bar = b;
+      look(*child);
+    }
+  };
+  look(*editor);
+
+  check(bar != nullptr, "there is a Playing bar");
+  if (bar == nullptr)
+    return;
+
+  ovt::ui::PlayingActivity activity;
+  activity.bend = 0.25f;
+  activity.wheel = 0.5f;
+  activity.pressure = 0.1f;
+  bar->showActivity(activity);
+
+  // Made here rather than asked of the component, since JUCE hands out a
+  // component's handler only once it is in a window.
+  const auto readOf = [](const ovt::ui::ActivityNeedle &needle) {
+    const auto handler = const_cast<ovt::ui::ActivityNeedle &>(needle)
+                             .createAccessibilityHandler();
+    auto *value = handler != nullptr ? handler->getValueInterface() : nullptr;
+
+    if (value == nullptr ||
+        handler->getRole() != juce::AccessibilityRole::staticText ||
+        !value->isReadOnly())
+      return std::string("(no read-only value)");
+
+    return handler->getTitle().toStdString() + ": " +
+           value->getCurrentValueAsString().toStdString();
+  };
+
+  const auto pitch = readOf(bar->bendMeter());
+  const auto wheel = readOf(bar->wheelMeter());
+  const auto pressure = readOf(bar->pressureMeter());
+
+  std::printf("  %s, %s, %s\n", pitch.c_str(), wheel.c_str(), pressure.c_str());
+
+  check(pitch == "Pitch bend: +3 semitones",
+        "PITCH reads a quarter of a 12 semitone bend as +3 (" + pitch + ")");
+  check(wheel == "Mod wheel: 50%" && pressure == "Pressure: 10%",
+        "WHEEL and PRESSURE read in percent (" + wheel + ", " + pressure + ")");
+
+  // Asked for when read, so it follows the controller and the range.
+  activity.bend = -1.0f;
+  bar->showActivity(activity);
+  range->setValueNotifyingHost(range->convertTo0to1(2.0f));
+
+  check(readOf(bar->bendMeter()) == "Pitch bend: -2 semitones",
+        "and reads again after the bend and the range change (" +
+            readOf(bar->bendMeter()) + ")");
+
+  // The needles on the strips have no value to read.
+  bool stripsQuiet = false;
+  std::function<void(juce::Component &)> findStrip = [&](juce::Component &c) {
+    for (auto *child : c.getChildren()) {
+      if (auto *strip = dynamic_cast<ovt::ui::ChannelStrip *>(child)) {
+        std::function<void(juce::Component &)> needles =
+            [&](juce::Component &inside) {
+              for (auto *n : inside.getChildren()) {
+                if (auto *needle = dynamic_cast<ovt::ui::ActivityNeedle *>(n)) {
+                  const auto handler = needle->createAccessibilityHandler();
+                  stripsQuiet = handler != nullptr &&
+                                handler->getValueInterface() == nullptr;
+                }
+                needles(*n);
+              }
+            };
+        needles(*strip);
+        return;
+      }
+      findStrip(*child);
+    }
+  };
+  findStrip(*editor);
+
+  check(stripsQuiet, "and the pitch needles on the strips have none");
+
+  bar->showActivity({});
+  p.applyFactoryPreset(presetIndex("Init"));
+}
+
 /// Copy and paste a channel: what a copy holds, the text it travels as, what a
 /// paste changes, and that a paste is one undo step. Driven below the
 /// clipboard, which needs a display. See ovt::channelcopy.
@@ -15189,6 +15318,7 @@ int main(int argc, char **argv) {
   testNoiseStringKnobs(processor);
   testPlayingReadouts(processor);
   testPlayingBar(processor);
+  testPlayingMetersReadAloud(processor);
   testBarRightClicks(processor);
   testTuningBar(processor);
   testAdaptiveReadouts(processor);

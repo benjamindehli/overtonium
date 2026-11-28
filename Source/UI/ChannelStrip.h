@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -84,9 +85,22 @@ public:
   /// Read back by the tests.
   int getColumn() const noexcept { return column; }
 
+  /// What a screen reader reads as the needle's value, such as "+2
+  /// semitones", asked for only when it reads it. A needle without one has no
+  /// value to read. Set before the window is shown, since the handler that
+  /// reads it is made once.
+  void setValueText(std::function<juce::String()> text) {
+    valueText = std::move(text);
+  }
+
   void paint(juce::Graphics &) override;
 
+  std::unique_ptr<juce::AccessibilityHandler>
+  createAccessibilityHandler() override;
+
 private:
+  std::function<juce::String()> valueText;
+
   /// Where the needle sits, in pixels from the left edge, or -1 for parked.
   /// Quantised to the pixel, so it only repaints when it moves a pixel.
   int column = -1;

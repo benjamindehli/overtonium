@@ -12,6 +12,8 @@ These are things that are checked, not just intended. Where a number appears, it
 
 **The readouts can be read without looking at them.** The tuning and level figures, the converter readouts and the displays in the Playing and Tuning bars are drawn as segment shapes, not written as text, so a screen reader finds nothing in them. Each one therefore has a separate spoken name and value. Replacing a plain label with a segment display has removed the name without any warning before, and the suite checks for that.
 
+**The Playing bar's meters give their value.** PITCH, WHEEL and PRESSURE show what a controller is doing, so there is no host parameter to read instead. Each one gives a screen reader its value when it reaches the meter: the pitch bend in semitones with a sign, such as "+1.5 semitones", and the wheel and pressure in percent. The value is read only, and nothing is announced while the needle moves, so a controller being played does not talk over everything else. The tests check the words for each meter.
+
 **Every control is a host parameter**, 884 parameters in all. This matters more than it sounds. A host's own generic editor is a plain list of named parameters with text fields, and it works with a keyboard and a screen reader in a way the plugin's own window does not. If you cannot use the mixer, the host's generic view is a complete alternative, not a reduced one. Nothing is hidden from it.
 
 **Colour is never the only way something important is shown.** Each channel shows its harmonic's number at the top of the strip as well as its interval colour, and its tuning in cents as a figure. The one exception is listed below.
@@ -29,8 +31,6 @@ These are described as what you would run into, not as standards codes.
 **The plugin's own window cannot be used with a keyboard.** Tab does not move between controls and there is no focus indicator, because nothing in the editor takes keyboard focus. The only keys it handles are undo and redo. Every control can be reached from the host's generic parameter view instead, and from MIDI Learn, but that is a way around the problem, not a fix. This is the largest barrier in the project, and it is not close to being solved.
 
 **Which macro controls a knob is shown only by colour.** A knob under a macro lights its ring in that macro's colour, and there is no second cue. On a channel that is muted or silenced by a solo the ring goes dark, so even the colour is gone there. If you cannot tell the eight colours apart, the macro panel lists which rows and channels each macro reaches, and the macro knobs in the Playing bar name the row each one targets. A knob in the mixer will not tell you.
-
-**The Playing bar's three meters give their name but not their value.** PITCH, WHEEL and PRESSURE have a spoken name and no value, so a screen reader can find them but cannot read them. They show what a controller is doing, not a setting, so there is no host parameter to read instead.
 
 **The window does not scale with the operating system's text size.** It has its own zoom, in the Settings menu, which scales the whole window, not only the text.
 
