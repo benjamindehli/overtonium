@@ -144,6 +144,7 @@ set(OVERTONIUM_SOURCES
     Source/Presets.cpp
     Source/MidiLearn.cpp
     Source/ChannelCopy.cpp
+    Source/Scala.cpp
     Source/UI/MacroPanel.cpp
     Source/UpdateCheck.cpp
     Source/UI/ChannelStrip.cpp

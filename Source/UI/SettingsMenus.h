@@ -22,6 +22,7 @@ enum Id : int {
   kAdaptiveHome = 307,
   kAftertouchFrom = 600,
   kTemperament = 900,
+  kLoadScala = 950,
   kRoot = 1000,
   kReferencePitch = 1100,
   kSlideTo = 1200,
@@ -41,7 +42,16 @@ juce::PopupMenu aftertouchFrom(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu slideTo(juce::AudioProcessorValueTreeState &);
 
 /// The temperaments, the root they are built on, and the reference pitch.
-juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &);
+///
+/// The temperament list ends with the session's Scala file, by name, when it
+/// holds one, and with "Load Scala file...", which apply leaves to the caller,
+/// since it opens a file chooser.
+///
+/// @param scaleName  the session's Scala file, empty when it holds none
+/// @param canLoad    whether the caller can open a file chooser
+juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &,
+                            const juce::String &scaleName = {},
+                            bool canLoad = false);
 juce::PopupMenu root(juce::AudioProcessorValueTreeState &);
 juce::PopupMenu referencePitch(juce::AudioProcessorValueTreeState &);
 

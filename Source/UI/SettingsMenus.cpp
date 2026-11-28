@@ -13,18 +13,19 @@ namespace {
 /// The common semitone counts, rather than all 25.
 constexpr int kBendChoices[] = {0, 1, 2, 3, 4, 5, 7, 12, 24};
 
-/// The order the menu lists the temperaments in: equal and just first, the
-/// historical ones by age, and Adaptive last. The parameter keeps its own
-/// order, so saved sessions do not change.
+/// The order the menu lists the built-in temperaments in: equal and just
+/// first, the historical ones by age, and Adaptive last. The parameter keeps
+/// its own order, so saved sessions do not change. Scala comes after them, by
+/// the name of its file.
 constexpr Temperament kTemperamentOrder[] = {
     Temperament::Equal,         Temperament::Just,
     Temperament::Pythagorean,   Temperament::QuarterComma,
     Temperament::Werckmeister3, Temperament::Vallotti,
     Temperament::KirnbergerIII, Temperament::Young,
     Temperament::Adaptive};
-static_assert(std::size(kTemperamentOrder) ==
+static_assert(std::size(kTemperamentOrder) + 1 ==
                   (size_t)Temperament::NumTemperaments,
-              "every temperament in the menu");
+              "every built-in temperament in the menu, and Scala after them");
 
 void choose(juce::AudioProcessorValueTreeState &apvts, const char *id,
             int index) {
@@ -120,14 +121,28 @@ juce::PopupMenu slideTo(juce::AudioProcessorValueTreeState &apvts) {
   return m;
 }
 
-juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &apvts) {
+juce::PopupMenu temperament(juce::AudioProcessorValueTreeState &apvts,
+                            const juce::String &scaleName, bool canLoad) {
   const auto current = choiceIndex(apvts, params::temperamentId);
+  const auto scala = (int)Temperament::Scala;
 
   juce::PopupMenu m;
 
   for (const auto t : kTemperamentOrder)
     m.addItem(kTemperament + (int)t, temperamentName(t), true,
               (int)t == current);
+
+  m.addSeparator();
+
+  // The file by name. Scala chosen with no file loaded, which automation or a
+  // session can do, plays equal temperament, and the item says so.
+  if (scaleName.isNotEmpty())
+    m.addItem(kTemperament + scala, "Scala: " + scaleName, true,
+              current == scala);
+  else if (current == scala)
+    m.addItem(kTemperament + scala, "Scala (no file loaded)", false, true);
+
+  m.addItem(kLoadScala, "Load Scala file...", canLoad);
 
   return m;
 }

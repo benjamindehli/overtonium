@@ -10,6 +10,7 @@
 
 #include "../PluginParameters.h"
 #include "../dsp/AdaptiveSnapshot.h"
+#include "../dsp/Temperament.h"
 #include "ChannelStrip.h"
 #include "LearnMenu.h"
 #include "Theme.h"
@@ -57,6 +58,10 @@ public:
   /// housekeeping tick while the bar is open, since a host, a preset or the
   /// Settings menu can move any of them.
   virtual void refresh() = 0;
+
+  /// Opens a file chooser for a Scala file, for "Load Scala file..." in a
+  /// temperament list. Set by the editor. Without it the item is greyed out.
+  std::function<void()> onLoadScale;
 
 private:
   /// The bar less its margins, where the rows go.
@@ -303,6 +308,12 @@ public:
   /// The word the temperament display shows for each temperament, in their
   /// order, sized for its eight cells.
   static const char *temperamentWord(int index);
+
+  /// The session's Scala file: its name, empty when none, and the tuning it
+  /// holds. Set by the editor. Without them the bar shows no file, and Scala
+  /// as equal temperament.
+  std::function<juce::String()> scaleName;
+  std::function<ScaleTable()> scaleTable;
 
 private:
   juce::AudioProcessorValueTreeState &apvts;

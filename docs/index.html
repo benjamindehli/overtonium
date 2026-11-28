@@ -88,7 +88,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-17",
+                "dateModified": "2026-11-28",
                 "mainEntity": {
                     "@id": "https://www.dehlimusikk.no/products/overtonium/#product"
                 }
@@ -153,7 +153,7 @@
                     "Twelve oscillator characters: an exact sine, five analogue circuits, and six measured from recordings of real instruments, a tonewheel organ, an FM and a phase distortion synthesizer, a 6581 sound chip, an analogue VCO and a transistor combo organ",
                     "A Karplus-Strong string in the noise channel, tuned to the note, that the noise plucks or blows into",
                     "Continuous blend between equal temperament and just intonation",
-                    "Nine keyboard temperaments on any root, one of them adaptive",
+                    "Nine keyboard temperaments on any root, one of them adaptive, and tunings loaded from Scala files",
                     "Inharmonic stretch and keyboard tracking",
                     "Per-partial envelope, tremolo, pitch modulation and pan",
                     "MPE, with pitch bend and pressure per note",
@@ -201,7 +201,7 @@
                         "name": "Can Overtonium do microtonal tunings and just intonation?",
                         "acceptedAnswer": {
                             "@type": "Answer",
-                            "text": "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use Adaptive, which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it."
+                            "text": "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use Adaptive, which keeps the chord you hold in just intonation as you play, and moves a held note when the next chord needs it, or any Scala file of twelve notes."
                         }
                     },
                     {
@@ -606,8 +606,8 @@
                             <a href="tuning/"
                                 ><strong>Tuning</strong
                                 ><span
-                                    >TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum
-                                    thins out higher up the keyboard.</span
+                                    >TUNE, inharmonic stretch, eight historical temperaments, an adaptive one and Scala files on any root, and how the
+                                    spectrum thins out higher up the keyboard.</span
                                 ></a
                             >
                         </li>
@@ -669,7 +669,7 @@
                             whole-number ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III,
                             Vallotti, Kirnberger III or Young, on any root, at any of eleven reference pitches from 415 to 466 Hz. It can also use
                             <a href="tuning/#adaptive">Adaptive</a>, which keeps the chord you hold in just intonation as you play, and moves a held
-                            note when the next chord needs it.
+                            note when the next chord needs it, or any <a href="tuning/#scala">Scala file</a> of twelve notes.
                         </dd>
                         <dt>Does Overtonium support MPE?</dt>
                         <dd>

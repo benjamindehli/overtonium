@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "Presets.h"
+#include "Scala.h"
 #include "UI/Theme.h"
 #include "UpdateCheck.h"
 
@@ -534,6 +535,14 @@ OvertoniumEditor::OvertoniumEditor(OvertoniumProcessor &p)
   };
 
   topBar.onZoomChanged = [this](float z) { setZoom(z); };
+
+  // The Scala file the session holds, for both temperament lists, the Tuning
+  // bar's readouts, and loading another.
+  topBar.scaleName = [this] { return plugin().scaleName(); };
+  tuningBar.scaleName = [this] { return plugin().scaleName(); };
+  tuningBar.scaleTable = [this] { return plugin().scaleTable(); };
+  topBar.onLoadScale = [this] { chooseScaleFile(); };
+  tuningBar.onLoadScale = [this] { chooseScaleFile(); };
   topBar.onFitAllChannels = [this] { fitAllChannels(); };
 
   topBar.onUndo = [this] { stepHistory(false); };
@@ -1224,6 +1233,50 @@ void OvertoniumEditor::applyPreset(int index) {
   // since a person chose it. A program change from MIDI is not recorded.
   plugin().recordEdit("Load preset",
                       [this, index] { plugin().applyFactoryPreset(index); });
+}
+
+void OvertoniumEditor::chooseScaleFile() {
+  scaleChooser = std::make_unique<juce::FileChooser>("Load a Scala file",
+                                                     juce::File(), "*.scl");
+
+  // A SafePointer, since the window can close while the chooser is open.
+  juce::Component::SafePointer<OvertoniumEditor> self(this);
+
+  scaleChooser->launchAsync(juce::FileBrowserComponent::openMode |
+                                juce::FileBrowserComponent::canSelectFiles,
+                            [self](const juce::FileChooser &chooser) {
+                              if (self == nullptr)
+                                return;
+
+                              const auto file = chooser.getResult();
+
+                              if (file == juce::File())
+                                return;
+
+                              const auto error = self->loadScaleFile(file);
+
+                              if (error.isNotEmpty())
+                                self->complain("Could not load that Scala file",
+                                               error);
+                            });
+}
+
+juce::String OvertoniumEditor::loadScaleFile(const juce::File &file) {
+  if (!file.existsAsFile())
+    return file.getFileName() + " cannot be found.";
+
+  if (file.getSize() > ovt::scala::kMaxFileBytes)
+    return file.getFileName() + " is too large to be a Scala file.";
+
+  const auto error = plugin().loadScale(file.loadFileAsString(),
+                                        file.getFileNameWithoutExtension());
+
+  // Whether or not the temperament moved, the table did, so the readouts are
+  // worked out again.
+  if (error.isEmpty())
+    tuningBar.refresh();
+
+  return error;
 }
 
 void OvertoniumEditor::complain(const juce::String &title,

@@ -359,10 +359,11 @@ void Voice::noteOn(int channel, int note, float velocity, const SynthParams &p,
   midiChannel = channel;
   retuneSemis = 0.0;
   retuneStep = 0.0;
-  baseFreq = frequency > 0.0
-                 ? frequency
-                 : noteFrequency(note, p.global.temperament,
-                                 p.global.tuningRoot, p.global.referenceHz);
+  baseFreq =
+      frequency > 0.0
+          ? frequency
+          : noteFrequency(note, p.global.temperament, p.global.tuningRoot,
+                          p.global.referenceHz, &p.global.scale);
 
   const float vel = std::clamp(velocity, 0.0f, 1.0f);
 

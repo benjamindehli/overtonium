@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "Scala.h"
 
 #include <utility>
 #include <vector>
@@ -785,6 +786,43 @@ static juce::Identifier macroChannelsProperty(int macro) {
                           "Channels");
 }
 
+juce::String OvertoniumProcessor::loadScale(const juce::String &text,
+                                            const juce::String &name) {
+  const auto reading = ovt::scala::read(text);
+
+  if (!reading.table.has_value())
+    return reading.error;
+
+  {
+    const juce::ScopedLock sl(sessionLock);
+    scaleText = text;
+    scaleNameHeld = name.isNotEmpty() ? name : juce::String("Scala file");
+  }
+
+  paramCache.publishScale(*reading.table);
+
+  // The switch is the undoable part. The file stays loaded, as a temperament
+  // stays chosen in the list, so undo goes back to the temperament before it.
+  recordEdit("Load Scala file", [this] {
+    auto *temperament = apvts.getParameter(ovt::params::temperamentId);
+    ovt::params::setAsOneStep(
+        temperament,
+        temperament->convertTo0to1((float)(int)ovt::Temperament::Scala));
+  });
+
+  return {};
+}
+
+ovt::ScaleTable OvertoniumProcessor::scaleTable() const {
+  ovt::ScaleTable table;
+
+  for (size_t i = 0; i < table.cents.size(); ++i)
+    table.cents[i] = paramCache.scaleCents[i].load();
+  table.periodCents = paramCache.scalePeriod.load();
+
+  return table;
+}
+
 void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
   // Held across the copy and the two session properties only. The editor
   // writes onto this tree from the message thread and a host may call this
@@ -795,6 +833,16 @@ void OvertoniumProcessor::getStateInformation(juce::MemoryBlock &destData) {
     auto copy = apvts.copyState();
     copy.setProperty(kCurrentProgramProperty, currentProgram.load(), nullptr);
     copy.setProperty(kPresetNameProperty, loadedPresetName, nullptr);
+
+    // Cleared when there is none, since a restored tree may still carry one.
+    if (scaleText.isNotEmpty()) {
+      copy.setProperty(ovt::scala::kTextProperty, scaleText, nullptr);
+      copy.setProperty(ovt::scala::kNameProperty, scaleNameHeld, nullptr);
+    } else {
+      copy.removeProperty(ovt::scala::kTextProperty, nullptr);
+      copy.removeProperty(ovt::scala::kNameProperty, nullptr);
+    }
+
     return copy;
   }();
 
@@ -862,6 +910,14 @@ void OvertoniumProcessor::setStateInformation(const void *data,
 
         loadedPresetName =
             tree.getProperty(kPresetNameProperty, juce::String());
+
+        // A session from before Scala files, or without one, holds none.
+        scaleText = tree.getProperty(ovt::scala::kTextProperty).toString();
+        scaleNameHeld =
+            scaleText.isNotEmpty()
+                ? tree.getProperty(ovt::scala::kNameProperty).toString()
+                : juce::String();
+        paramCache.publishScale(ovt::scala::tableIn(tree));
 
         // The program is found by name first, since adding a factory preset
         // shifts the indices of the ones after it. A name that is not a factory

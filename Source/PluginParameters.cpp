@@ -1345,7 +1345,18 @@ static_assert(std::size(kNoiseRows) ==
               "a noise parameter is missing from kNoiseRows");
 } // namespace
 
+void Cache::publishScale(const ScaleTable &table) {
+  for (size_t i = 0; i < scaleCents.size(); ++i)
+    scaleCents[i].store(table.cents[i]);
+
+  scalePeriod.store(table.periodCents);
+}
+
 void Cache::connect(juce::AudioProcessorValueTreeState &apvts) {
+  // Equal temperament until a file is loaded, rather than every note on the
+  // root.
+  publishScale(ScaleTable{});
+
   masterGain = apvts.getRawParameterValue(masterGainId);
   polyphony = apvts.getRawParameterValue(polyphonyId);
   oneVoicePerKey = apvts.getRawParameterValue(oneVoicePerKeyId);
@@ -1852,6 +1863,10 @@ void Cache::snapshot(SynthParams &out, float bendNormalised) const {
 
     out.global.referenceHz = (double)kReferenceHzChoices[(size_t)pick(
         referenceHz, (int)kReferenceHzChoices.size())];
+
+    for (size_t i = 0; i < scaleCents.size(); ++i)
+      out.global.scale.cents[i] = scaleCents[i].load();
+    out.global.scale.periodCents = scalePeriod.load();
 
     out.global.adaptiveRetuneSeconds = (double)juce::jlimit(
         0.0f, kMaxAdaptiveRetuneSeconds, adaptiveRetune->load());

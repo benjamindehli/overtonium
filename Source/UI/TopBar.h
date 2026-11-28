@@ -73,6 +73,11 @@ public:
   std::function<void()> onCopyFactoryCode;
   std::function<void(float)> onZoomChanged;
 
+  /// The session's Scala file, by name, for the Temperament list, and what
+  /// "Load Scala file..." there does. Set by the editor.
+  std::function<juce::String()> scaleName;
+  std::function<void()> onLoadScale;
+
   /// Sets the window back to the size that shows the whole mixer.
   std::function<void()> onFitAllChannels;
 
