@@ -29,6 +29,7 @@
 #include "PluginParameters.h"
 #include "PluginProcessor.h"
 #include "Presets.h"
+#include "Scala.h"
 #include "UI/ChannelMenu.h"
 #include "UI/ChannelStrip.h"
 #include "UI/GlideMenu.h"
@@ -206,7 +207,7 @@ void testChoiceParameterCounts(OvertoniumProcessor &p) {
   // from the same constant the parameter is built from would check nothing.
   const List globals[] = {
       {ovt::params::polyphonyId, 8},    {ovt::params::characterId, 12},
-      {ovt::params::temperamentId, 9},  {ovt::params::tuningRootId, 12},
+      {ovt::params::temperamentId, 10}, {ovt::params::tuningRootId, 12},
       {ovt::params::referenceHzId, 11}, {ovt::params::atSourceId, 3},
       {ovt::params::slideDestId, 3},    {ovt::params::lofiRateId, 8},
       {ovt::params::lofiBitsId, 9},     {ovt::params::echoTypeId, 3},
@@ -7296,9 +7297,9 @@ void testSettingsMenu(OvertoniumProcessor &p) {
     check(joined(temperaments) ==
               "Equal / Just (major) / Pythagorean / Quarter-comma meantone / "
               "Werckmeister III / Vallotti / Kirnberger III / Young / "
-              "Adaptive / ",
-          "the Temperament menu lists the fixed ones by age and ends with "
-          "Adaptive (" +
+              "Adaptive /  / Load Scala file... / ",
+          "the Temperament menu lists the fixed ones by age, then Adaptive, "
+          "then Load Scala file (" +
               joined(temperaments) + ")");
 
     if (auto *t = p.apvts.getParameter(ovt::params::temperamentId)) {
@@ -9528,9 +9529,17 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
          {st::voices(apvts), st::bendRange(apvts), st::aftertouchFrom(apvts),
           st::slideTo(apvts), st::temperament(apvts), st::root(apvts),
           st::referencePitch(apvts), st::retune(apvts)})
-      for (juce::PopupMenu::MenuItemIterator it(list); it.next();)
-        all &= st::apply(apvts, it.getItem().itemID);
+      for (juce::PopupMenu::MenuItemIterator it(list); it.next();) {
+        const auto id = it.getItem().itemID;
+
+        // A separator is no item, and loading a Scala file opens a chooser,
+        // which the caller does.
+        if (id != 0 && id != st::kLoadScala)
+          all &= st::apply(apvts, id);
+      }
     check(all, "every item in every shared list is carried out");
+    check(!st::apply(apvts, st::kLoadScala),
+          "and Load Scala file is left to the caller");
   }
 
   // Retune is a time, and its two named settings set it to theirs, each ticked
@@ -9601,7 +9610,7 @@ void testSharedSettingsChoices(OvertoniumProcessor &p) {
 
   check(!st::apply(apvts, 700) && !st::apply(apvts, 800) &&
             !st::apply(apvts, 810) && !st::apply(apvts, 820) &&
-            !st::apply(apvts, st::kTemperament + 9) &&
+            !st::apply(apvts, st::kTemperament + 10) &&
             !st::apply(apvts, st::kVoices),
         "undo, zoom, custom zoom, Fit all 32 channels and ids past a list are "
         "left to the menu");
@@ -12030,6 +12039,398 @@ void testZoomTickFollowsTheZoom(OvertoniumProcessor &p) {
   // Back to 100% for whatever runs next, since the zoom is kept in the state.
   if (bar != nullptr)
     bar->onZoomChanged(1.0f);
+}
+
+/// Scala files: reading them, what they tune, and that the tuning belongs to
+/// the session and not to a preset. See ovt::scala.
+void testScalaFiles(OvertoniumProcessor &p) {
+  section("Scala files");
+
+  using ovt::ScaleTable;
+  using ovt::Temperament;
+  namespace st = ovt::ui::settings;
+
+  // A Scala file of twelve notes in cents, from a table.
+  const auto fileOf = [](const ScaleTable &table, const juce::String &title) {
+    juce::String text = "! " + title + ".scl\n!\n" + title + "\n 12\n!\n";
+
+    for (size_t i = 1; i < 12; ++i)
+      text << " " << juce::String(table.cents[i], 9) << "\n";
+
+    text << " " << juce::String(table.periodCents, 9) << "\n";
+    return text;
+  };
+
+  const auto near = [](double a, double b, double tolerance) {
+    return std::abs(a - b) <= tolerance * std::max(1.0, std::abs(b));
+  };
+
+  // ---- reading -------------------------------------------------------------
+  const auto equalText = juce::String(
+      "! equal.scl\n!\n12 tone equal temperament\n 12\n!\n 100.0\n 200.0\n"
+      " 300.0\n 400.0\n 500.0\n 600.0\n 700.0\n 800.0\n 900.0\n 1000.0\n"
+      " 1100.0\n 2/1\n");
+
+  {
+    const auto reading = ovt::scala::read(equalText);
+    bool equal = reading.table.has_value();
+
+    if (equal)
+      for (size_t i = 0; i < 12; ++i)
+        equal = equal && near(reading.table->cents[i], 100.0 * (double)i, 0.0);
+
+    check(equal && near(reading.table->periodCents, 1200.0, 1.0e-12),
+          "a file of twelve equal steps reads as equal temperament");
+  }
+
+  {
+    const auto reading = ovt::scala::read(
+        "Just major, ratios and comments\n12\n16/15 the semitone\n9/8\n6/5\n"
+        "5/4\n4/3\n45/32\n3/2\n8/5\n5/3\n9/5\n15/8\n2\n");
+
+    check(reading.table.has_value() &&
+              near(reading.table->cents[7], ovt::tuning::kPureFifth, 1.0e-12) &&
+              near(reading.table->cents[4], ovt::tuning::kPureMajorThird,
+                   1.0e-12) &&
+              near(reading.table->periodCents, 1200.0, 1.0e-12),
+          "ratios read as their cents, words after a note are ignored, and a "
+          "whole number is a ratio over one");
+  }
+
+  {
+    // Twelve notes to a tritave, 3/1.
+    juce::String text = "Twelve steps to 3/1\n12\n";
+    for (int i = 1; i < 12; ++i)
+      text << juce::String(1200.0 * std::log2(3.0) * i / 12.0, 6) << "\n";
+    text << "3/1\n";
+
+    const auto reading = ovt::scala::read(text);
+
+    check(reading.table.has_value() &&
+              near(reading.table->periodCents, 1200.0 * std::log2(3.0), 1.0e-9),
+          "a period other than an octave is read as it is");
+
+    if (reading.table.has_value()) {
+      const auto &table = *reading.table;
+      const auto hz = [&table](int key, int root) {
+        return ovt::noteFrequency(key, Temperament::Scala, root, 440.0, &table);
+      };
+
+      check(near(hz(62 + 12, 2) / hz(62, 2), 3.0, 1.0e-12) &&
+                near(hz(69, 2), 440.0, 1.0e-12) &&
+                near(hz(69, 9), 440.0, 1.0e-12),
+            "and repeats there, twelve keys up, with A on the reference");
+    }
+  }
+
+  for (const auto &[text, why] :
+       std::vector<std::pair<juce::String, std::string>>{
+           {"", "an empty file"},
+           {"Only a description\n", "no count"},
+           {"Seven notes\n7\n200.0\n400.0\n500.0\n700.0\n900.0\n1100.0\n2/1\n",
+            "seven notes"},
+           {"Short\n12\n100.0\n200.0\n", "fewer notes than it says"},
+           {"Bad note\n12\n100.0\nabc\n300.0\n400.0\n500.0\n600.0\n700.0\n"
+            "800.0\n900.0\n1000.0\n1100.0\n2/1\n",
+            "a note that is not a number"},
+           {"Zero ratio\n12\n0/1\n200.0\n300.0\n400.0\n500.0\n600.0\n700.0\n"
+            "800.0\n900.0\n1000.0\n1100.0\n2/1\n",
+            "a ratio of nought"},
+           {"Negative ratio\n12\n-3/2\n200.0\n300.0\n400.0\n500.0\n600.0\n"
+            "700.0\n800.0\n900.0\n1000.0\n1100.0\n2/1\n",
+            "a negative ratio"},
+           {"Falling period\n12\n100.0\n200.0\n300.0\n400.0\n500.0\n600.0\n"
+            "700.0\n800.0\n900.0\n1000.0\n1100.0\n-1200.0\n",
+            "a period below the root"},
+       }) {
+    const auto reading = ovt::scala::read(text);
+    check(!reading.table.has_value() && reading.error.isNotEmpty(),
+          why + " is refused with a reason (" + reading.error.toStdString() +
+              ")");
+  }
+
+  check(ovt::scala::read("Seven\n7\n").error.contains("This file has 7"),
+        "and a scale of another size is told how many notes it has");
+
+  // ---- what it tunes ------------------------------------------------------
+  const auto equal = *ovt::scala::read(equalText).table;
+
+  ScaleTable werckmeister;
+  {
+    const auto &offsets = ovt::temperamentOffsets(Temperament::Werckmeister3);
+    for (size_t i = 0; i < 12; ++i)
+      werckmeister.cents[i] = offsets[i] + 100.0 * (double)i;
+  }
+
+  const auto werckText = fileOf(werckmeister, "Werckmeister III");
+  const auto werckRead = ovt::scala::read(werckText);
+
+  check(werckRead.table.has_value(), "a file written from Werckmeister III "
+                                     "reads");
+
+  {
+    bool sameAsEqual = true, sameAsWerck = true;
+
+    for (const auto root : {0, 5, 11})
+      for (const auto reference : {440.0, 432.0})
+        for (int key = 0; key < 128; ++key) {
+          sameAsEqual =
+              sameAsEqual &&
+              near(ovt::noteFrequency(key, Temperament::Scala, root, reference,
+                                      &equal),
+                   ovt::noteFrequency(key, Temperament::Equal, root, reference),
+                   1.0e-12);
+
+          if (werckRead.table.has_value())
+            sameAsWerck =
+                sameAsWerck &&
+                near(ovt::noteFrequency(key, Temperament::Scala, root,
+                                        reference, &*werckRead.table),
+                     ovt::noteFrequency(key, Temperament::Werckmeister3, root,
+                                        reference),
+                     1.0e-9);
+        }
+
+    check(sameAsEqual, "every key of the equal file plays exactly as Equal, on "
+                       "any root and reference");
+    check(sameAsWerck, "and of the Werckmeister file as the built-in "
+                       "Werckmeister III");
+
+    check(near(ovt::noteFrequency(60, Temperament::Scala, 0, 440.0),
+               ovt::noteFrequency(60, Temperament::Equal, 0, 440.0), 1.0e-12),
+          "Scala with no file plays equal temperament");
+  }
+
+  // ---- loading, undo and the session --------------------------------------
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.undo().clearUndoHistory();
+
+  auto *temperament = p.apvts.getParameter(ovt::params::temperamentId);
+  const auto chosen = [&] {
+    return st::choiceIndex(p.apvts, ovt::params::temperamentId);
+  };
+
+  temperament->setValueNotifyingHost(
+      temperament->convertTo0to1((float)(int)Temperament::Just));
+  p.undo().clearUndoHistory();
+
+  check(p.loadScale("not a scale", "nothing").isNotEmpty() &&
+            p.scaleName().isEmpty() && chosen() == (int)Temperament::Just,
+        "a file that cannot be read is refused and changes nothing");
+
+  check(p.loadScale(werckText, "werck3").isEmpty() &&
+            p.scaleName() == "werck3" && chosen() == (int)Temperament::Scala,
+        "a file that can is loaded and chosen");
+
+  {
+    ovt::SynthParams snapshot;
+    p.parameters().snapshot(snapshot, 0.5f);
+
+    bool reaches = true;
+    for (size_t i = 0; i < 12; ++i)
+      reaches = reaches && near(snapshot.global.scale.cents[i],
+                                werckmeister.cents[i], 1.0e-9);
+
+    check(reaches && snapshot.global.temperament == Temperament::Scala,
+          "and reaches the engine with the next block");
+  }
+
+  check(p.undo().undo() && chosen() == (int)Temperament::Just &&
+            p.scaleName() == "werck3",
+        "one undo goes back to the temperament before, and the file stays "
+        "loaded");
+
+  check(p.undo().redo() && chosen() == (int)Temperament::Scala,
+        "and redo chooses it again");
+
+  // A preset neither saves nor changes it.
+  {
+    auto doc = ovt::presets::capture(p.apvts, "Scala test");
+    check(!doc->toString().contains("overtoniumScala"),
+          "a preset does not carry the Scala file");
+
+    p.applyFactoryPreset(presetIndex("Init"));
+    check(p.scaleName() == "werck3" && chosen() == (int)Temperament::Scala,
+          "and loading one keeps it and the temperament");
+  }
+
+  // Saved with the session, and cleared by a session without one.
+  {
+    juce::MemoryBlock withFile;
+    p.getStateInformation(withFile);
+
+    auto other = std::make_unique<OvertoniumProcessor>();
+    juce::MemoryBlock without;
+    other->getStateInformation(without);
+
+    other->setStateInformation(withFile.getData(), (int)withFile.getSize());
+
+    const auto table = other->scaleTable();
+    bool same = true;
+    for (size_t i = 0; i < 12; ++i)
+      same = same && near(table.cents[i], werckmeister.cents[i], 1.0e-9);
+
+    check(other->scaleName() == "werck3" && same &&
+              st::choiceIndex(other->apvts, ovt::params::temperamentId) ==
+                  (int)Temperament::Scala,
+          "a session brings the file back, with no file on disk");
+
+    other->setStateInformation(without.getData(), (int)without.getSize());
+
+    check(other->scaleName().isEmpty() &&
+              near(other->scaleTable().cents[4], 400.0, 1.0e-12),
+          "and a session without one leaves none");
+  }
+
+  // ---- the menus, as data
+  // ----------------------------------------------------
+  {
+    const auto tail = [&](const juce::String &name, bool canLoad) {
+      const auto menu = st::temperament(p.apvts, name, canLoad);
+      std::vector<std::string> items;
+
+      for (juce::PopupMenu::MenuItemIterator it(menu); it.next();) {
+        const auto &item = it.getItem();
+        if (item.itemID != 0)
+          items.push_back(item.text.toStdString() +
+                          (item.isTicked ? " (ticked)" : "") +
+                          (item.isEnabled ? "" : " (off)"));
+      }
+
+      return items.size() >= 2 ? items[items.size() - 2] + " / " + items.back()
+                               : std::string();
+    };
+
+    check(tail("werck3", true) == "Scala: werck3 (ticked) / Load Scala file...",
+          "the list names the file, ticked while it plays (" +
+              tail("werck3", true) + ")");
+
+    check(tail({}, false) == "Scala (no file loaded) (ticked) (off) / Load "
+                             "Scala file... (off)",
+          "and says when Scala plays with no file (" + tail({}, false) + ")");
+
+    temperament->setValueNotifyingHost(
+        temperament->convertTo0to1((float)(int)Temperament::Equal));
+
+    check(tail({}, true) == "Adaptive / Load Scala file...",
+          "with no file and another temperament, only loading is offered (" +
+              tail({}, true) + ")");
+  }
+
+  // ---- in the editor --------------------------------------------------------
+  {
+    auto base = openEditor(p);
+    auto *editor = base.get();
+
+    check(editor != nullptr, "the editor opens");
+    if (editor == nullptr)
+      return;
+
+    ovt::ui::TuningBar *bar = nullptr;
+    std::function<void(juce::Component &)> look = [&](juce::Component &c) {
+      for (auto *child : c.getChildren()) {
+        if (auto *b = dynamic_cast<ovt::ui::TuningBar *>(child))
+          bar = b;
+        look(*child);
+      }
+    };
+    look(*editor);
+
+    check(bar != nullptr, "there is a Tuning bar");
+    if (bar == nullptr)
+      return;
+
+    // What the twelve readouts and the temperament display say.
+    const auto readouts = [bar] {
+      std::string out;
+      for (auto *child : bar->getChildren())
+        if (auto *d = dynamic_cast<ovt::ui::SegmentDisplay *>(child))
+          if (d->getTitle().contains("cents from equal") ||
+              d->getTitle().startsWith("Temperament:"))
+            out += d->getTitle().toStdString() + "; ";
+      return out;
+    };
+
+    temperament->setValueNotifyingHost(
+        temperament->convertTo0to1((float)(int)Temperament::Werckmeister3));
+    bar->refresh();
+    const auto builtIn = readouts();
+
+    const auto folder =
+        juce::File::getSpecialLocation(juce::File::tempDirectory)
+            .getChildFile("overtonium-scala-test");
+    folder.createDirectory();
+
+    const auto good = folder.getChildFile("My Werckmeister.scl");
+    good.replaceWithText(werckText);
+
+    check(editor->loadScaleFile(good).isEmpty() &&
+              p.scaleName() == "My Werckmeister",
+          "a file loads by its name, without the extension");
+
+    const auto fromFile = readouts();
+    auto expected = builtIn;
+    const auto from = expected.find("Temperament: Werckmeister III");
+
+    if (from != std::string::npos)
+      expected.replace(from,
+                       std::string("Temperament: Werckmeister III").size(),
+                       "Temperament: Scala file, My Werckmeister");
+
+    check(fromFile == expected,
+          "the Tuning bar shows it by name, with the same cents as the "
+          "built-in Werckmeister III (" +
+              fromFile + ")");
+
+    // A list of measured notes spanning more than an octave, read as Scala
+    // reads it, with the last as the period. Far from equal, so the cells
+    // drop the tenth when it does not fit and say over range only past a
+    // thousand, while screen readers keep the tenth.
+    const auto wide = folder.getChildFile("Wide.scl");
+    wide.replaceWithText("Wide\n 12\n 202.0\n 412.0\n 532.0\n 769.0\n "
+                         "859.0\n 1024.0\n 1213.0\n 1419.0\n 1629.0\n "
+                         "1734.0\n 1967.0\n 2080.0\n");
+    auto *tuningRoot = p.apvts.getParameter(ovt::params::tuningRootId);
+    tuningRoot->setValueNotifyingHost(tuningRoot->convertTo0to1(0.0f));
+
+    check(editor->loadScaleFile(wide).isEmpty(), "a wide file loads");
+
+    const auto &c = bar->scaleDisplay(0), &a = bar->scaleDisplay(9),
+               &as = bar->scaleDisplay(10), &b = bar->scaleDisplay(11);
+    check(c.getReading().trim() == "-729" && a.getReading().trim() == "0.0" &&
+              as.getReading().trim() == "5.0" &&
+              b.getReading().trim() == "138.0" &&
+              c.getTitle().contains("-729.0 cents"),
+          "cents too wide for the tenth show whole, and screen readers keep "
+          "it (" +
+              c.getReading().toStdString() + ", " +
+              b.getReading().toStdString() + ")");
+
+    check(editor->loadScaleFile(good).isEmpty(), "the first file loads again");
+
+    const auto missing = folder.getChildFile("missing.scl");
+    const auto huge = folder.getChildFile("huge.scl");
+    huge.replaceWithText(juce::String::repeatedString(
+        "! a long comment line\n", (int)(ovt::scala::kMaxFileBytes / 10)));
+
+    check(editor->loadScaleFile(missing).isNotEmpty() &&
+              editor->loadScaleFile(huge).contains("too large") &&
+              p.scaleName() == "My Werckmeister",
+          "a missing or oversized file is refused and the loaded one kept");
+
+    folder.deleteRecursively();
+  }
+
+  // Back to no file and Equal, for whatever runs next.
+  {
+    auto fresh = std::make_unique<OvertoniumProcessor>();
+    juce::MemoryBlock state;
+    fresh->getStateInformation(state);
+    p.setStateInformation(state.getData(), (int)state.getSize());
+  }
+
+  p.applyFactoryPreset(presetIndex("Init"));
+  p.undo().clearUndoHistory();
 }
 
 /// That a screen reader can read PITCH, WHEEL and PRESSURE, and not only
@@ -15319,6 +15720,7 @@ int main(int argc, char **argv) {
   testPlayingReadouts(processor);
   testPlayingBar(processor);
   testPlayingMetersReadAloud(processor);
+  testScalaFiles(processor);
   testBarRightClicks(processor);
   testTuningBar(processor);
   testAdaptiveReadouts(processor);

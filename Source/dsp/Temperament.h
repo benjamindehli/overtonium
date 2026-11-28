@@ -23,7 +23,21 @@ enum class Temperament {
   /// other fixed temperaments.
   KirnbergerIII,
   Vallotti,
+  /// Read from a Scala file the user loads. See ScaleTable.
+  Scala,
   NumTemperaments
+};
+
+/// A tuning read from a Scala file: where each of the twelve notes from the
+/// root sits, and where the scale repeats. See ovt::scala.
+struct ScaleTable {
+  /// Cents above the root, note 0 the root itself at nought.
+  std::array<double, 12> cents{0.0,   100.0, 200.0, 300.0, 400.0,  500.0,
+                               600.0, 700.0, 800.0, 900.0, 1000.0, 1100.0};
+
+  /// Where it repeats, in cents. An octave in most files, but 3/1 or a
+  /// stretched octave are allowed.
+  double periodCents = 1200.0;
 };
 
 /// The name the menus show.
@@ -45,6 +59,8 @@ inline const char *temperamentName(Temperament t) {
     return "Kirnberger III";
   case Temperament::Vallotti:
     return "Vallotti";
+  case Temperament::Scala:
+    return "Scala file";
 
   // Listed rather than left to a default, so adding a temperament is a
   // compiler error here until it has been given a name.
@@ -260,8 +276,28 @@ temperamentOffsets(Temperament t) noexcept {
 ///
 /// @param root         pitch class the temperament is built on, 0 == C.
 /// @param referenceHz  where A sits, in every temperament.
+/// @param scale        the tuning Scala stands for. Without one, Scala is
+///                     equal temperament.
 inline double noteFrequency(int midiNote, Temperament t, int root,
-                            double referenceHz) noexcept {
+                            double referenceHz,
+                            const ScaleTable *scale = nullptr) noexcept {
+  if (t == Temperament::Scala && scale != nullptr) {
+    // Cents above the root's key in the lowest octave. Measured from a root
+    // key and not a pitch class, since a period other than an octave does not
+    // repeat on the same keys. Which root key is taken does not matter, as
+    // only the difference to A is used.
+    const auto above = [scale, root](int key) {
+      const auto steps = key - ((root % 12) + 12) % 12;
+      const auto period = steps >= 0 ? steps / 12 : (steps - 11) / 12;
+      const auto degree = steps - 12 * period;
+
+      return (double)period * scale->periodCents + scale->cents[(size_t)degree];
+    };
+
+    // A is MIDI 69.
+    return referenceHz * std::exp2((above(midiNote) - above(69)) / 1200.0);
+  }
+
   double cents = 0.0;
 
   if (t != Temperament::Equal) {

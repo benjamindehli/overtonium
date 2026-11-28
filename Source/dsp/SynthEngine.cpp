@@ -261,6 +261,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
   // needs and does not carry.
   legatoTemperament = p.global.temperament;
   legatoRoot = p.global.tuningRoot;
+  legatoScale = p.global.scale;
   legatoReferenceHz = p.global.referenceHz;
   adaptiveOn = p.global.temperament == Temperament::Adaptive;
   adaptiveRetune = p.global.adaptiveRetuneSeconds;
@@ -333,7 +334,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       const auto own = v.notePitches();
       v.retune(channel, note,
                frequencyFor(note, p.global.temperament, p.global.tuningRoot,
-                            p.global.referenceHz, &v));
+                            p.global.referenceHz, p.global.scale, &v));
       v.startGlide(own, glide);
       v.setAge(++ageCounter);
       lastNoteFrequency = v.getFrequency();
@@ -461,7 +462,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
       pressedWithOthers[heldIndex] = withOthers;
       held->noteOn(channel, note, velocity, p,
                    frequencyFor(note, p.global.temperament, p.global.tuningRoot,
-                                p.global.referenceHz, held));
+                                p.global.referenceHz, p.global.scale, held));
 
       if (glides)
         held->startGlide(from, glide);
@@ -514,7 +515,7 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 
   target->noteOn(channel, note, velocity, p,
                  frequencyFor(note, p.global.temperament, p.global.tuningRoot,
-                              p.global.referenceHz, target));
+                              p.global.referenceHz, p.global.scale, target));
 
   if (carryFrom >= 0 && carryFrom != (int)index &&
       voices[(size_t)carryFrom].isActive()) {
@@ -536,10 +537,10 @@ void SynthEngine::noteOnImpl(int channel, int note, float velocity,
 }
 
 double SynthEngine::frequencyFor(int note, Temperament temperament, int root,
-                                 double referenceHz,
+                                 double referenceHz, const ScaleTable &scale,
                                  const Voice *self) noexcept {
   if (temperament != Temperament::Adaptive)
-    return noteFrequency(note, temperament, root, referenceHz);
+    return noteFrequency(note, temperament, root, referenceHz, &scale);
 
   return settleAdaptive(note, root, referenceHz, self);
 }
@@ -981,7 +982,7 @@ double SynthEngine::restingFrequency(int note,
   const auto reference = p.global.referenceHz;
 
   if (t != Temperament::Adaptive)
-    return noteFrequency(note, t, root, reference);
+    return noteFrequency(note, t, root, reference, &p.global.scale);
 
   const auto version = adaptiveVersion[(size_t)(((note % 12) + 12) % 12)];
   return noteFrequency(note, t, root, reference) *
@@ -1288,7 +1289,7 @@ void SynthEngine::noteOffImpl(int channel, int note, float lift) noexcept {
 
           v.retune(channel, back,
                    frequencyFor(back, legatoTemperament, legatoRoot,
-                                legatoReferenceHz, &v));
+                                legatoReferenceHz, legatoScale, &v));
           v.startGlide(own, glide);
           lastNoteFrequency = v.getFrequency();
           return;

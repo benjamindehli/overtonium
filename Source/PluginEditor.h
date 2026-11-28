@@ -226,6 +226,12 @@ public:
   void pasteChannel(const ovt::channelcopy::Settings &, int channel,
                     bool toSelection);
 
+  /// Reads a Scala file and loads it as the session's tuning. Public so a
+  /// test can call it, since the file chooser needs a window.
+  ///
+  /// @returns why it cannot be used, or empty when it was loaded
+  juce::String loadScaleFile(const juce::File &);
+
   /// The MIDI Learn items alone, for controls LINK does not gang: the bars and
   /// the noise channel.
   void showLearnMenu(const juce::String &parameterId);
@@ -340,6 +346,14 @@ private:
 
   /// Shows a message without blocking the message thread.
   void complain(const juce::String &title, const juce::String &detail);
+
+  /// Opens the file chooser for "Load Scala file...", and loads what is
+  /// picked.
+  void chooseScaleFile();
+
+  /// Kept while it is open, since an asynchronous chooser closes when it is
+  /// deleted.
+  std::unique_ptr<juce::FileChooser> scaleChooser;
 
   /// Which strips a drag from this one would reach, and by how much. Zero marks
   /// a strip the scope leaves out.

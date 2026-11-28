@@ -93,7 +93,7 @@ PRODUCT = {
         "Twelve oscillator characters: an exact sine, five analogue circuits, and six measured from recordings of real instruments, a tonewheel organ, an FM and a phase distortion synthesizer, a 6581 sound chip, an analogue VCO and a transistor combo organ",
         "A Karplus-Strong string in the noise channel, tuned to the note, that the noise plucks or blows into",
         "Continuous blend between equal temperament and just intonation",
-        "Nine keyboard temperaments on any root, one of them adaptive",
+        "Nine keyboard temperaments on any root, one of them adaptive, and tunings loaded from Scala files",
         "Inharmonic stretch and keyboard tracking",
         "Per-partial envelope, tremolo, pitch modulation and pan",
         "MPE, with pitch bend and pressure per note",
@@ -181,7 +181,8 @@ QUESTIONS = [
         "Yes, both, and they are set separately. TUNE moves each partial between its equal-tempered position and its exact whole-number "
         "ratio. The keyboard has its own tuning: equal, just, Pythagorean, quarter-comma meantone, Werckmeister III, Vallotti, Kirnberger III or Young, on any root, at "
         'any of eleven reference pitches from 415 to 466 Hz. It can also use <a href="tuning/#adaptive">Adaptive</a>, which keeps the chord you hold in '
-        "just intonation as you play, and moves a held note when the next chord needs it.",
+        "just intonation as you play, and moves a held note when the next chord needs it, or any "
+        '<a href="tuning/#scala">Scala file</a> of twelve notes.',
     ),
     (
         "Does Overtonium support MPE?",
@@ -261,16 +262,16 @@ PAGES = [
     {
         "path": "tuning/",
         "nav": "Tuning",
-        "title": "The Overtonium tuning system: TUNE, stretch and nine temperaments",
-        "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, keyboard tracking and drift.",
+        "title": "The Overtonium tuning system: TUNE, stretch, temperaments and Scala files",
+        "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, Scala files, keyboard tracking and drift.",
         "social": "Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to.",
         "image": "overtonium-card-tuning.jpg",
         "image_alt": "The Overtonium wordmark over the plugin window, captioned Tuning.",
         "scripts": ["contents.js"],
         "jsonld": ["breadcrumbs"],
-        "card": "TUNE, inharmonic stretch, eight historical temperaments and an adaptive one on any root, and how the spectrum thins out higher up the keyboard.",
-        "card_404": "TUNE, inharmonic stretch, nine temperaments and keyboard tracking.",
-        "llms": 'TUNE from equal to just, inharmonic stretch, eight historical temperaments and an adaptive one that retunes each key as it is played, on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Includes audio of each and a diagram of where every partial falls against the semitone it snaps to.',
+        "card": "TUNE, inharmonic stretch, eight historical temperaments, an adaptive one and Scala files on any root, and how the spectrum thins out higher up the keyboard.",
+        "card_404": "TUNE, inharmonic stretch, nine temperaments, Scala files and keyboard tracking.",
+        "llms": 'TUNE from equal to just, inharmonic stretch, eight historical temperaments, an adaptive one that retunes each key as it is played, and tunings loaded from Scala files, on any root, at a reference pitch from a list running 415 to 466 Hz, keyboard tracking, and per-partial drift. Includes audio of each and a diagram of where every partial falls against the semitone it snaps to.',
         "priority": "0.8",
     },
     {

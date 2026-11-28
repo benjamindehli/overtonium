@@ -206,6 +206,25 @@ public:
   /// For a preset of your own, which has no program index to be found by.
   void setLoadedPresetName(const juce::String &name);
 
+  /// Reads a Scala file's text and makes it the tuning Temperament::Scala
+  /// plays, then switches the temperament to it as one undo step. The tuning
+  /// belongs to the session, like the temperament, so a preset neither saves
+  /// nor changes it. Message thread.
+  ///
+  /// @param name  what the menus call it, usually the file's name
+  /// @returns why the text cannot be used, or empty when it was loaded
+  juce::String loadScale(const juce::String &text, const juce::String &name);
+
+  /// The name of the Scala file the session holds, empty when none.
+  juce::String scaleName() const {
+    const juce::ScopedLock sl(sessionLock);
+    return scaleNameHeld;
+  }
+
+  /// The tuning Temperament::Scala plays: the session's Scala file, or equal
+  /// temperament when it holds none.
+  ovt::ScaleTable scaleTable() const;
+
   /// What every direct write to apvts.state has to hold, and what the host's
   /// state calls hold while they read or replace it.
   ///
@@ -390,6 +409,10 @@ private:
 
   /// See stateLock. Mutable so presetName can take it.
   mutable juce::CriticalSection sessionLock;
+
+  /// The session's Scala file and its name, empty when it holds none. Under
+  /// sessionLock. Written into the state when the host asks for it.
+  juce::String scaleText, scaleNameHeld;
 
   /// Last, so it is destroyed first and its network thread is joined before
   /// the rest of the instance is torn down.

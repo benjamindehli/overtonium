@@ -326,6 +326,12 @@ void OptionBar::showList(juce::Component &anchor, const juce::PopupMenu &list,
                          .withTargetComponent(&anchor)
                          .withStandardItemHeight(22),
                      [self, &apvts](int result) {
+                       if (result == settings::kLoadScala) {
+                         if (self != nullptr && self->onLoadScale != nullptr)
+                           self->onLoadScale();
+                         return;
+                       }
+
                        if (result != 0 && settings::apply(apvts, result) &&
                            self != nullptr)
                          self->refresh();
@@ -657,6 +663,9 @@ juce::String pitchName(int key) {
   return params::kPitchClassNames[(size_t)(((key % 12) + 12) % 12)];
 }
 
+/// How many cells each of the Tuning bar's twelve cents displays has.
+constexpr int kScaleCells = 4;
+
 double centsBetween(double low, double high) {
   return 1200.0 * std::log2(high / low);
 }
@@ -824,7 +833,7 @@ namespace {
 /// In Temperament's order, cut to eight cells where needed.
 constexpr const char *kTemperamentWords[] = {
     "EQUAL", "JUST",     "PYTHAG",   "MEANTONE", "WERCKIII",
-    "YOUNG", "ADAPTIVE", "KIRNBIII", "VALLOTTI"};
+    "YOUNG", "ADAPTIVE", "KIRNBIII", "VALLOTTI", "SCALA"};
 static_assert(std::size(kTemperamentWords) ==
                   (size_t)Temperament::NumTemperaments,
               "a word for every temperament");
@@ -857,7 +866,11 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
           apvts, params::adaptiveRetuneId, retune.slider);
 
   temperament.onClick = [this] {
-    showList(temperament, settings::temperament(apvts), apvts);
+    showList(temperament,
+             settings::temperament(
+                 apvts, scaleName != nullptr ? scaleName() : juce::String(),
+                 onLoadScale != nullptr),
+             apvts);
   };
 
   // Opens nothing when nothing uses the root. See settings::rootInUse.
@@ -877,7 +890,8 @@ TuningBar::TuningBar(juce::AudioProcessorValueTreeState &state,
 
   std::vector<Item> scaleItems;
   for (int pc = 0; pc < 12; ++pc) {
-    scale[(size_t)pc] = std::make_unique<SegmentDisplay>(juce::String());
+    scale[(size_t)pc] = std::make_unique<SegmentDisplay>(
+        juce::String(), SegmentDisplay::Bars::Seven, kScaleCells);
     scale[(size_t)pc]->setTooltip(
         "How far this note sits from equal temperament, in cents, with A on "
         "the reference pitch");
@@ -935,8 +949,17 @@ void TuningBar::refresh() {
   const auto adaptive = picked == (int)Temperament::Adaptive;
 
   temperament.setReading(temperamentWord(picked), true);
+
+  // A Scala file by its name, or as equal temperament when there is none.
+  const auto file = picked == (int)Temperament::Scala && scaleName != nullptr
+                        ? scaleName()
+                        : juce::String();
   temperament.setTitle(juce::String("Temperament: ") +
-                       temperamentName((Temperament)picked));
+                       (picked != (int)Temperament::Scala
+                            ? juce::String(temperamentName((Temperament)picked))
+                        : file.isNotEmpty()
+                            ? "Scala file, " + file
+                            : juce::String("Scala, no file loaded, so equal")));
 
   const auto key =
       juce::jlimit(0, (int)params::kPitchClassNames.size() - 1,
@@ -1066,6 +1089,7 @@ void TuningBar::showScale() {
                           settings::choiceIndex(apvts, params::referenceHzId))];
 
   const auto count = juce::jlimit(0, AdaptiveSnapshot::kMaxNotes, chord.count);
+  const auto table = scaleTable != nullptr ? scaleTable() : ScaleTable{};
 
   for (int pc = 0; pc < 12; ++pc) {
     // Middle C's octave stands for every octave, since a pitch class sits the
@@ -1093,12 +1117,22 @@ void TuningBar::showScale() {
              std::exp2((double)version * tuning::kAdaptiveComma / 1200.0);
       }
     } else {
-      hz = noteFrequency(key, (Temperament)picked, rootClass, referenceHz);
+      hz = noteFrequency(key, (Temperament)picked, rootClass, referenceHz,
+                         &table);
     }
 
-    const auto text = centsReading(centsBetween(equal, hz));
+    const auto cents = centsBetween(equal, hz);
+    const auto text = centsReading(cents);
     auto &display = *scale[(size_t)pc];
-    display.setReading(text, sounding);
+
+    // A Scala file can sit hundreds of cents from equal, more than four cells
+    // hold with the tenth. Whole cents then, and the over-range sign only
+    // past a thousand. Screen readers still get the tenth.
+    const auto cellsNeeded = text.length() - (text.containsChar('.') ? 1 : 0);
+    display.setReading(cellsNeeded > kScaleCells
+                           ? juce::String(juce::roundToInt(cents))
+                           : text,
+                       sounding);
     display.setTitle(juce::String(params::kPitchClassNames[(size_t)pc]) + ": " +
                      text + " cents from equal" +
                      (adaptive ? (sounding ? ", held" : ", not held") : ""));

@@ -1004,7 +1004,10 @@ juce::PopupMenu TopBar::buildSettingsMenu() {
 
   m.addSeparator();
   m.addSectionHeader("Tuning");
-  m.addSubMenu("Temperament", settings::temperament(apvts));
+  m.addSubMenu("Temperament",
+               settings::temperament(
+                   apvts, scaleName != nullptr ? scaleName() : juce::String(),
+                   onLoadScale != nullptr));
 
   // Greyed out when nothing uses the root.
   m.addSubMenu("Root", settings::root(apvts), settings::rootInUse(apvts));
@@ -1077,6 +1080,10 @@ void TopBar::showSettingsMenu() {
                   [this](int result) {
                     if (result == 0)
                       return;
+
+                    // Opens a file chooser, so it is the editor's.
+                    if (result == settings::kLoadScala)
+                      return onLoadScale ? onLoadScale() : void();
 
                     // Everything the bars offer as well.
                     if (settings::apply(apvts, result))

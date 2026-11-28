@@ -530,6 +530,7 @@ private:
   /// parameters.
   Temperament legatoTemperament = Temperament::Equal;
   int legatoRoot = 0;
+  ScaleTable legatoScale;
   double legatoReferenceHz = 440.0;
 
   /// Where a key is tuned. A fixed temperament is a table. Adaptive settles it
@@ -538,7 +539,8 @@ private:
   /// @param self  the voice this key is going to, left out of what it is tuned
   ///              against, since it may still be sounding its old note.
   double frequencyFor(int note, Temperament temperament, int root,
-                      double referenceHz, const Voice *self) noexcept;
+                      double referenceHz, const ScaleTable &scale,
+                      const Voice *self) noexcept;
 
   /// Which of its five versions each pitch class took last, -2 to 2 commas
   /// from its place in just major on the root. A key with nothing to tune

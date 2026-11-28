@@ -1,6 +1,6 @@
-Page: The Overtonium tuning system: TUNE, stretch and nine temperaments
+Page: The Overtonium tuning system: TUNE, stretch, temperaments and Scala files
 URL: https://benjamindehli.github.io/overtonium/tuning/
-Last changed: 2026-11-06
+Last changed: 2026-11-28
 
 # The Overtonium tuning system
 
@@ -77,7 +77,7 @@ One note while STRETCH turns from a harmonic series to beyond a piano. The botto
 
 ## Tuning the keyboard
 
-Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have nine temperaments: eight fixed ones, and one that retunes as you play.
+Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings and the [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) have nine temperaments: eight fixed ones, and one that retunes as you play. They can also play a tuning loaded from a [Scala file](https://benjamindehli.github.io/overtonium/tuning/#scala).
 
 | Temperament                                                             | Major third | Fifth  | What it is                                                                      |
 | ----------------------------------------------------------------------- | ----------- | ------ | ------------------------------------------------------------------------------- |
@@ -114,6 +114,14 @@ The [Tuning bar](https://benjamindehli.github.io/overtonium/playing/#bars) shows
 [Image: The Tuning bar under Adaptive with C7 held: the temperament reading Adaptive on a root of C at 440 Hz with a drift of 0, NO DRIFT off, 7:4 lit, PURE lit and the Retune knob near its start, then twelve displays for the notes, C, E, G and B flat lit at 15.4, 1.7, 17.1 and minus 15.8 cents, the white keys on a light ground.]
 
 C7 under Adaptive. C is 15.4 cents above equal, where just major on C puts it with A at 440. E and G are a pure third and fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
+
+### Scala files
+
+**Load Scala file...**, at the end of the Temperament list in Settings and on the Tuning bar, reads a tuning from a Scala file (.scl). Scala is the common format for tunings, and thousands of historical, regional and experimental tunings are published in it. Once a file is loaded, the list shows it by its name, and the Tuning bar shows its notes in cents from equal temperament, as it does for the built-in temperaments.
+
+The file must have twelve notes, the last one being where the scale repeats. That is usually the octave, but it can be any interval above the first note, such as 3/1, and the scale then repeats every twelve keys at that interval. Scales of other sizes are refused, because Root and the Tuning bar work with twelve pitch classes. Root sets the key the scale starts on, and A stays on the reference pitch, as with the built-in temperaments. Keyboard mapping files (.kbm) are not read.
+
+The tuning belongs to the session, like the temperament. It is saved with your project as text, so the project opens the same on a computer without the file, and loading a preset does not change it. Choosing another temperament keeps the file loaded, so you can go back to it from the list. Notes that are already sounding keep their pitch, and the next ones take the new tuning.
 
 ### Root
 

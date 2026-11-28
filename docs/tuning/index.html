@@ -3,10 +3,10 @@
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>The Overtonium tuning system: TUNE, stretch and nine temperaments</title>
+        <title>The Overtonium tuning system: TUNE, stretch, temperaments and Scala files</title>
         <meta
             name="description"
-            content="Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, keyboard tracking and drift."
+            content="Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, Scala files, keyboard tracking and drift."
         />
         <meta name="author" content="Benjamin Dehli" />
         <meta name="robots" content="max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
@@ -18,7 +18,7 @@
         <meta property="og:site_name" content="Overtonium" />
         <meta property="og:locale" content="en_GB" />
         <meta property="og:url" content="https://benjamindehli.github.io/overtonium/tuning/" />
-        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch and nine temperaments" />
+        <meta property="og:title" content="The Overtonium tuning system: TUNE, stretch, temperaments and Scala files" />
         <meta
             property="og:description"
             content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
@@ -30,7 +30,7 @@
         <meta property="og:image:alt" content="The Overtonium wordmark over the plugin window, captioned Tuning." />
 
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch and nine temperaments" />
+        <meta name="twitter:title" content="The Overtonium tuning system: TUNE, stretch, temperaments and Scala files" />
         <meta
             name="twitter:description"
             content="Audio of TUNE blending every partial between equal temperament and just intonation, STRETCH from harmonic to beyond a piano, a chord in equal temperament against Werckmeister III, keyboard tracking thinning the partials as you play higher, and per-partial drift. There is also a diagram of where each partial falls against the semitone it snaps to."
@@ -49,8 +49,8 @@
                 "@type": "WebPage",
                 "@id": "https://benjamindehli.github.io/overtonium/tuning/#webpage",
                 "url": "https://benjamindehli.github.io/overtonium/tuning/",
-                "name": "The Overtonium tuning system: TUNE, stretch and nine temperaments",
-                "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, keyboard tracking and drift.",
+                "name": "The Overtonium tuning system: TUNE, stretch, temperaments and Scala files",
+                "description": "Hear TUNE blend every partial between equal temperament and just intonation, plus inharmonic stretch, nine temperaments, Scala files, keyboard tracking and drift.",
                 "inLanguage": "en-GB",
                 "isPartOf": {
                     "@id": "https://benjamindehli.github.io/overtonium/#website"
@@ -64,7 +64,7 @@
                     "width": 1200,
                     "height": 630
                 },
-                "dateModified": "2026-11-06",
+                "dateModified": "2026-11-28",
                 "breadcrumb": {
                     "@id": "https://benjamindehli.github.io/overtonium/tuning/#breadcrumb"
                 }
@@ -336,6 +336,7 @@
                                         <a href="#keyboard">Tuning the keyboard</a>
                                         <ul>
                                             <li><a href="#adaptive">Adaptive</a></li>
+                                            <li><a href="#scala">Scala files</a></li>
                                             <li><a href="#root">Root</a></li>
                                             <li><a href="#reference-pitch">Reference pitch</a></li>
                                         </ul>
@@ -841,6 +842,7 @@
                     <p>
                         Everything above is about where a partial sits above the note you play. This section is about how that note is tuned. Settings
                         and the <a href="../playing/#bars">Tuning bar</a> have nine temperaments: eight fixed ones, and one that retunes as you play.
+                        They can also play a tuning loaded from a <a href="#scala">Scala file</a>.
                     </p>
 
                     <div class="scroll">
@@ -1012,6 +1014,28 @@
                             fifth above it, and B flat is the harmonic seventh, 31.2 cents below C's equal-tempered seventh.
                         </figcaption>
                     </figure>
+
+                    <h3 id="scala">Scala files</h3>
+                    <p>
+                        <strong>Load Scala file...</strong>, at the end of the Temperament list in Settings and on the Tuning bar, reads a tuning from
+                        a Scala file (.scl). Scala is the common format for tunings, and thousands of historical, regional and experimental tunings
+                        are published in it. Once a file is loaded, the list shows it by its name, and the Tuning bar shows its notes in cents from
+                        equal temperament, as it does for the built-in temperaments.
+                    </p>
+
+                    <p>
+                        The file must have twelve notes, the last one being where the scale repeats. That is usually the octave, but it can be any
+                        interval above the first note, such as 3/1, and the scale then repeats every twelve keys at that interval. Scales of other
+                        sizes are refused, because Root and the Tuning bar work with twelve pitch classes. Root sets the key the scale starts on, and
+                        A stays on the reference pitch, as with the built-in temperaments. Keyboard mapping files (.kbm) are not read.
+                    </p>
+
+                    <p>
+                        The tuning belongs to the session, like the temperament. It is saved with your project as text, so the project opens the same
+                        on a computer without the file, and loading a preset does not change it. Choosing another temperament keeps the file loaded,
+                        so you can go back to it from the list. Notes that are already sounding keep their pitch, and the next ones take the new
+                        tuning.
+                    </p>
 
                     <h3 id="root">Root</h3>
                     <p>

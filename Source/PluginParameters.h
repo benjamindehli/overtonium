@@ -439,6 +439,16 @@ struct Cache {
   /// since nothing in the parameter tree holds it.
   MacroChannels macroChannels{};
 
+  /// The tuning Temperament::Scala plays, set on the message thread when a
+  /// file is loaded or a session restored, and read on the audio thread. One
+  /// atomic each, so neither waits. A block read halfway through a change
+  /// mixes two tunings for that block only, and only new notes take them.
+  std::array<std::atomic<double>, 12> scaleCents{};
+  std::atomic<double> scalePeriod{1200.0};
+
+  /// Sets the above. Message thread only.
+  void publishScale(const ScaleTable &);
+
   /// The range of every row a macro can drive, read once. Every channel shares
   /// one range per row.
   std::array<juce::NormalisableRange<float>, (size_t)kNumMacroRows> rowRange{};

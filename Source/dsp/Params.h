@@ -171,6 +171,9 @@ struct GlobalParams {
   Temperament temperament = Temperament::Equal;
   int tuningRoot = 0;         ///< pitch class the temperament is built on
   double referenceHz = 440.0; ///< where A sits, whatever the temperament
+  /// The tuning Temperament::Scala plays, from the file the user loaded.
+  /// Equal temperament until one is.
+  ScaleTable scale;
   /// How long a held note takes to slide to its new version when the adaptive
   /// temperament retunes it. See SynthEngine::settleAdaptive.
   double adaptiveRetuneSeconds = 0.03;
